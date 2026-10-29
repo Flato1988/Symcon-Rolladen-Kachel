@@ -49,6 +49,19 @@ Kachel im Stil der Original-Licht-Kachel:
 | Dimmen absolut – Befehl | 6/3/2 (DPT 5) |
 | Status Dimmwert – Rückmeldung | 6/3/4 (DPT 5) |
 | Schalten (zum Ausschalten) | 6/3/0 (DPT 1) |
+| Diagnosetext (optional) | 6/3/13 (DPT 16) |
+| Wirkleistung (optional) | 6/3/7 (DPT 14, W) |
+
+## Verbrauch und Stromkosten
+Ist die Wirkleistung konfiguriert, legt das Modul an (sichtbar in der Vollbildansicht):
+- **Wirkleistung** (W) – im Archiv als Verlauf aufgezeichnet
+- **Verbrauch heute**, **Kosten heute / diesen Monat / dieses Jahr**
+- **Verbrauch gesamt** und **Kosten gesamt** – im Archiv als **Zähler** aufgezeichnet.
+  Im Diagramm dieser Variablen zeigt Symcon die Summe je Stunde/Tag/Woche/Monat/Jahr.
+
+Der Verbrauch wird minütlich und bei jeder Leistungsänderung aus der Wirkleistung berechnet
+(Lücken > 15 min, z.B. Symcon-Neustart, werden nicht hochgerechnet).
+Der Strompreis (€/kWh) wird in der Instanz hinterlegt; eine Änderung gilt ab diesem Zeitpunkt.
 
 ## PHP-Befehle
 `LTK_SwitchLight($id, true|false)`, `LTK_SetLevel($id, 50)`, `LTK_Toggle($id)`

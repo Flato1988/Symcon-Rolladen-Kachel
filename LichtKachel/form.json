@@ -3,7 +3,13 @@
         { "type": "ValidationTextBox", "name": "TileName", "caption": "Bezeichnung (Titel der Kachel, z.B. Hauptlicht Wohnzimmer)" },
         { "type": "SelectVariable", "name": "DimVariableID", "caption": "Dimmen absolut – Befehl (z.B. 6/3/2)" },
         { "type": "SelectVariable", "name": "DimStatusVariableID", "caption": "Status Dimmwert – Rückmeldung (z.B. 6/3/4), optional" },
-        { "type": "SelectVariable", "name": "SwitchVariableID", "caption": "Schalten (z.B. 6/3/0), optional – wird zum Ausschalten verwendet" }
+        { "type": "SelectVariable", "name": "SwitchVariableID", "caption": "Schalten (z.B. 6/3/0), optional – wird zum Ausschalten verwendet" },
+        { "type": "ExpansionPanel", "caption": "Diagnose, Leistung und Stromkosten (optional)", "items": [
+            { "type": "SelectVariable", "name": "DiagnosisVariableID", "caption": "Diagnosetext (z.B. 6/3/13)" },
+            { "type": "SelectVariable", "name": "PowerVariableID", "caption": "Wirkleistung in W (z.B. 6/3/7)" },
+            { "type": "NumberSpinner", "name": "PricePerKWh", "caption": "Strompreis", "suffix": "€/kWh", "digits": 4, "minimum": 0 },
+            { "type": "Label", "caption": "Aus der Wirkleistung werden Verbrauch und Kosten berechnet und im Archiv aufgezeichnet. Eine Preisänderung gilt ab dann – bisherige Kosten bleiben erhalten." }
+        ]}
     ],
     "actions": [
         { "type": "RowLayout", "items": [

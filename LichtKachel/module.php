@@ -12,6 +12,19 @@ class LichtKachel extends IPSModule
         $this->RegisterPropertyInteger('DimVariableID', 0);       // Befehl: Dimmen absolut (z.B. 6/3/2)
         $this->RegisterPropertyInteger('DimStatusVariableID', 0); // Rückmeldung: Status Dimmwert (z.B. 6/3/4)
         $this->RegisterPropertyInteger('SwitchVariableID', 0);    // Schalten (z.B. 6/3/0)
+        $this->RegisterPropertyInteger('DiagnosisVariableID', 0); // Diagnosetext (z.B. 6/3/13)
+        $this->RegisterPropertyInteger('PowerVariableID', 0);     // Wirkleistung in W (z.B. 6/3/7)
+        $this->RegisterPropertyFloat('PricePerKWh', 0.30);        // Strompreis in €/kWh
+
+        // Energiezählung: letzter Messzeitpunkt/-wert und aktuelle Zeiträume
+        $this->RegisterAttributeInteger('LastTimestamp', 0);
+        $this->RegisterAttributeFloat('LastPower', 0);
+        $this->RegisterAttributeString('PeriodDay', '');
+        $this->RegisterAttributeString('PeriodMonth', '');
+        $this->RegisterAttributeString('PeriodYear', '');
+
+        // Rechnet den Verbrauch auch dann weiter, wenn sich die Leistung länger nicht ändert
+        $this->RegisterTimer('UpdateEnergy', 0, 'LTK_UpdateEnergy($_IPS[\'TARGET\']);');
 
         // Kachel über das HTML-SDK darstellen
         $this->SetVisualizationType(1);
@@ -39,7 +52,7 @@ class LichtKachel extends IPSModule
 
         $this->RegisterMessage(0, IPS_KERNELSTARTED);
 
-        foreach (['DimVariableID', 'DimStatusVariableID', 'SwitchVariableID'] as $property) {
+        foreach (['DimVariableID', 'DimStatusVariableID', 'SwitchVariableID', 'DiagnosisVariableID', 'PowerVariableID'] as $property) {
             $id = $this->ReadPropertyInteger($property);
             if ($id > 0 && IPS_VariableExists($id)) {
                 $this->RegisterReference($id);
@@ -59,6 +72,33 @@ class LichtKachel extends IPSModule
         $this->EnableAction('State');
         $this->RegisterVariableInteger('Brightness', 'Helligkeit', 'LTK.Brightness', 2);
         $this->EnableAction('Brightness');
+
+        // Diagnose, Leistung, Verbrauch und Kosten – nur wenn die jeweilige Variable konfiguriert ist
+        $this->CreateProfile('LTK.Power', VARIABLETYPE_FLOAT, ' W', 1, 'Electricity');
+        $this->CreateProfile('LTK.Energy', VARIABLETYPE_FLOAT, ' kWh', 3, 'Electricity');
+        $this->CreateProfile('LTK.Cost', VARIABLETYPE_FLOAT, ' €', 2, 'Euro');
+        $hasDiagnosis = $this->VariableConfigured('DiagnosisVariableID');
+        $hasPower = $this->VariableConfigured('PowerVariableID');
+        $this->MaintainVariable('Power', 'Wirkleistung', VARIABLETYPE_FLOAT, 'LTK.Power', 3, $hasPower);
+        $this->MaintainVariable('EnergyToday', 'Verbrauch heute', VARIABLETYPE_FLOAT, 'LTK.Energy', 4, $hasPower);
+        $this->MaintainVariable('CostToday', 'Kosten heute', VARIABLETYPE_FLOAT, 'LTK.Cost', 5, $hasPower);
+        $this->MaintainVariable('CostMonth', 'Kosten diesen Monat', VARIABLETYPE_FLOAT, 'LTK.Cost', 6, $hasPower);
+        $this->MaintainVariable('CostYear', 'Kosten dieses Jahr', VARIABLETYPE_FLOAT, 'LTK.Cost', 7, $hasPower);
+        $this->MaintainVariable('EnergyTotal', 'Verbrauch gesamt', VARIABLETYPE_FLOAT, 'LTK.Energy', 8, $hasPower);
+        $this->MaintainVariable('CostTotal', 'Kosten gesamt', VARIABLETYPE_FLOAT, 'LTK.Cost', 9, $hasPower);
+        $this->MaintainVariable('Diagnosis', 'Diagnose', VARIABLETYPE_STRING, '', 10, $hasDiagnosis);
+
+        if ($hasPower) {
+            // Aufzeichnung im Archiv: Leistung als Verlauf, Gesamtwerte als Zähler
+            // (Zähler = Symcon bildet im Diagramm die Summen je Stunde/Tag/Woche/Monat/Jahr)
+            $this->EnableLogging('Power', 0);
+            $this->EnableLogging('EnergyTotal', 1);
+            $this->EnableLogging('CostTotal', 1);
+            $this->SetTimerInterval('UpdateEnergy', 60 * 1000);
+        } else {
+            $this->SetTimerInterval('UpdateEnergy', 0);
+        }
+
         $this->SyncChildVariables();
 
         $dimID = $this->ReadPropertyInteger('DimVariableID');
@@ -79,6 +119,10 @@ class LichtKachel extends IPSModule
                 break;
 
             case VM_UPDATE:
+                if ($SenderID === $this->ReadPropertyInteger('PowerVariableID')) {
+                    // Verbrauch bis jetzt mit der bisherigen Leistung abrechnen, dann neue Leistung merken
+                    $this->UpdateEnergy();
+                }
                 // Aktualisiert die Kachel auch bei Bedienung über Wandtaster, Zentral-Aus usw.
                 $this->SyncChildVariables();
                 $this->UpdateVisualizationValue($this->GetFullUpdateMessage());
@@ -152,6 +196,86 @@ class LichtKachel extends IPSModule
         $this->SwitchLight($this->GetLevel() <= 0);
     }
 
+    /** Verbrauch (kWh) und Kosten aus der Wirkleistung seit der letzten Messung aufaddieren */
+    public function UpdateEnergy()
+    {
+        if (!$this->VariableConfigured('PowerVariableID') || !@$this->GetIDForIdent('EnergyTotal')) {
+            return;
+        }
+        $now = time();
+        $this->StartNewPeriods($now);
+
+        $last = $this->ReadAttributeInteger('LastTimestamp');
+        // Lücken über 15 Minuten (z.B. Symcon war aus) nicht hochrechnen
+        if ($last > 0 && $now > $last && $now - $last <= 15 * 60) {
+            $kWh = max(0, $this->ReadAttributeFloat('LastPower')) * ($now - $last) / 3600 / 1000;
+            $cost = $kWh * $this->ReadPropertyFloat('PricePerKWh');
+            if ($kWh > 0) {
+                $this->SetValue('EnergyToday', $this->GetValue('EnergyToday') + $kWh);
+                $this->SetValue('EnergyTotal', $this->GetValue('EnergyTotal') + $kWh);
+                $this->SetValue('CostToday', $this->GetValue('CostToday') + $cost);
+                $this->SetValue('CostMonth', $this->GetValue('CostMonth') + $cost);
+                $this->SetValue('CostYear', $this->GetValue('CostYear') + $cost);
+                $this->SetValue('CostTotal', $this->GetValue('CostTotal') + $cost);
+            }
+        }
+        $this->WriteAttributeInteger('LastTimestamp', $now);
+        $this->WriteAttributeFloat('LastPower', (float) GetValue($this->ReadPropertyInteger('PowerVariableID')));
+    }
+
+    /** Setzt Tages-, Monats- und Jahreswerte zum Beginn eines neuen Zeitraums zurück */
+    private function StartNewPeriods(int $now)
+    {
+        $periods = [
+            'PeriodDay'   => [date('Y-m-d', $now), ['EnergyToday', 'CostToday']],
+            'PeriodMonth' => [date('Y-m', $now), ['CostMonth']],
+            'PeriodYear'  => [date('Y', $now), ['CostYear']]
+        ];
+        foreach ($periods as $attribute => [$current, $idents]) {
+            $previous = $this->ReadAttributeString($attribute);
+            if ($previous !== $current) {
+                if ($previous !== '') {
+                    foreach ($idents as $ident) {
+                        $this->SetValue($ident, 0);
+                    }
+                }
+                $this->WriteAttributeString($attribute, $current);
+            }
+        }
+    }
+
+    private function VariableConfigured(string $property): bool
+    {
+        $id = $this->ReadPropertyInteger($property);
+        return $id > 0 && IPS_VariableExists($id);
+    }
+
+    private function CreateProfile(string $name, int $type, string $suffix, int $digits, string $icon)
+    {
+        if (!IPS_VariableProfileExists($name)) {
+            IPS_CreateVariableProfile($name, $type);
+            IPS_SetVariableProfileText($name, '', $suffix);
+            IPS_SetVariableProfileDigits($name, $digits);
+            IPS_SetVariableProfileIcon($name, $icon);
+        }
+    }
+
+    /** Aktiviert die Archivierung einer eigenen Variable (0 = Standard, 1 = Zähler) */
+    private function EnableLogging(string $ident, int $aggregationType)
+    {
+        $archives = IPS_GetInstanceListByModuleID('{43192F0B-135B-4CE7-A0A7-1475603F3060}');
+        if (count($archives) === 0 || IPS_GetKernelRunlevel() !== KR_READY) {
+            return;
+        }
+        $archiveID = $archives[0];
+        $variableID = $this->GetIDForIdent($ident);
+        if (!AC_GetLoggingStatus($archiveID, $variableID) || AC_GetAggregationType($archiveID, $variableID) !== $aggregationType) {
+            AC_SetLoggingStatus($archiveID, $variableID, true);
+            AC_SetAggregationType($archiveID, $variableID, $aggregationType);
+            IPS_ApplyChanges($archiveID);
+        }
+    }
+
     /** Hält die Variablen unterhalb der Instanz (für die Vollbildansicht) auf dem aktuellen Stand */
     private function SyncChildVariables()
     {
@@ -161,6 +285,12 @@ class LichtKachel extends IPSModule
         }
         if (@$this->GetIDForIdent('State')) {
             $this->SetValue('State', $level > 0);
+        }
+        if ($this->VariableConfigured('PowerVariableID') && @$this->GetIDForIdent('Power')) {
+            $this->SetValue('Power', (float) GetValue($this->ReadPropertyInteger('PowerVariableID')));
+        }
+        if ($this->VariableConfigured('DiagnosisVariableID') && @$this->GetIDForIdent('Diagnosis')) {
+            $this->SetValue('Diagnosis', (string) GetValue($this->ReadPropertyInteger('DiagnosisVariableID')));
         }
     }
 
