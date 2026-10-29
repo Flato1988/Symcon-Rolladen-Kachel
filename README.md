@@ -32,3 +32,23 @@ Die Vollbildansicht der Kachel-Visualisierung zeigt kein HTML, sondern die Varia
 der Instanz. Das Modul legt dafür automatisch an:
 - **Position (0 % = offen)** – Slider, folgt dem Status und setzt die Position
 - **Steuerung** – Auf / Stopp / Zu
+
+---
+
+# LichtKachel
+
+Kachel im Stil der Original-Licht-Kachel:
+- **Runder Schieberegler** (270°) zum Dimmen, zeigt immer den aktuellen Dimmwert an
+- **Taste in der Mitte**: aus → **100 %**, an → **aus**
+- Live-Aktualisierung bei Bedienung über Wandtaster / Zentral-Aus
+- Vollbildansicht: Variablen **Schalten** und **Helligkeit** unterhalb der Instanz
+
+## Konfiguration (Beispiel Hauptlicht Wohnzimmer)
+| Feld | Gruppenadresse |
+|---|---|
+| Dimmen absolut – Befehl | 6/3/2 (DPT 5) |
+| Status Dimmwert – Rückmeldung | 6/3/4 (DPT 5) |
+| Schalten (zum Ausschalten) | 6/3/0 (DPT 1) |
+
+## PHP-Befehle
+`LTK_SwitchLight($id, true|false)`, `LTK_SetLevel($id, 50)`, `LTK_Toggle($id)`

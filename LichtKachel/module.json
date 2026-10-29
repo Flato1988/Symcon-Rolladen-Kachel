@@ -1,0 +1,11 @@
+{
+    "id": "{799CD65D-6BCD-46B0-B112-36A03C86A08D}",
+    "name": "LichtKachel",
+    "type": 3,
+    "vendor": "",
+    "aliases": ["Licht Kachel", "Dimmer Kachel"],
+    "parentRequirements": [],
+    "childRequirements": [],
+    "implemented": [],
+    "prefix": "LTK"
+}

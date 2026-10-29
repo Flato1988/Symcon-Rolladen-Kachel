@@ -1,0 +1,173 @@
+<style>
+    :root {
+        --acc: var(--accent-color, #00cdab);
+        --fg: var(--content-color, #1a1a1a);
+        --btn-off: #667c89;
+        --icon-off: #c4c4c4;
+    }
+    @media (prefers-color-scheme: dark) {
+        :root { --fg: var(--content-color, #f0f0f0); }
+    }
+    html, body {
+        margin: 0;
+        height: 100%;
+        background: transparent;
+        color: var(--fg);
+        font-family: var(--font-family, "Poppins", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif);
+        overflow: hidden;
+        user-select: none;
+        -webkit-user-select: none;
+        -webkit-tap-highlight-color: transparent;
+    }
+    #tile {
+        box-sizing: border-box;
+        /* 100vh = Höhe der Kachel, auch wenn Symcon keine Höhe an html/body vorgibt */
+        height: 100vh;
+        /* oben Platz für den Titel und das Vergrößern-Symbol, die Symcon selbst zeichnet */
+        padding: 58px 10px 8px;
+    }
+    svg#dial {
+        display: block;
+        width: 100%;
+        height: 100%;
+        overflow: visible;
+    }
+    #trackBg, #trackFill {
+        fill: none;
+        stroke: var(--acc);
+        stroke-width: 4;
+        stroke-linecap: round;
+    }
+    #trackBg { opacity: .3; }
+    #hit { /* breite, unsichtbare Greiffläche für den Schieberegler */
+        fill: none;
+        stroke: transparent;
+        stroke-width: 34;
+        pointer-events: stroke;
+        cursor: pointer;
+        touch-action: none;
+    }
+    #handle {
+        fill: var(--acc);
+        pointer-events: none;
+        transition: r .1s;
+    }
+    #dial.drag #handle { r: 10.5; }
+    #power { cursor: pointer; }
+    #power circle {
+        fill: var(--btn-off);
+        transition: fill .2s;
+    }
+    #power path {
+        fill: none;
+        stroke: var(--icon-off);
+        stroke-width: 2.6;
+        stroke-linecap: round;
+        transition: stroke .2s;
+    }
+    #power.on circle { fill: var(--acc); }
+    #power.on path { stroke: #fff; }
+    #power:active circle { opacity: .85; }
+    #value {
+        fill: var(--fg);
+        font-size: 22px;
+        text-anchor: middle;
+        font-variant-numeric: tabular-nums;
+    }
+</style>
+
+<div id="tile">
+    <svg id="dial" viewBox="0 0 200 186" preserveAspectRatio="xMidYMid meet">
+        <!-- 270°-Bogen um (100,100), Radius 84: von unten links über oben nach unten rechts -->
+        <path id="trackBg" d="M40.6 159.4 A84 84 0 1 1 159.4 159.4" pathLength="100"/>
+        <path id="trackFill" d="M40.6 159.4 A84 84 0 1 1 159.4 159.4" pathLength="100" stroke-dasharray="0 100"/>
+        <path id="hit" d="M40.6 159.4 A84 84 0 1 1 159.4 159.4"/>
+        <circle id="handle" r="8" cx="40.6" cy="159.4"/>
+
+        <g id="power">
+            <title>Ein (100 %) / Aus</title>
+            <circle cx="100" cy="100" r="37"/>
+            <path d="M100 84 v15"/>
+            <path d="M90.5 89 a15 15 0 1 0 19 0"/>
+        </g>
+
+        <text id="value" x="100" y="172">– %</text>
+    </svg>
+</div>
+
+<script>
+    let level = null;     // aktueller Dimmwert 0–100 (aus der Rückmeldung)
+    let dragging = false;
+    let dragLevel = 0;
+
+    const $ = (id) => document.getElementById(id);
+    const dial = $('dial');
+    const CX = 100, CY = 100, R = 84, SWEEP = 270;
+
+    function render(v) {
+        const p = v === null ? 0 : v;
+        $('trackFill').setAttribute('stroke-dasharray', p + ' 200');
+        $('trackFill').style.opacity = p > 0 ? 1 : 0; // runde Linienenden würden bei 0 % sonst einen Punkt zeichnen
+        // Winkel im Uhrzeigersinn ab 12 Uhr: -135° (0 %) bis +135° (100 %)
+        const a = (-SWEEP / 2 + p / 100 * SWEEP) * Math.PI / 180;
+        $('handle').setAttribute('cx', (CX + R * Math.sin(a)).toFixed(2));
+        $('handle').setAttribute('cy', (CY - R * Math.cos(a)).toFixed(2));
+        $('value').textContent = v === null ? '– %' : Math.round(p) + ' %';
+        $('power').classList.toggle('on', p > 0);
+    }
+
+    // Wird von IP-Symcon aufgerufen (Startwert + jede Änderung, auch über Wandtaster)
+    function handleMessage(data) {
+        const msg = typeof data === 'string' ? JSON.parse(data) : data;
+        if ('level' in msg) {
+            level = msg.level;
+            if (!dragging) render(level);
+        }
+    }
+
+    // Zeigerposition -> Dimmwert
+    function levelFromEvent(e) {
+        const pt = dial.createSVGPoint();
+        pt.x = e.clientX;
+        pt.y = e.clientY;
+        const p = pt.matrixTransform(dial.getScreenCTM().inverse());
+        const deg = Math.atan2(p.x - CX, -(p.y - CY)) * 180 / Math.PI; // -180..180, 0 = oben
+        if (Math.abs(deg) > SWEEP / 2) {
+            // in der Lücke unten: am näheren Ende bleiben, nicht von 100 auf 0 springen
+            return dragging ? (dragLevel > 50 ? 100 : 0) : (deg > 0 ? 100 : 0);
+        }
+        return Math.round((deg + SWEEP / 2) / SWEEP * 100);
+    }
+
+    const hit = $('hit');
+    hit.addEventListener('pointerdown', (e) => {
+        dragging = true;
+        dial.classList.add('drag');
+        hit.setPointerCapture(e.pointerId);
+        dragLevel = levelFromEvent(e);
+        render(dragLevel);
+    });
+    hit.addEventListener('pointermove', (e) => {
+        if (!dragging) return;
+        dragLevel = levelFromEvent(e);
+        render(dragLevel);
+    });
+    hit.addEventListener('pointerup', (e) => {
+        if (!dragging) return;
+        dragging = false;
+        dial.classList.remove('drag');
+        level = dragLevel;
+        render(level);
+        requestAction('Level', level);
+    });
+    hit.addEventListener('pointercancel', () => {
+        dragging = false;
+        dial.classList.remove('drag');
+        render(level);
+    });
+
+    // Mitte: aus -> 100 %, an -> aus
+    $('power').addEventListener('click', () => requestAction('Toggle', true));
+
+    render(null);
+</script>

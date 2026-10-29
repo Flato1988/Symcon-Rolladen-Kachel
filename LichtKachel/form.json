@@ -1,0 +1,16 @@
+{
+    "elements": [
+        { "type": "ValidationTextBox", "name": "TileName", "caption": "Bezeichnung (Titel der Kachel, z.B. Hauptlicht Wohnzimmer)" },
+        { "type": "SelectVariable", "name": "DimVariableID", "caption": "Dimmen absolut – Befehl (z.B. 6/3/2)" },
+        { "type": "SelectVariable", "name": "DimStatusVariableID", "caption": "Status Dimmwert – Rückmeldung (z.B. 6/3/4), optional" },
+        { "type": "SelectVariable", "name": "SwitchVariableID", "caption": "Schalten (z.B. 6/3/0), optional – wird zum Ausschalten verwendet" }
+    ],
+    "actions": [
+        { "type": "RowLayout", "items": [
+            { "type": "Button", "caption": "Ein (100 %)", "onClick": "LTK_SwitchLight($id, true);" },
+            { "type": "Button", "caption": "Aus", "onClick": "LTK_SwitchLight($id, false);" },
+            { "type": "Button", "caption": "50 %", "onClick": "LTK_SetLevel($id, 50);" },
+            { "type": "Button", "caption": "Umschalten", "onClick": "LTK_Toggle($id);" }
+        ]}
+    ]
+}
