@@ -65,3 +65,27 @@ Der Strompreis (€/kWh) wird in der Instanz hinterlegt; eine Änderung gilt ab 
 
 ## PHP-Befehle
 `LTK_SwitchLight($id, true|false)`, `LTK_SetLevel($id, 50)`, `LTK_Toggle($id)`
+
+---
+
+# WeihnachtsbeleuchtungKachel
+
+Dämmerungsschaltung für Außenbeleuchtung (z.B. Lichterketten) mit mehreren Ausgängen.
+
+**Logik:** Automatik aktiv **und** Uhrzeit „Einschalten ab“ erreicht **und** Lux < Schaltschwelle
+→ alle Ausgänge EIN (einmal pro Tag). AUS nach Ablauf der **maximalen Leuchtdauer**
+oder wenn die Automatik deaktiviert wird. Wird die Automatik während der Leuchtzeit
+aus- und wieder eingeschaltet, leuchtet die Beleuchtung bis zur ursprünglichen Ausschaltzeit weiter.
+
+**Kachel:** Kreis mit Lichterkette – grau = aus, grün mit gelbem Schein = an,
+blass = Automatik aus. Klick auf den Kreis schaltet die Automatik ein/aus. Darunter der Status.
+
+**Großansicht:** Automatik aktiv (Schalter), Beleuchtung, Lux-Balken mit Schaltschwelle,
+Schaltschwelle, Einschalten ab, maximale Leuchtdauer, Ausschalten um, Helligkeit aktuell, Status.
+
+**Konfiguration:** Helligkeitsvariable (Lux) des Bewegungsmelders und beliebig viele Ausgänge
+(Name + Schaltvariable, z.B. Beleuchtung Süd, Beleuchtung Nord).
+Startwerte: Schwelle 30 lx, ab 16:00, max. 6 h.
+
+## PHP-Befehle
+`XMS_Evaluate($id)`, `XMS_SwitchOutputs($id, true|false)`

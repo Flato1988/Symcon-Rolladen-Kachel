@@ -1,0 +1,26 @@
+{
+    "elements": [
+        { "type": "ValidationTextBox", "name": "TileName", "caption": "Bezeichnung (Titel der Kachel, z.B. Weihnachtsbeleuchtung außen)" },
+        { "type": "SelectVariable", "name": "LuxVariableID", "caption": "Helligkeit in Lux (Bewegungsmelder)" },
+        {
+            "type": "List",
+            "name": "Outputs",
+            "caption": "Ausgänge (Schalten, DPT 1)",
+            "add": true,
+            "delete": true,
+            "rowCount": 5,
+            "columns": [
+                { "caption": "Name", "name": "Name", "width": "250px", "add": "Beleuchtung", "edit": { "type": "ValidationTextBox" } },
+                { "caption": "Variable", "name": "VariableID", "width": "auto", "add": 0, "edit": { "type": "SelectVariable" } }
+            ]
+        },
+        { "type": "Label", "caption": "Schaltschwelle, Uhrzeit, maximale Leuchtdauer und Automatik werden in der Visualisierung (Großansicht) eingestellt." }
+    ],
+    "actions": [
+        { "type": "RowLayout", "items": [
+            { "type": "Button", "caption": "Test: alle Ausgänge ein", "onClick": "XMS_SwitchOutputs($id, true);" },
+            { "type": "Button", "caption": "Test: alle Ausgänge aus", "onClick": "XMS_SwitchOutputs($id, false);" },
+            { "type": "Button", "caption": "Jetzt prüfen", "onClick": "XMS_Evaluate($id);" }
+        ]}
+    ]
+}

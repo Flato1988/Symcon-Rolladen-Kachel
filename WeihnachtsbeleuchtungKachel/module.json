@@ -1,0 +1,11 @@
+{
+    "id": "{9B89BDBB-1845-4FB1-A609-6660142BC31F}",
+    "name": "WeihnachtsbeleuchtungKachel",
+    "type": 3,
+    "vendor": "",
+    "aliases": ["Weihnachtsbeleuchtung Kachel", "Lichterkette Kachel", "Dämmerungsschaltung"],
+    "parentRequirements": [],
+    "childRequirements": [],
+    "implemented": [],
+    "prefix": "XMS"
+}

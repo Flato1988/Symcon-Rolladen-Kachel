@@ -1,0 +1,131 @@
+<style>
+    :root {
+        --acc: var(--accent-color, #00cdab);
+        --fg: var(--content-color, #1a1a1a);
+        --btn-off: #667c89;
+        --icon-off: #c4c4c4;
+    }
+    @media (prefers-color-scheme: dark) {
+        :root { --fg: var(--content-color, #f0f0f0); }
+    }
+    html, body {
+        margin: 0;
+        height: 100%;
+        background: transparent;
+        color: var(--fg);
+        font-family: var(--font-family, "Poppins", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif);
+        overflow: hidden;
+        user-select: none;
+        -webkit-user-select: none;
+        -webkit-tap-highlight-color: transparent;
+    }
+    #tile {
+        box-sizing: border-box;
+        /* 100vh = Höhe der Kachel, auch wenn Symcon keine Höhe an html/body vorgibt */
+        height: 100vh;
+        /* oben Platz für den Titel und das Vergrößern-Symbol, die Symcon selbst zeichnet */
+        padding: 58px 10px 8px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+    .stage {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    #ring { /* Kreis + Lichtschein, gleich groß */
+        position: relative;
+        height: 80%;
+        aspect-ratio: 1;
+        max-width: 80%;
+    }
+    #circle {
+        position: absolute;
+        inset: 0;
+        border-radius: 50%;
+        background: var(--btn-off);
+        cursor: pointer;
+        transition: background .3s, opacity .3s;
+    }
+    #glow { /* gelber Lichtschein hinter dem Kreis (reines CSS, ohne SVG-Verweise) */
+        position: absolute;
+        inset: -22%;
+        border-radius: 50%;
+        background: radial-gradient(circle closest-side,
+            rgba(247, 240, 106, 1) 0%,
+            rgba(247, 240, 106, 1) 66%,
+            rgba(248, 241, 120, .75) 76%,
+            rgba(250, 245, 170, .3) 88%,
+            rgba(253, 251, 224, 0) 100%);
+        opacity: 0;
+        transform: scale(.8);
+        transition: opacity .5s ease, transform .5s ease;
+        pointer-events: none;
+    }
+    #circle.on { background: var(--acc); }
+    #ring.on #glow { opacity: 1; transform: scale(1); }
+    #circle.inactive { opacity: .55; }
+    #circle:active { filter: brightness(.95); }
+    #circle svg {
+        position: absolute;
+        inset: 12%;
+        width: 76%;
+        height: 76%;
+    }
+    .wire { fill: none; stroke: var(--icon-off); stroke-width: 3.2; stroke-linecap: round; }
+    .socket { fill: var(--icon-off); }
+    .bulb { fill: none; stroke: var(--icon-off); stroke-width: 3; }
+    #circle.on .wire { stroke: #fff; }
+    #circle.on .socket { fill: #fff; }
+    #circle.on .bulb { fill: #fff7b0; stroke: #fff; }
+    #status {
+        text-align: center;
+        font-size: 13px;
+        opacity: .7;
+        min-height: 18px;
+    }
+</style>
+
+<div id="tile">
+    <div class="stage">
+        <div id="ring">
+        <div id="glow"></div>
+        <div id="circle" title="Klicken: Automatik ein/aus">
+            <svg viewBox="0 0 100 100">
+                <g transform="translate(0 6)">
+                    <!-- Lichterkette mit zwei Bögen, Birnen hängen senkrecht -->
+                    <path class="wire" d="M6 30 Q28 58 50 30 Q72 58 94 30"/>
+                    <g transform="translate(14.8 39)"><rect class="socket" x="-3" y="-1" width="6" height="6" rx="1"/><ellipse class="bulb" cx="0" cy="12.5" rx="5" ry="7.5"/></g>
+                    <g transform="translate(28 44)"><rect class="socket" x="-3" y="-1" width="6" height="6" rx="1"/><ellipse class="bulb" cx="0" cy="12.5" rx="5" ry="7.5"/></g>
+                    <g transform="translate(41.2 39)"><rect class="socket" x="-3" y="-1" width="6" height="6" rx="1"/><ellipse class="bulb" cx="0" cy="12.5" rx="5" ry="7.5"/></g>
+                    <g transform="translate(58.8 39)"><rect class="socket" x="-3" y="-1" width="6" height="6" rx="1"/><ellipse class="bulb" cx="0" cy="12.5" rx="5" ry="7.5"/></g>
+                    <g transform="translate(72 44)"><rect class="socket" x="-3" y="-1" width="6" height="6" rx="1"/><ellipse class="bulb" cx="0" cy="12.5" rx="5" ry="7.5"/></g>
+                    <g transform="translate(85.2 39)"><rect class="socket" x="-3" y="-1" width="6" height="6" rx="1"/><ellipse class="bulb" cx="0" cy="12.5" rx="5" ry="7.5"/></g>
+                </g>
+            </svg>
+        </div>
+        </div>
+    </div>
+    <div id="status"></div>
+</div>
+
+<script>
+    const circle = document.getElementById('circle');
+
+    // Wird von IP-Symcon aufgerufen (Startwert + jede Änderung)
+    function handleMessage(data) {
+        const msg = typeof data === 'string' ? JSON.parse(data) : data;
+        if ('lights' in msg) {
+            circle.classList.toggle('on', !!msg.lights);
+            document.getElementById('ring').classList.toggle('on', !!msg.lights);
+        }
+        if ('active' in msg) circle.classList.toggle('inactive', !msg.active);
+        if ('status' in msg) document.getElementById('status').textContent = msg.status;
+    }
+
+    // Klick auf den Kreis: Automatik ein/aus
+    circle.addEventListener('click', () => requestAction('ToggleActive', true));
+</script>
