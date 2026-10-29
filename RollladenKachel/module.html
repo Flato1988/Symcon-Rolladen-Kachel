@@ -144,18 +144,19 @@
 
     /* ---------- Buttons (seitlich neben dem Rollladen) ---------- */
     .buttons {
-        width: 72px;
+        width: 80px;
         flex: none;
         display: flex;
         flex-direction: column;
-        justify-content: center;
-        gap: 8px;
+        justify-content: space-evenly; /* Buttons gleichmäßig über die Höhe verteilen */
+        gap: 16px;
     }
     .buttons button {
         display: flex;
         align-items: center;
         justify-content: center;
         gap: 6px;
+        min-height: 48px; /* gut treffbare Fläche für Touch */
         padding: 10px 4px;
         border: 1px solid color-mix(in srgb, var(--fg) 20%, transparent);
         border-radius: 8px;
