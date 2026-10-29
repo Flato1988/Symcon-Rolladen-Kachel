@@ -1,0 +1,11 @@
+{
+    "id": "{F29227E1-D190-403F-9CE2-755E3097D02C}",
+    "name": "WaermepumpeKachel",
+    "type": 3,
+    "vendor": "",
+    "aliases": ["Wärmepumpe Kachel", "Wärmepumpe Übersicht"],
+    "parentRequirements": [],
+    "childRequirements": [],
+    "implemented": [],
+    "prefix": "WPK"
+}

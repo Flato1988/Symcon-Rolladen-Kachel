@@ -89,3 +89,25 @@ Startwerte: Schwelle 30 lx, ab 16:00, max. 6 h.
 
 ## PHP-Befehle
 `XMS_Evaluate($id)`, `XMS_SwitchOutputs($id, true|false)`
+
+---
+
+# WaermepumpeKachel
+
+Übersicht für eine Wärmepumpe mit nur zwei Werten: **Zählerstand Bezug (kWh)** und **Außentemperatur (°C)**.
+
+**Kachel:**
+- Kennzahlen: Leistung (Ø 15 min), Außentemperatur, Verbrauch + Kosten heute, Spitze 15 min heute (mit Uhrzeit)
+- Diagramm der letzten 24 h: Leistung je Viertelstunde (Balken, Tagesspitze rot) und Außentemperatur (Linie);
+  antippen/überfahren zeigt die Werte der Viertelstunde
+- Höchste 15-min-Leistung je Tag der letzten 7 Tage (bei niedrigen Kacheln ausgeblendet)
+
+**Berechnung:** Ø kW einer Viertelstunde = Zählerzuwachs (kWh) × 4. Die Viertelstunden laufen synchron zur Uhr
+(:00, :15, :30, :45). Lücken > 2 h (Symcon aus) und Zählertausch werden übersprungen.
+Hinweis: Die Genauigkeit hängt von der Auflösung des Zählers ab (z.B. 0,1 kWh je Viertelstunde = 0,4 kW Stufen).
+
+**Großansicht / Archiv:** Leistung, Außentemperatur und „Spitze 15 min je Tag“ werden als Verlauf,
+„Verbrauch gesamt“ und „Kosten gesamt“ als Zähler aufgezeichnet (Summen je Tag/Woche/Monat/Jahr im Diagramm).
+Dazu Verbrauch heute, Kosten heute / Monat / Jahr, Spitze heute (Uhrzeit) und gestern.
+
+**Konfiguration:** Zählerstand-Variable (kWh), Außentemperatur-Variable, Strompreis (€/kWh).
