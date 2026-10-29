@@ -19,34 +19,36 @@
     }
     #tile {
         box-sizing: border-box;
-        height: 100%;
-        min-height: 320px; /* falls die Kachel (z.B. vergrößert) keine feste Höhe vorgibt */
+        /* 100vh = Höhe der Kachel, auch wenn Symcon (z.B. vergrößert) keine Höhe an html/body vorgibt */
+        height: 100vh;
         display: flex;
         flex-direction: column;
         /* oben Platz für den Titel und das Vergrößern-Symbol, die Symcon selbst zeichnet */
-        padding: 48px 14px 12px;
+        padding: 40px 10px 8px;
     }
 
     main {
         flex: 1;
-        min-height: 240px;
+        min-height: 0;
         display: flex;
-        gap: 12px;
+        gap: 8px;
     }
 
     /* ---------- Vertikaler Slider (wie Original-Kachel) ---------- */
     .slider-col {
-        width: 44px;
+        width: 32px;
+        flex: none;
         display: flex;
         flex-direction: column;
         align-items: center;
         gap: 6px;
     }
-    .slider-col svg.icon { width: 22px; height: 22px; flex: none; cursor: pointer; }
+    .slider-col svg.icon { width: 20px; height: 20px; flex: none; cursor: pointer; }
     #track {
         position: relative;
         flex: 1;
-        width: 36px;
+        width: 32px;
+        min-height: 0;
         cursor: pointer;
         touch-action: none;
     }
@@ -138,27 +140,33 @@
 
     /* ---------- Buttons (seitlich neben dem Rollladen) ---------- */
     .buttons {
-        width: 80px;
+        width: 64px;
         flex: none;
         display: flex;
         flex-direction: column;
-        justify-content: space-evenly; /* Buttons gleichmäßig über die Höhe verteilen */
-        gap: 16px;
+        justify-content: space-between; /* oben, Mitte, unten – maximaler Abstand */
+        gap: 6px;
     }
     .buttons button {
         display: flex;
         align-items: center;
         justify-content: center;
-        gap: 6px;
-        min-height: 48px; /* gut treffbare Fläche für Touch */
-        padding: 10px 4px;
+        gap: 5px;
+        flex: 0 1 44px; /* bis 44px hoch, schrumpft in kleinen Kacheln */
+        min-height: 26px;
+        padding: 0 4px;
         border: 1px solid color-mix(in srgb, var(--fg) 20%, transparent);
         border-radius: 8px;
         background: transparent;
         color: inherit;
         font: inherit;
-        font-size: 13px;
+        font-size: 12px;
         cursor: pointer;
+    }
+    /* sehr schmale Kachel: nur Symbole */
+    @media (max-width: 230px) {
+        .buttons { width: 36px; }
+        .buttons button span { display: none; }
     }
     .buttons button:active { background: color-mix(in srgb, var(--acc) 25%, transparent); }
     .buttons button.active { border-color: var(--acc); color: var(--acc); }
@@ -198,13 +206,13 @@
         </div>
         <div class="buttons">
         <button id="btnOpen">
-            <svg viewBox="0 0 14 14" fill="currentColor"><path d="M7 3l5 7H2z"/></svg>Auf
+            <svg viewBox="0 0 14 14" fill="currentColor"><path d="M7 3l5 7H2z"/></svg><span>Auf</span>
         </button>
         <button id="btnStop" hidden>
-            <svg viewBox="0 0 14 14" fill="currentColor"><rect x="3" y="3" width="8" height="8" rx="1"/></svg>Stopp
+            <svg viewBox="0 0 14 14" fill="currentColor"><rect x="3" y="3" width="8" height="8" rx="1"/></svg><span>Stopp</span>
         </button>
         <button id="btnClose">
-            <svg viewBox="0 0 14 14" fill="currentColor"><path d="M7 11L2 4h10z"/></svg>Zu
+            <svg viewBox="0 0 14 14" fill="currentColor"><path d="M7 11L2 4h10z"/></svg><span>Zu</span>
         </button>
         </div>
     </main>
