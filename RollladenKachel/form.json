@@ -1,0 +1,21 @@
+{
+    "elements": [
+        { "type": "SelectVariable", "name": "PositionVariableID", "caption": "Position absolut – Befehl (z.B. 6/2/5)" },
+        { "type": "SelectVariable", "name": "StatusVariableID", "caption": "Status aktuelle Position – Rückmeldung (z.B. 6/2/6), optional" },
+        { "type": "SelectVariable", "name": "StopVariableID", "caption": "Kurzzeitbetrieb/Stopp (z.B. 6/2/1), optional" },
+        { "type": "ExpansionPanel", "caption": "Wertebereich der Position", "items": [
+            { "type": "NumberSpinner", "name": "MinValue", "caption": "Wert für \"offen\"", "digits": 2 },
+            { "type": "NumberSpinner", "name": "MaxValue", "caption": "Wert für \"geschlossen\"", "digits": 2 },
+            { "type": "Label", "caption": "Standard: 0 = offen, 100 = geschlossen. Bei Aktoren mit 1 = offen / 0 = geschlossen einfach die Werte tauschen." }
+        ]},
+        { "type": "CheckBox", "name": "ShowTitle", "caption": "Titel (Instanzname) in der Kachel anzeigen" }
+    ],
+    "actions": [
+        { "type": "RowLayout", "items": [
+            { "type": "Button", "caption": "Öffnen", "onClick": "RLK_Open($id);" },
+            { "type": "Button", "caption": "Stopp", "onClick": "RLK_Stop($id);" },
+            { "type": "Button", "caption": "Schließen", "onClick": "RLK_Close($id);" },
+            { "type": "Button", "caption": "Umschalten", "onClick": "RLK_Toggle($id);" }
+        ]}
+    ]
+}

@@ -1,0 +1,332 @@
+<style>
+    :root {
+        --acc: var(--accent-color, #00cdab);
+        --fg: var(--content-color, #1a1a1a);
+    }
+    @media (prefers-color-scheme: dark) {
+        :root { --fg: var(--content-color, #f0f0f0); }
+    }
+    html, body {
+        margin: 0;
+        height: 100%;
+        background: transparent;
+        color: var(--fg);
+        font-family: inherit;
+        overflow: hidden;
+        user-select: none;
+        -webkit-user-select: none;
+        -webkit-tap-highlight-color: transparent;
+    }
+    #tile {
+        box-sizing: border-box;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        padding: 12px 14px;
+    }
+    header {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+    }
+    #title { font-size: 15px; }
+    #value { font-size: 15px; opacity: .8; font-variant-numeric: tabular-nums; }
+
+    main {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        gap: 12px;
+    }
+
+    /* ---------- Vertikaler Slider (wie Original-Kachel) ---------- */
+    .slider-col {
+        width: 44px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 6px;
+    }
+    .slider-col svg.icon { width: 22px; height: 22px; flex: none; cursor: pointer; }
+    #track {
+        position: relative;
+        flex: 1;
+        width: 36px;
+        cursor: pointer;
+        touch-action: none;
+    }
+    #track::before {
+        content: "";
+        position: absolute;
+        top: 0; bottom: 0; left: 50%;
+        width: 2px;
+        transform: translateX(-50%);
+        background: var(--acc);
+        opacity: .25;
+    }
+    #fill {
+        position: absolute;
+        top: 0; left: 50%;
+        width: 4px;
+        transform: translateX(-50%);
+        border-radius: 2px;
+        background: var(--acc);
+    }
+    #thumb {
+        position: absolute;
+        left: 50%;
+        width: 18px; height: 18px;
+        border-radius: 50%;
+        background: var(--acc);
+        transform: translate(-50%, -50%);
+        transition: transform .1s;
+    }
+    #track.drag #thumb { transform: translate(-50%, -50%) scale(1.25); }
+
+    /* ---------- Rollladen-Grafik (Klick = Auf/Zu, Ziehen = Position) ---------- */
+    .window-col {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        justify-content: center;
+    }
+    #shutter {
+        position: relative;
+        height: 100%;
+        aspect-ratio: 3 / 4;
+        max-width: 100%;
+        cursor: ns-resize;
+        touch-action: none;
+    }
+    #shutter .box {
+        position: absolute;
+        top: 0; left: 0; right: 0;
+        height: 10px;
+        border-radius: 5px;
+        background: var(--fg);
+        z-index: 2;
+    }
+    #pane {
+        position: absolute;
+        top: 6px; bottom: 0; left: 8%; right: 8%;
+        border: 2px solid var(--fg);
+        border-top: none;
+        border-radius: 0 0 3px 3px;
+        background: linear-gradient(160deg, rgba(120,170,210,.18), rgba(120,170,210,.06));
+        overflow: hidden;
+    }
+    #pane::after { /* Fensterkreuz */
+        content: "";
+        position: absolute;
+        inset: 0;
+        background:
+            linear-gradient(var(--fg), var(--fg)) center / 2px 100% no-repeat,
+            linear-gradient(var(--fg), var(--fg)) center / 100% 2px no-repeat;
+        opacity: .25;
+    }
+    #curtain {
+        position: absolute;
+        top: 0; left: 0; right: 0;
+        background: repeating-linear-gradient(to bottom,
+            color-mix(in srgb, var(--fg) 8%, transparent) 0 7px,
+            var(--fg) 7px 10px);
+        z-index: 1;
+    }
+    #rail {
+        position: absolute;
+        left: 0; right: 0;
+        height: 4px;
+        margin-top: -4px;
+        background: var(--fg);
+        z-index: 1;
+    }
+    #ghost { /* Vorschau beim Ziehen */
+        position: absolute;
+        left: 0; right: 0;
+        height: 0;
+        border-top: 2px dashed var(--acc);
+        z-index: 3;
+        display: none;
+    }
+    #shutter.drag #ghost { display: block; }
+
+    /* ---------- Buttons ---------- */
+    footer { display: flex; gap: 8px; }
+    footer button {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        padding: 8px 4px;
+        border: 1px solid color-mix(in srgb, var(--fg) 20%, transparent);
+        border-radius: 8px;
+        background: transparent;
+        color: inherit;
+        font: inherit;
+        font-size: 13px;
+        cursor: pointer;
+    }
+    footer button:active { background: color-mix(in srgb, var(--acc) 25%, transparent); }
+    footer button.active { border-color: var(--acc); color: var(--acc); }
+    footer button svg { width: 14px; height: 14px; }
+    #btnStop[hidden] { display: none; }
+</style>
+
+<div id="tile">
+    <header>
+        <span id="title"></span>
+        <span id="value">– %</span>
+    </header>
+    <main>
+        <div class="slider-col">
+            <svg class="icon" id="iconOpen" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4">
+                <title>Öffnen</title>
+                <rect x="3" y="3" width="18" height="2.5" rx="1"/>
+                <path d="M5 8h14M5 10.5h14"/>
+                <path d="M5 5.5v14M19 5.5v14" opacity=".4"/>
+            </svg>
+            <div id="track">
+                <div id="fill"></div>
+                <div id="thumb"></div>
+            </div>
+            <svg class="icon" id="iconClose" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4">
+                <title>Schließen</title>
+                <rect x="3" y="3" width="18" height="2.5" rx="1"/>
+                <path d="M5 8h14M5 10.5h14M5 13h14M5 15.5h14M5 18h14"/>
+                <path d="M4 20.5h16" stroke-width="2"/>
+            </svg>
+        </div>
+        <div class="window-col">
+            <div id="shutter" title="Klicken: öffnen/schließen · Ziehen: Position setzen">
+                <div class="box"></div>
+                <div id="pane">
+                    <div id="curtain"></div>
+                    <div id="rail"></div>
+                    <div id="ghost"></div>
+                </div>
+            </div>
+        </div>
+    </main>
+    <footer>
+        <button id="btnOpen">
+            <svg viewBox="0 0 14 14" fill="currentColor"><path d="M7 3l5 7H2z"/></svg>Auf
+        </button>
+        <button id="btnStop" hidden>
+            <svg viewBox="0 0 14 14" fill="currentColor"><rect x="3" y="3" width="8" height="8" rx="1"/></svg>Stopp
+        </button>
+        <button id="btnClose">
+            <svg viewBox="0 0 14 14" fill="currentColor"><path d="M7 11L2 4h10z"/></svg>Zu
+        </button>
+    </footer>
+</div>
+
+<script>
+    // 0 = offen, 100 = geschlossen
+    let position = null;
+    let dragging = false;
+
+    const $ = (id) => document.getElementById(id);
+    const clamp = (v) => Math.max(0, Math.min(100, v));
+
+    function render(pct) {
+        const p = pct === null ? 0 : pct;
+        $('fill').style.height = p + '%';
+        $('thumb').style.top = p + '%';
+        $('curtain').style.height = p + '%';
+        $('rail').style.top = p + '%';
+        $('rail').style.display = p > 0 ? 'block' : 'none';
+        $('value').textContent = pct === null ? '– %' : Math.round(p) + ' %';
+        $('btnOpen').classList.toggle('active', pct !== null && p <= 0);
+        $('btnClose').classList.toggle('active', pct !== null && p >= 100);
+    }
+
+    // Wird von IP-Symcon aufgerufen (Startwert + jede Änderung der Positionsvariable,
+    // also auch bei Bedienung über den physischen Taster)
+    function handleMessage(data) {
+        const msg = typeof data === 'string' ? JSON.parse(data) : data;
+        if ('title' in msg) $('title').textContent = msg.title;
+        if ('hasStop' in msg) $('btnStop').hidden = !msg.hasStop;
+        if ('position' in msg) {
+            position = msg.position;
+            if (!dragging) render(position);
+        }
+    }
+
+    function send(pct) {
+        pct = Math.round(clamp(pct));
+        position = pct;
+        render(pct);
+        requestAction('Position', pct);
+    }
+
+    function pctFromEvent(el, e) {
+        const r = el.getBoundingClientRect();
+        return clamp((e.clientY - r.top) / r.height * 100);
+    }
+
+    // ---------- Slider ----------
+    const track = $('track');
+    track.addEventListener('pointerdown', (e) => {
+        dragging = true;
+        track.classList.add('drag');
+        track.setPointerCapture(e.pointerId);
+        render(pctFromEvent(track, e));
+    });
+    track.addEventListener('pointermove', (e) => {
+        if (!dragging) return;
+        const p = pctFromEvent(track, e);
+        render(p);
+    });
+    const endTrack = (e) => {
+        if (!dragging) return;
+        dragging = false;
+        track.classList.remove('drag');
+        send(pctFromEvent(track, e));
+    };
+    track.addEventListener('pointerup', endTrack);
+    track.addEventListener('pointercancel', () => { dragging = false; track.classList.remove('drag'); render(position); });
+
+    // ---------- Rollladen-Grafik ----------
+    const shutter = $('shutter');
+    const pane = $('pane');
+    let startY = 0, moved = false;
+    shutter.addEventListener('pointerdown', (e) => {
+        dragging = true;
+        moved = false;
+        startY = e.clientY;
+        shutter.setPointerCapture(e.pointerId);
+    });
+    shutter.addEventListener('pointermove', (e) => {
+        if (!dragging) return;
+        if (!moved && Math.abs(e.clientY - startY) < 6) return;
+        moved = true;
+        shutter.classList.add('drag');
+        const p = pctFromEvent(pane, e);
+        $('ghost').style.top = p + '%';
+        $('value').textContent = Math.round(p) + ' %';
+        $('fill').style.height = p + '%';
+        $('thumb').style.top = p + '%';
+    });
+    shutter.addEventListener('pointerup', (e) => {
+        if (!dragging) return;
+        dragging = false;
+        shutter.classList.remove('drag');
+        if (moved) {
+            send(pctFromEvent(pane, e));
+        } else {
+            requestAction('Toggle', true); // Einmal klicken = öffnen bzw. schließen
+        }
+    });
+    shutter.addEventListener('pointercancel', () => { dragging = false; shutter.classList.remove('drag'); render(position); });
+
+    // ---------- Buttons ----------
+    $('btnOpen').addEventListener('click', () => requestAction('Open', true));
+    $('btnClose').addEventListener('click', () => requestAction('Close', true));
+    $('btnStop').addEventListener('click', () => requestAction('Stop', true));
+    $('iconOpen').addEventListener('click', () => requestAction('Open', true));
+    $('iconClose').addEventListener('click', () => requestAction('Close', true));
+
+    render(null);
+</script>

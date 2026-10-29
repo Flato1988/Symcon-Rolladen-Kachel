@@ -1,0 +1,11 @@
+{
+    "id": "{F9E273AB-B2B9-4E9B-8253-64F5C1F810F9}",
+    "name": "RollladenKachel",
+    "type": 3,
+    "vendor": "",
+    "aliases": ["Rollladen Kachel"],
+    "parentRequirements": [],
+    "childRequirements": [],
+    "implemented": [],
+    "prefix": "RLK"
+}
