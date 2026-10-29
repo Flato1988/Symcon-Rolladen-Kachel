@@ -25,16 +25,29 @@
         height: 100vh;
         /* oben Platz für den Titel und das Vergrößern-Symbol, die Symcon selbst zeichnet */
         padding: 58px 10px 8px;
+        position: relative;
     }
     svg#dial {
+        position: relative; /* über dem Lichtschein */
         display: block;
         width: 100%;
         height: 100%;
         overflow: visible;
     }
     #glow { /* gelber Lichtschein hinter der Taste, wächst mit dem Dimmwert */
+        position: absolute;
+        width: 0;
+        height: 0;
+        border-radius: 50%;
+        transform: translate(-50%, -50%);
+        background: radial-gradient(circle closest-side,
+            rgba(247, 240, 106, 1) 0%,
+            rgba(247, 240, 106, .95) 50%,
+            rgba(249, 243, 160, .45) 78%,
+            rgba(253, 251, 224, 0) 100%);
+        opacity: 0;
         pointer-events: none;
-        transition: r .4s ease, opacity .4s ease;
+        transition: width .4s ease, height .4s ease, opacity .4s ease;
     }
     #trackBg, #trackFill {
         fill: none;
@@ -81,18 +94,9 @@
 </style>
 
 <div id="tile">
+    <div id="glow"></div>
     <svg id="dial" viewBox="0 0 200 186" preserveAspectRatio="xMidYMid meet">
         <!-- 270°-Bogen um (100,100), Radius 84: von unten links über oben nach unten rechts -->
-        <defs>
-            <radialGradient id="glowGradient">
-                <stop offset="0" stop-color="#f7f06a" stop-opacity="1"/>
-                <stop offset=".5" stop-color="#f7f06a" stop-opacity=".95"/>
-                <stop offset=".78" stop-color="#f9f3a0" stop-opacity=".45"/>
-                <stop offset="1" stop-color="#fdfbe0" stop-opacity="0"/>
-            </radialGradient>
-        </defs>
-        <circle id="glow" cx="100" cy="100" r="0" fill="url(#glowGradient)" opacity="0"/>
-
         <path id="trackBg" d="M40.6 159.4 A84 84 0 1 1 159.4 159.4" pathLength="100"/>
         <path id="trackFill" d="M40.6 159.4 A84 84 0 1 1 159.4 159.4" pathLength="100" stroke-dasharray="0 100"/>
         <path id="hit" d="M40.6 159.4 A84 84 0 1 1 159.4 159.4"/>
@@ -129,9 +133,23 @@
         $('value').textContent = v === null ? '– %' : Math.round(p) + ' %';
         $('power').classList.toggle('on', p > 0);
         // Schein: 1 % = klein und blass, 100 % = groß (über den Bogen hinaus) und kräftig
-        $('glow').style.r = p > 0 ? 55 + p * 0.55 : 0;
+        glowRadius = p > 0 ? 55 + p * 0.55 : 0;
         $('glow').style.opacity = p > 0 ? 0.45 + p / 100 * 0.55 : 0;
+        placeGlow();
     }
+
+    // Lichtschein (normales HTML-Element) auf die Mitte der Taste im SVG legen
+    let glowRadius = 0;
+    function placeGlow() {
+        const m = dial.getScreenCTM();
+        const t = $('tile').getBoundingClientRect();
+        if (!m) return;
+        const glow = $('glow');
+        glow.style.left = (m.e + CX * m.a - t.left) + 'px';
+        glow.style.top = (m.f + CY * m.d - t.top) + 'px';
+        glow.style.width = glow.style.height = (2 * glowRadius * m.a) + 'px';
+    }
+    window.addEventListener('resize', placeGlow);
 
     // Wird von IP-Symcon aufgerufen (Startwert + jede Änderung, auch über Wandtaster)
     function handleMessage(data) {
