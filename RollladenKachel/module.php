@@ -52,6 +52,27 @@ class RollladenKachel extends IPSModule
             }
         }
 
+        // Die Vollbildansicht der Kachel-Visualisierung zeigt nicht das HTML, sondern die
+        // Variablen unterhalb der Instanz – daher Position und Steuerung als eigene Variablen.
+        if (!IPS_VariableProfileExists('RLK.Position')) {
+            IPS_CreateVariableProfile('RLK.Position', VARIABLETYPE_INTEGER);
+            IPS_SetVariableProfileValues('RLK.Position', 0, 100, 1);
+            IPS_SetVariableProfileText('RLK.Position', '', ' %');
+            IPS_SetVariableProfileIcon('RLK.Position', 'Jalousie');
+        }
+        if (!IPS_VariableProfileExists('RLK.Control')) {
+            IPS_CreateVariableProfile('RLK.Control', VARIABLETYPE_INTEGER);
+            IPS_SetVariableProfileIcon('RLK.Control', 'Jalousie');
+            IPS_SetVariableProfileAssociation('RLK.Control', 0, 'Auf', 'HollowArrowUp', -1);
+            IPS_SetVariableProfileAssociation('RLK.Control', 1, 'Stopp', 'Close', -1);
+            IPS_SetVariableProfileAssociation('RLK.Control', 2, 'Zu', 'HollowArrowDown', -1);
+        }
+        $this->RegisterVariableInteger('Position', 'Position (0 % = offen)', 'RLK.Position', 1);
+        $this->EnableAction('Position');
+        $this->RegisterVariableInteger('Control', 'Steuerung', 'RLK.Control', 2);
+        $this->EnableAction('Control');
+        $this->SyncPositionVariable();
+
         $positionID = $this->ReadPropertyInteger('PositionVariableID');
         if ($positionID > 0 && IPS_VariableExists($positionID)) {
             $this->SetStatus(102);
@@ -80,6 +101,7 @@ class RollladenKachel extends IPSModule
                         $this->WriteAttributeInteger('LastDirection', -1);
                     }
                     // Aktualisiert die Kachel auch bei Bedienung über den physischen Taster
+                    $this->SyncPositionVariable();
                     $this->UpdateVisualizationValue($this->GetFullUpdateMessage());
                 }
                 break;
@@ -103,6 +125,20 @@ class RollladenKachel extends IPSModule
                 break;
             case 'Stop':
                 $this->Stop();
+                break;
+            case 'Control': // Variable "Steuerung" in der Vollbildansicht
+                $this->SetValue('Control', (int) $Value);
+                switch ((int) $Value) {
+                    case 0:
+                        $this->Open();
+                        break;
+                    case 1:
+                        $this->Stop();
+                        break;
+                    case 2:
+                        $this->Close();
+                        break;
+                }
                 break;
             default:
                 throw new Exception('Invalid Ident: ' . $Ident);
@@ -194,6 +230,15 @@ class RollladenKachel extends IPSModule
             RequestAction($stopID, $value);
         } else {
             SetValue($stopID, $value);
+        }
+    }
+
+    /** Hält die Variable "Position" unterhalb der Instanz auf dem aktuellen Stand */
+    private function SyncPositionVariable()
+    {
+        $percent = $this->GetPercent();
+        if ($percent !== null && @$this->GetIDForIdent('Position')) {
+            $this->SetValue('Position', (int) round($percent));
         }
     }
 

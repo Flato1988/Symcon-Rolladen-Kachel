@@ -26,3 +26,9 @@ als hörende Adresse eintragen bzw. Rückmeldeobjekt aktivieren).
 
 ## PHP-Befehle
 `RLK_Open($id)`, `RLK_Close($id)`, `RLK_Toggle($id)`, `RLK_Stop($id)`, `RLK_SetPosition($id, 50)`
+
+## Vollbildansicht
+Die Vollbildansicht der Kachel-Visualisierung zeigt kein HTML, sondern die Variablen unterhalb
+der Instanz. Das Modul legt dafür automatisch an:
+- **Position (0 % = offen)** – Slider, folgt dem Status und setzt die Position
+- **Steuerung** – Auf / Stopp / Zu
