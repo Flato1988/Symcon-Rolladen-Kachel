@@ -116,15 +116,6 @@
         background: linear-gradient(160deg, rgba(120,170,210,.18), rgba(120,170,210,.06));
         overflow: hidden;
     }
-    #pane::after { /* Fensterkreuz */
-        content: "";
-        position: absolute;
-        inset: 0;
-        background:
-            linear-gradient(var(--fg), var(--fg)) center / 2px 100% no-repeat,
-            linear-gradient(var(--fg), var(--fg)) center / 100% 2px no-repeat;
-        opacity: .25;
-    }
     #curtain {
         position: absolute;
         top: 0; left: 0; right: 0;
@@ -151,15 +142,21 @@
     }
     #shutter.drag #ghost { display: block; }
 
-    /* ---------- Buttons ---------- */
-    footer { display: flex; gap: 8px; }
-    footer button {
-        flex: 1;
+    /* ---------- Buttons (seitlich neben dem Rollladen) ---------- */
+    .buttons {
+        width: 72px;
+        flex: none;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        gap: 8px;
+    }
+    .buttons button {
         display: flex;
         align-items: center;
         justify-content: center;
         gap: 6px;
-        padding: 8px 4px;
+        padding: 10px 4px;
         border: 1px solid color-mix(in srgb, var(--fg) 20%, transparent);
         border-radius: 8px;
         background: transparent;
@@ -168,9 +165,9 @@
         font-size: 13px;
         cursor: pointer;
     }
-    footer button:active { background: color-mix(in srgb, var(--acc) 25%, transparent); }
-    footer button.active { border-color: var(--acc); color: var(--acc); }
-    footer button svg { width: 14px; height: 14px; }
+    .buttons button:active { background: color-mix(in srgb, var(--acc) 25%, transparent); }
+    .buttons button.active { border-color: var(--acc); color: var(--acc); }
+    .buttons button svg { width: 14px; height: 14px; }
     #btnStop[hidden] { display: none; }
 </style>
 
@@ -208,8 +205,7 @@
                 </div>
             </div>
         </div>
-    </main>
-    <footer>
+        <div class="buttons">
         <button id="btnOpen">
             <svg viewBox="0 0 14 14" fill="currentColor"><path d="M7 3l5 7H2z"/></svg>Auf
         </button>
@@ -219,7 +215,8 @@
         <button id="btnClose">
             <svg viewBox="0 0 14 14" fill="currentColor"><path d="M7 11L2 4h10z"/></svg>Zu
         </button>
-    </footer>
+        </div>
+    </main>
 </div>
 
 <script>
