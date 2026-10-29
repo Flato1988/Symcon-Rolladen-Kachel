@@ -11,6 +11,7 @@ Kachel im Stil der Original-Rollladen-Kachel mit
    oder als Git-Repo in der Modulverwaltung einbinden.
 2. Instanz „RollladenKachel“ anlegen.
 3. Konfigurieren:
+   - **Bezeichnung**: Titel der Kachel (setzt den Instanznamen, den Symcon als Titel anzeigt).
    - **Position absolut – Befehl**: Variable, auf die geschrieben wird (z.B. KNX 6/2/5, DPT 5).
    - **Status aktuelle Position**: Rückmeldung des Aktors (z.B. KNX 6/2/6, DPT 5). Wird für die Anzeige
      verwendet – leer lassen, wenn die Befehlsvariable selbst die Rückmeldung bekommt.

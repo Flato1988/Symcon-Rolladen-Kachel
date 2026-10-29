@@ -11,7 +11,7 @@
         height: 100%;
         background: transparent;
         color: var(--fg);
-        font-family: inherit;
+        font-family: var(--font-family, "Poppins", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif);
         overflow: hidden;
         user-select: none;
         -webkit-user-select: none;
@@ -20,22 +20,16 @@
     #tile {
         box-sizing: border-box;
         height: 100%;
+        min-height: 320px; /* falls die Kachel (z.B. vergrößert) keine feste Höhe vorgibt */
         display: flex;
         flex-direction: column;
-        gap: 10px;
-        padding: 12px 14px;
+        /* oben Platz für den Titel und das Vergrößern-Symbol, die Symcon selbst zeichnet */
+        padding: 48px 14px 12px;
     }
-    header {
-        display: flex;
-        justify-content: space-between;
-        align-items: baseline;
-    }
-    #title { font-size: 15px; }
-    #value { font-size: 15px; opacity: .8; font-variant-numeric: tabular-nums; }
 
     main {
         flex: 1;
-        min-height: 0;
+        min-height: 240px;
         display: flex;
         gap: 12px;
     }
@@ -173,10 +167,6 @@
 </style>
 
 <div id="tile">
-    <header>
-        <span id="title"></span>
-        <span id="value">– %</span>
-    </header>
     <main>
         <div class="slider-col">
             <svg class="icon" id="iconOpen" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4">
@@ -235,7 +225,6 @@
         $('curtain').style.height = p + '%';
         $('rail').style.top = p + '%';
         $('rail').style.display = p > 0 ? 'block' : 'none';
-        $('value').textContent = pct === null ? '– %' : Math.round(p) + ' %';
         $('btnOpen').classList.toggle('active', pct !== null && p <= 0);
         $('btnClose').classList.toggle('active', pct !== null && p >= 100);
     }
@@ -244,7 +233,6 @@
     // also auch bei Bedienung über den physischen Taster)
     function handleMessage(data) {
         const msg = typeof data === 'string' ? JSON.parse(data) : data;
-        if ('title' in msg) $('title').textContent = msg.title;
         if ('hasStop' in msg) $('btnStop').hidden = !msg.hasStop;
         if ('position' in msg) {
             position = msg.position;
@@ -303,7 +291,6 @@
         shutter.classList.add('drag');
         const p = pctFromEvent(pane, e);
         $('ghost').style.top = p + '%';
-        $('value').textContent = Math.round(p) + ' %';
         $('fill').style.height = p + '%';
         $('thumb').style.top = p + '%';
     });

@@ -13,7 +13,7 @@ class RollladenKachel extends IPSModule
         $this->RegisterPropertyInteger('StopVariableID', 0);
         $this->RegisterPropertyFloat('MinValue', 0);    // Rohwert "offen"
         $this->RegisterPropertyFloat('MaxValue', 100);  // Rohwert "geschlossen"
-        $this->RegisterPropertyBoolean('ShowTitle', true);
+        $this->RegisterPropertyString('TileName', '');  // Bezeichnung = Titel der Kachel
 
         // Letzte Fahrtrichtung: 1 = schließt, -1 = öffnet, 0 = unbekannt
         $this->RegisterAttributeInteger('LastDirection', 0);
@@ -25,6 +25,12 @@ class RollladenKachel extends IPSModule
     public function ApplyChanges()
     {
         parent::ApplyChanges();
+
+        // Symcon zeigt den Instanznamen als Kacheltitel an
+        $name = trim($this->ReadPropertyString('TileName'));
+        if ($name !== '' && $name !== IPS_GetName($this->InstanceID)) {
+            IPS_SetName($this->InstanceID, $name);
+        }
 
         // Alte Registrierungen entfernen
         foreach ($this->GetMessageList() as $senderID => $messages) {
@@ -196,8 +202,7 @@ class RollladenKachel extends IPSModule
         $stopID = $this->ReadPropertyInteger('StopVariableID');
         return json_encode([
             'position'  => $this->GetPercent(),
-            'hasStop'   => $stopID > 0 && IPS_VariableExists($stopID),
-            'title'     => $this->ReadPropertyBoolean('ShowTitle') ? IPS_GetName($this->InstanceID) : ''
+            'hasStop'   => $stopID > 0 && IPS_VariableExists($stopID)
         ]);
     }
 
