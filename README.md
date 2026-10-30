@@ -97,6 +97,9 @@ Startwerte: Schwelle 30 lx, ab 16:00, max. 6 h.
 Übersicht für eine Wärmepumpe mit nur zwei Werten: **Zählerstand Bezug (kWh)** und **Außentemperatur (°C)**.
 
 **Kachel:**
+- **Leistung aktuell** als Rundanzeige (Skala bis zur höchsten Leistung der letzten Tage), mit „in Betrieb“ / „Stillstand“.
+  Berechnet aus den letzten beiden Zählerständen (Zuwachs / Zeitabstand); kommt kein neuer Zählerstand,
+  fällt der Wert automatisch Richtung 0 (höchstens „letzter Zuwachs / Zeit seitdem“).
 - Kennzahlen: Leistung (Ø 15 min), Außentemperatur, Verbrauch + Kosten heute, Spitze 15 min heute (mit Uhrzeit)
 - Diagramm der letzten 24 h: Leistung je Viertelstunde (Balken, Tagesspitze rot) und Außentemperatur (Linie);
   antippen/überfahren zeigt die Werte der Viertelstunde

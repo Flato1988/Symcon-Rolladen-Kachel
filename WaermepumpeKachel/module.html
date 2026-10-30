@@ -31,10 +31,32 @@
         gap: 10px;
     }
 
-    /* ---------- Kennzahlen ---------- */
+    /* ---------- Aktuelle Leistung (Rundanzeige) + Kennzahlen ---------- */
+    .top {
+        display: grid;
+        grid-template-columns: 150px 1fr;
+        gap: 8px;
+        align-items: stretch;
+    }
+    .gauge {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 4px 6px;
+        border-radius: 8px;
+        background: rgba(128, 128, 128, .08);
+    }
+    .gauge .label { font-size: 11px; opacity: .65; }
+    .gauge svg { width: 100%; max-height: 90px; display: block; }
+    #gTrack, #gFill { fill: none; stroke-width: 9; stroke-linecap: round; }
+    #gTrack { stroke: var(--acc); opacity: .2; }
+    #gFill { stroke: var(--acc); transition: stroke-dasharray .6s ease; }
+    #gValue { fill: var(--fg); font-size: 17px; text-anchor: middle; font-variant-numeric: tabular-nums; }
+    #gState, .gScale { fill: var(--fg); font-size: 8.5px; opacity: .6; text-anchor: middle; }
     .kpis {
         display: grid;
-        grid-template-columns: repeat(4, 1fr);
+        grid-template-columns: repeat(2, 1fr);
         gap: 8px;
     }
     .kpi {
@@ -50,7 +72,8 @@
     .kpi.temp .value { color: var(--temp); }
     .kpi.peak .value { color: var(--peak); }
     @media (max-width: 420px) {
-        .kpis { grid-template-columns: repeat(2, 1fr); }
+        .top { grid-template-columns: 118px 1fr; }
+        .kpi .value { font-size: 15px; }
     }
 
     /* ---------- Diagramm ---------- */
@@ -111,11 +134,24 @@
 </style>
 
 <div id="tile">
+    <div class="top">
+    <div class="gauge">
+        <div class="label">Leistung aktuell</div>
+        <svg viewBox="0 0 120 74">
+            <path id="gTrack" d="M12 62 A48 48 0 0 1 108 62" pathLength="100"/>
+            <path id="gFill" d="M12 62 A48 48 0 0 1 108 62" pathLength="100" stroke-dasharray="0 200"/>
+            <text id="gValue" x="60" y="52">–</text>
+            <text id="gState" x="60" y="66"></text>
+            <text class="gScale" x="12" y="73">0</text>
+            <text class="gScale" id="gMax" x="108" y="73"></text>
+        </svg>
+    </div>
     <div class="kpis">
         <div class="kpi power"><div class="label">Leistung Ø 15 min</div><div class="value" id="kPower">–</div></div>
         <div class="kpi temp"><div class="label">Außentemperatur</div><div class="value" id="kTemp">–</div></div>
         <div class="kpi"><div class="label">Heute</div><div class="value" id="kEnergy">–</div><div class="sub" id="kCost"></div></div>
-        <div class="kpi peak"><div class="label">Spitze 15 min heute</div><div class="value" id="kPeak">–</div><div class="sub" id="kPeakTime"></div></div>
+        <div class="kpi peak"><div class="label">Spitze heute</div><div class="value" id="kPeak">–</div><div class="sub" id="kPeakTime"></div></div>
+    </div>
     </div>
 
     <div class="chart-box">
@@ -148,7 +184,8 @@
         $('kEnergy').textContent = unit(state.energyToday, 1, 'kWh');
         $('kCost').textContent = unit(state.costToday, 2, '€');
         $('kPeak').textContent = state.peakToday ? unit(state.peakToday[0], 2, 'kW') : '–';
-        $('kPeakTime').textContent = state.peakToday ? 'um ' + hhmm(state.peakToday[1]) + ' Uhr' : '';
+        $('kPeakTime').textContent = state.peakToday ? 'Ø 15 min · ' + hhmm(state.peakToday[1]) + ' Uhr' : '';
+        drawGauge();
         drawChart();
         drawPeaks();
     }
@@ -219,6 +256,20 @@
         if (d) el('path', { d, class: 'temp' }, svg);
 
         geo = { x, L, R, W, H, T, B, series, bw };
+    }
+
+    // Rundanzeige: Skala bis zur höchsten Leistung der letzten Tage (aufgerundet)
+    function drawGauge() {
+        const cur = state.current;
+        const known = [cur || 0, ...(state.series || []).map(p => p[1]), ...(state.peaks || []).map(p => p[1] || 0)];
+        const max = niceCeil(Math.max(1, ...known));
+        const p = cur === null || cur === undefined ? 0 : Math.min(100, cur / max * 100);
+        $('gFill').setAttribute('stroke-dasharray', p + ' 200');
+        $('gFill').style.opacity = p > 0 ? 1 : 0;
+        $('gValue').textContent = unit(cur, 2, 'kW');
+        $('gState').textContent = cur === null || cur === undefined ? 'warte auf Zähler'
+            : cur < 0.05 ? 'Stillstand' : 'in Betrieb';
+        $('gMax').textContent = fmt(max, max < 2 ? 1 : 0);
     }
 
     function drawPeaks() {

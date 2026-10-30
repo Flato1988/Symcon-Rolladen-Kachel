@@ -28,6 +28,10 @@ class WaermepumpeKachel extends IPSModule
         $this->RegisterAttributeString('PeriodDay', '');
         $this->RegisterAttributeString('PeriodMonth', '');
         $this->RegisterAttributeString('PeriodYear', '');
+        // aktuelle Leistung: Zeitpunkt, Zuwachs und Abstand der letzten Zähleränderung
+        $this->RegisterAttributeInteger('LastMeterChange', 0);
+        $this->RegisterAttributeFloat('LastMeterDelta', 0);
+        $this->RegisterAttributeInteger('LastMeterGap', 0);
 
         $this->RegisterTimer('Tick', 0, 'WPK_Tick($_IPS[\'TARGET\']);');
 
@@ -68,6 +72,7 @@ class WaermepumpeKachel extends IPSModule
         $this->CreateProfile('WPK.Power', ' kW', 2, 'Electricity');
         $this->CreateProfile('WPK.Energy', ' kWh', 2, 'Electricity');
         $this->CreateProfile('WPK.Cost', ' €', 2, 'Euro');
+        $this->RegisterVariableFloat('CurrentPower', 'Leistung aktuell', 'WPK.Power', 0);
         $this->RegisterVariableFloat('Power', 'Leistung (Ø 15 min)', 'WPK.Power', 1);
         $this->RegisterVariableFloat('Temperature', 'Außentemperatur', '~Temperature', 2);
         $this->RegisterVariableFloat('EnergyToday', 'Verbrauch heute', 'WPK.Energy', 3);
@@ -83,6 +88,7 @@ class WaermepumpeKachel extends IPSModule
 
         // Aufzeichnung im Archiv: Verläufe als Standard, Gesamtwerte als Zähler
         // (Zähler = Symcon bildet im Diagramm die Summen je Tag/Woche/Monat/Jahr)
+        $this->EnableLogging('CurrentPower', 0);
         $this->EnableLogging('Power', 0);
         $this->EnableLogging('Temperature', 0);
         $this->EnableLogging('DailyPeak', 0);
@@ -110,6 +116,7 @@ class WaermepumpeKachel extends IPSModule
 
             case VM_UPDATE:
                 if ($SenderID === $this->ReadPropertyInteger('EnergyVariableID')) {
+                    $this->UpdateCurrentPower((float) $Data[0] - (float) $Data[2]);
                     $this->AddConsumption((float) $Data[0] - (float) $Data[2]);
                 } elseif ($SenderID === $this->ReadPropertyInteger('TemperatureVariableID')) {
                     $this->UpdateTemperature();
@@ -161,6 +168,7 @@ class WaermepumpeKachel extends IPSModule
         }
 
         $this->StartNewPeriods($now);
+        $this->DecayCurrentPower($now);
         $this->SetTimerInterval('Tick', $this->MillisecondsToNextMinute());
         $this->UpdateVisualizationValue($this->GetFullUpdateMessage());
     }
@@ -195,6 +203,50 @@ class WaermepumpeKachel extends IPSModule
         if ($day === date('Y-m-d')) {
             $this->SetValue('PeakToday', $peaks[$day][0]);
             $this->SetValue('PeakTodayTime', $peaks[$day][1]);
+        }
+    }
+
+    /**
+     * Aktuelle Leistung aus den letzten beiden Zählerständen: Zuwachs / Zeitabstand.
+     * Zähler senden in Schritten (z.B. alle 0,01 kWh) – je höher die Leistung, desto häufiger.
+     */
+    private function UpdateCurrentPower(float $delta)
+    {
+        if ($delta <= 0 || $delta > 100) {
+            return;
+        }
+        $now = time();
+        $last = $this->ReadAttributeInteger('LastMeterChange');
+        $gap = $now - $last;
+        if ($last > 0 && $gap >= 5 && $gap <= self::MAX_GAP) {
+            $this->SetValue('CurrentPower', round($delta / ($gap / 3600), 3));
+            $this->WriteAttributeFloat('LastMeterDelta', $delta);
+            $this->WriteAttributeInteger('LastMeterGap', $gap);
+        }
+        if ($gap >= 5 || $last === 0) {
+            $this->WriteAttributeInteger('LastMeterChange', $now);
+        }
+    }
+
+    /**
+     * Kommt kein neuer Zählerstand, kann die Leistung höchstens "letzter Zuwachs / Zeit seitdem" sein –
+     * so fällt die Anzeige nach dem Abschalten der Wärmepumpe Richtung 0.
+     */
+    private function DecayCurrentPower(int $now)
+    {
+        $last = $this->ReadAttributeInteger('LastMeterChange');
+        $gap = $this->ReadAttributeInteger('LastMeterGap');
+        if ($last === 0 || $gap === 0) {
+            return;
+        }
+        $since = $now - $last;
+        if ($since > self::MAX_GAP) {
+            $this->SetValue('CurrentPower', 0);
+        } elseif ($since > $gap) {
+            $limit = $this->ReadAttributeFloat('LastMeterDelta') / ($since / 3600);
+            if ($this->GetValue('CurrentPower') > $limit) {
+                $this->SetValue('CurrentPower', round($limit, 3));
+            }
         }
     }
 
@@ -269,6 +321,7 @@ class WaermepumpeKachel extends IPSModule
         $today = date('Y-m-d', $now);
         return json_encode([
             'now'         => $now,
+            'current'     => $this->ReadAttributeInteger('LastMeterGap') > 0 ? $this->GetValue('CurrentPower') : null,
             'power'       => count($history) > 0 ? end($history)[1] : null,
             'temperature' => $this->GetTemperature(),
             'energyToday' => $this->GetValue('EnergyToday'),
