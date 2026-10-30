@@ -1,12 +1,18 @@
 {
     "elements": [
         { "type": "ValidationTextBox", "name": "TileName", "caption": "Bezeichnung (Titel der Kachel, z.B. Wärmepumpe)" },
-        { "type": "SelectVariable", "name": "EnergyVariableID", "caption": "Bezug Wärmepumpe – Zählerstand in kWh" },
+        { "type": "SelectVariable", "name": "EnergyVariableID", "caption": "Bezug Wärmepumpe (Zähler vor der WP)" },
+        { "type": "Select", "name": "ValueType", "caption": "Der Bezugswert ist", "options": [
+            { "caption": "aktuelle Leistung in W", "value": 0 },
+            { "caption": "aktuelle Leistung in kW", "value": 1 },
+            { "caption": "Zählerstand in kWh", "value": 2 }
+        ]},
         { "type": "SelectVariable", "name": "TemperatureVariableID", "caption": "Außentemperatur in °C" },
         { "type": "NumberSpinner", "name": "PricePerKWh", "caption": "Strompreis (Wärmepumpentarif)", "suffix": "€/kWh", "digits": 4, "minimum": 0 },
-        { "type": "Label", "caption": "Die Leistung wird aus dem Zählerstand je Viertelstunde berechnet (Ø kW = kWh-Zuwachs × 4). Verlauf und Auswertung beginnen mit dem Einrichten." }
+        { "type": "Label", "caption": "Bei Leistung wird der Verbrauch (kWh) aus Leistung × Zeit aufsummiert, bei Zählerstand aus dem Zuwachs. Ø 15 min = Energie der Viertelstunde × 4. Verlauf und Auswertung beginnen mit dem Einrichten." }
     ],
     "actions": [
-        { "type": "Button", "caption": "Jetzt aktualisieren", "onClick": "WPK_Tick($id);" }
+        { "type": "Button", "caption": "Jetzt aktualisieren", "onClick": "WPK_Tick($id);" },
+        { "type": "Button", "caption": "Auswertung zurücksetzen", "onClick": "WPK_ResetStatistics($id);", "confirm": "Verlauf, Spitzen, Verbrauch und Kosten auf 0 setzen?" }
     ]
 }

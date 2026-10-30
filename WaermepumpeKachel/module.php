@@ -13,7 +13,8 @@ class WaermepumpeKachel extends IPSModule
         parent::Create();
 
         $this->RegisterPropertyString('TileName', '');               // Bezeichnung = Titel der Kachel
-        $this->RegisterPropertyInteger('EnergyVariableID', 0);         // Zählerstand Bezug in kWh
+        $this->RegisterPropertyInteger('EnergyVariableID', 0);         // Bezug der Wärmepumpe (Leistung oder Zählerstand)
+        $this->RegisterPropertyInteger('ValueType', 0);                // 0 = Leistung in W, 1 = Leistung in kW, 2 = Zählerstand in kWh
         $this->RegisterPropertyInteger('TemperatureVariableID', 0);    // Außentemperatur in °C
         $this->RegisterPropertyFloat('PricePerKWh', 0.25);             // Strompreis in €/kWh
 
@@ -32,6 +33,12 @@ class WaermepumpeKachel extends IPSModule
         $this->RegisterAttributeInteger('LastMeterChange', 0);
         $this->RegisterAttributeFloat('LastMeterDelta', 0);
         $this->RegisterAttributeInteger('LastMeterGap', 0);
+        // Leistungs-Modus: aus der Leistung aufsummierter "Zählerstand" und letzter Messwert
+        $this->RegisterAttributeFloat('VirtualMeter', 0);
+        $this->RegisterAttributeInteger('LastPowerTime', 0);
+        $this->RegisterAttributeFloat('LastPowerKW', 0);
+        // Art des Bezugswerts, mit der die bisherigen Werte berechnet wurden (-1 = noch nie)
+        $this->RegisterAttributeInteger('CalculatedValueType', -1);
 
         $this->RegisterTimer('Tick', 0, 'WPK_Tick($_IPS[\'TARGET\']);');
 
@@ -86,6 +93,13 @@ class WaermepumpeKachel extends IPSModule
         $this->RegisterVariableFloat('EnergyTotal', 'Verbrauch gesamt', 'WPK.Energy', 11);
         $this->RegisterVariableFloat('CostTotal', 'Kosten gesamt', 'WPK.Cost', 12);
 
+        // Art des Bezugswerts geändert (oder Update von einer Version, die nur Zählerstände kannte):
+        // bisherige Auswertung passt nicht mehr -> neu beginnen
+        if ($this->ReadAttributeInteger('CalculatedValueType') !== $this->ReadPropertyInteger('ValueType')) {
+            $this->ResetStatistics();
+            $this->WriteAttributeInteger('CalculatedValueType', $this->ReadPropertyInteger('ValueType'));
+        }
+
         // Aufzeichnung im Archiv: Verläufe als Standard, Gesamtwerte als Zähler
         // (Zähler = Symcon bildet im Diagramm die Summen je Tag/Woche/Monat/Jahr)
         $this->EnableLogging('CurrentPower', 0);
@@ -116,8 +130,13 @@ class WaermepumpeKachel extends IPSModule
 
             case VM_UPDATE:
                 if ($SenderID === $this->ReadPropertyInteger('EnergyVariableID')) {
-                    $this->UpdateCurrentPower((float) $Data[0] - (float) $Data[2]);
-                    $this->AddConsumption((float) $Data[0] - (float) $Data[2]);
+                    if ($this->IsPowerMode()) {
+                        // bisherige Leistung bis jetzt aufsummieren, dann neuen Wert übernehmen
+                        $this->IntegratePower(time());
+                    } else {
+                        $this->UpdateCurrentPower((float) $Data[0] - (float) $Data[2]);
+                        $this->AddConsumption((float) $Data[0] - (float) $Data[2]);
+                    }
                 } elseif ($SenderID === $this->ReadPropertyInteger('TemperatureVariableID')) {
                     $this->UpdateTemperature();
                 }
@@ -146,7 +165,10 @@ class WaermepumpeKachel extends IPSModule
             return;
         }
         $now = time();
-        $meter = (float) GetValue($this->ReadPropertyInteger('EnergyVariableID'));
+        if ($this->IsPowerMode()) {
+            $this->IntegratePower($now);
+        }
+        $meter = $this->GetMeter();
         $boundary = intdiv($now, self::INTERVAL) * self::INTERVAL;
         $start = $this->ReadAttributeInteger('IntervalStart');
 
@@ -168,7 +190,9 @@ class WaermepumpeKachel extends IPSModule
         }
 
         $this->StartNewPeriods($now);
-        $this->DecayCurrentPower($now);
+        if (!$this->IsPowerMode()) {
+            $this->DecayCurrentPower($now);
+        }
         $this->SetTimerInterval('Tick', $this->MillisecondsToNextMinute());
         $this->UpdateVisualizationValue($this->GetFullUpdateMessage());
     }
@@ -204,6 +228,69 @@ class WaermepumpeKachel extends IPSModule
             $this->SetValue('PeakToday', $peaks[$day][0]);
             $this->SetValue('PeakTodayTime', $peaks[$day][1]);
         }
+    }
+
+    /** Verlauf, Spitzen, Verbrauch und Kosten auf Anfang setzen (Archivdaten bleiben erhalten) */
+    public function ResetStatistics()
+    {
+        foreach (['History' => '[]', 'Peaks' => '{}'] as $attribute => $empty) {
+            $this->WriteAttributeString($attribute, $empty);
+        }
+        foreach (['IntervalStart', 'TempCount', 'LastMeterChange', 'LastMeterGap', 'LastPowerTime'] as $attribute) {
+            $this->WriteAttributeInteger($attribute, 0);
+        }
+        foreach (['IntervalStartMeter', 'TempSum', 'LastMeterDelta', 'VirtualMeter', 'LastPowerKW'] as $attribute) {
+            $this->WriteAttributeFloat($attribute, 0);
+        }
+        foreach (['CurrentPower', 'Power', 'EnergyToday', 'CostToday', 'CostMonth', 'CostYear',
+                     'PeakToday', 'PeakYesterday', 'EnergyTotal', 'CostTotal'] as $ident) {
+            $this->SetValue($ident, 0);
+        }
+        $this->SetValue('PeakTodayTime', 0);
+        $this->UpdateVisualizationValue($this->GetFullUpdateMessage());
+    }
+
+    /** Bezugswert ist eine Leistung (W/kW) statt eines Zählerstands */
+    private function IsPowerMode(): bool
+    {
+        return $this->ReadPropertyInteger('ValueType') !== 2;
+    }
+
+    /** Aktuelle Leistung in kW aus der Bezugsvariable (Leistungs-Modus) */
+    private function ReadPowerKW(): float
+    {
+        $value = (float) GetValue($this->ReadPropertyInteger('EnergyVariableID'));
+        return max(0, $this->ReadPropertyInteger('ValueType') === 0 ? $value / 1000 : $value);
+    }
+
+    /** Zählerstand in kWh: echter Zähler oder die aus der Leistung aufsummierte Energie */
+    private function GetMeter(): float
+    {
+        if ($this->IsPowerMode()) {
+            return $this->ReadAttributeFloat('VirtualMeter');
+        }
+        return (float) GetValue($this->ReadPropertyInteger('EnergyVariableID'));
+    }
+
+    /**
+     * Leistungs-Modus: Energie = Leistung × Zeit seit dem letzten Messwert aufsummieren.
+     * Läuft bei jedem neuen Messwert und jede Minute (falls die Leistung länger gleich bleibt).
+     */
+    private function IntegratePower(int $now)
+    {
+        $last = $this->ReadAttributeInteger('LastPowerTime');
+        // Lücken über 15 Minuten (z.B. Symcon war aus) nicht hochrechnen
+        if ($last > 0 && $now > $last && $now - $last <= 15 * 60) {
+            $kWh = $this->ReadAttributeFloat('LastPowerKW') * ($now - $last) / 3600;
+            if ($kWh > 0) {
+                $this->WriteAttributeFloat('VirtualMeter', $this->ReadAttributeFloat('VirtualMeter') + $kWh);
+                $this->AddConsumption($kWh);
+            }
+        }
+        $kW = $this->ReadPowerKW();
+        $this->WriteAttributeInteger('LastPowerTime', $now);
+        $this->WriteAttributeFloat('LastPowerKW', $kW);
+        $this->SetValue('CurrentPower', round($kW, 3));
     }
 
     /**
@@ -321,7 +408,9 @@ class WaermepumpeKachel extends IPSModule
         $today = date('Y-m-d', $now);
         return json_encode([
             'now'         => $now,
-            'current'     => $this->ReadAttributeInteger('LastMeterGap') > 0 ? $this->GetValue('CurrentPower') : null,
+            'current'     => $this->IsPowerMode()
+                ? ($this->VariableConfigured('EnergyVariableID') ? $this->ReadPowerKW() : null)
+                : ($this->ReadAttributeInteger('LastMeterGap') > 0 ? $this->GetValue('CurrentPower') : null),
             'power'       => count($history) > 0 ? end($history)[1] : null,
             'temperature' => $this->GetTemperature(),
             'energyToday' => $this->GetValue('EnergyToday'),

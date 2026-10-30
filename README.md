@@ -94,23 +94,25 @@ Startwerte: Schwelle 30 lx, ab 16:00, max. 6 h.
 
 # WaermepumpeKachel
 
-Übersicht für eine Wärmepumpe mit nur zwei Werten: **Zählerstand Bezug (kWh)** und **Außentemperatur (°C)**.
+Übersicht für eine Wärmepumpe mit nur zwei Werten: **Bezug der Wärmepumpe** (Zähler direkt vor der WP)
+und **Außentemperatur (°C)**. Der Bezugswert kann sein: **aktuelle Leistung in W**, **in kW** oder ein **Zählerstand in kWh**.
 
 **Kachel:**
-- **Leistung aktuell** als Rundanzeige (Skala bis zur höchsten Leistung der letzten Tage), mit „in Betrieb“ / „Stillstand“.
-  Berechnet aus den letzten beiden Zählerständen (Zuwachs / Zeitabstand); kommt kein neuer Zählerstand,
-  fällt der Wert automatisch Richtung 0 (höchstens „letzter Zuwachs / Zeit seitdem“).
-- Kennzahlen: Leistung (Ø 15 min), Außentemperatur, Verbrauch + Kosten heute, Spitze 15 min heute (mit Uhrzeit)
+- **Leistung aktuell** als Rundanzeige (Skala bis zur höchsten Leistung der letzten Tage), mit „in Betrieb“ / „Stillstand“
+- Kennzahlen: Leistung (Ø 15 min), Außentemperatur, Verbrauch + Kosten heute, Spitze heute (Ø 15 min, mit Uhrzeit)
 - Diagramm der letzten 24 h: Leistung je Viertelstunde (Balken, Tagesspitze rot) und Außentemperatur (Linie);
   antippen/überfahren zeigt die Werte der Viertelstunde
 - Höchste 15-min-Leistung je Tag der letzten 7 Tage (bei niedrigen Kacheln ausgeblendet)
 
-**Berechnung:** Ø kW einer Viertelstunde = Zählerzuwachs (kWh) × 4. Die Viertelstunden laufen synchron zur Uhr
-(:00, :15, :30, :45). Lücken > 2 h (Symcon aus) und Zählertausch werden übersprungen.
-Hinweis: Die Genauigkeit hängt von der Auflösung des Zählers ab (z.B. 0,1 kWh je Viertelstunde = 0,4 kW Stufen).
+**Berechnung:**
+- Leistung (W/kW): Verbrauch = Leistung × Zeit, aufsummiert bei jedem neuen Messwert und jede Minute.
+- Zählerstand (kWh): Verbrauch = Zuwachs; aktuelle Leistung = Zuwachs / Zeit zwischen zwei Zählerständen.
+- Ø 15 min = Energie der Viertelstunde × 4, synchron zur Uhr (:00, :15, :30, :45) – wie beim Netzbetreiber.
+- Lücken (Symcon aus) werden nicht hochgerechnet. Wird die Art des Bezugswerts geändert, beginnt die Auswertung neu
+  (manuell: Button „Auswertung zurücksetzen“).
 
-**Großansicht / Archiv:** Leistung, Außentemperatur und „Spitze 15 min je Tag“ werden als Verlauf,
-„Verbrauch gesamt“ und „Kosten gesamt“ als Zähler aufgezeichnet (Summen je Tag/Woche/Monat/Jahr im Diagramm).
+**Großansicht / Archiv:** Leistung aktuell, Leistung Ø 15 min, Außentemperatur und „Spitze 15 min je Tag“ als Verlauf,
+„Verbrauch gesamt“ und „Kosten gesamt“ als Zähler (Summen je Tag/Woche/Monat/Jahr im Diagramm).
 Dazu Verbrauch heute, Kosten heute / Monat / Jahr, Spitze heute (Uhrzeit) und gestern.
 
-**Konfiguration:** Zählerstand-Variable (kWh), Außentemperatur-Variable, Strompreis (€/kWh).
+**Konfiguration:** Bezugsvariable + Art des Werts (W / kW / kWh), Außentemperatur-Variable, Strompreis (€/kWh).
