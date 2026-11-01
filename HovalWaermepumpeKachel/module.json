@@ -1,0 +1,11 @@
+{
+    "id": "{819E18DB-B2AE-4FB3-9BF3-7B89AF9E63BA}",
+    "name": "HovalWaermepumpeKachel",
+    "type": 3,
+    "vendor": "",
+    "aliases": ["Hoval Wärmepumpe Kachel", "Wärmepumpe Anlagenschema"],
+    "parentRequirements": [],
+    "childRequirements": [],
+    "implemented": [],
+    "prefix": "HWP"
+}

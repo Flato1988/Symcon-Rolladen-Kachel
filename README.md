@@ -116,3 +116,22 @@ und **Außentemperatur (°C)**. Der Bezugswert kann sein: **aktuelle Leistung in
 Dazu Verbrauch heute, Kosten heute / Monat / Jahr, Spitze heute (Uhrzeit) und gestern.
 
 **Konfiguration:** Bezugsvariable + Art des Werts (W / kW / kWh), Außentemperatur-Variable, Strompreis (€/kWh).
+
+---
+
+# HovalWaermepumpeKachel
+
+Anlagenschema für eine Hoval UltraSource (Werte per Modbus):
+- **Wärmepumpe** links: Lüfter dreht sich im Betrieb (WEZ-Leistung > 0 oder elektrische Leistung > 0),
+  Status, WEZ Soll / Ist, Leistung (Modulation)
+- **Vorlauf** (rot) / **Rücklauf** (blau) mit Temperaturen, Volumenstrom und Pumpendrehzahl;
+  die Strömung ist animiert, sobald die Pumpe läuft
+- **Speicher** rechts: Schichtung als Farbverlauf (blau = kalt, orange, rot = heiß) mit Temperatur oben/unten und Warmwasser-Soll
+- Kennzahlen: Außentemperatur, Raum-Soll, Betriebsart, Wasserdruck, elektrische / thermische Leistung, **COP** (thermisch ÷ elektrisch)
+
+Alle Werte werden mit dem **Profil der jeweiligen Variable** angezeigt (Einheit, Nachkommastellen,
+Texte – z.B. ein Profil mit Assoziationen für WEZ Status / Betriebsart zeigt Klartext).
+Alle Datenpunkte sind optional; nicht konfigurierte werden ausgeblendet.
+
+**Großansicht:** Links auf alle konfigurierten Datenpunkte unterhalb der Instanz sowie die Variable
+**COP (aktuell)** (im Archiv aufgezeichnet).

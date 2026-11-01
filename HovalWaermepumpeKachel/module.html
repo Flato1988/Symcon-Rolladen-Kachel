@@ -1,0 +1,219 @@
+<style>
+    :root {
+        --acc: var(--accent-color, #00cdab);
+        --fg: var(--content-color, #1a1a1a);
+        --hot: #e5484d;
+        --cold: #3b82f6;
+        --box: rgba(128, 128, 128, .08);
+        --stroke: rgba(128, 128, 128, .45);
+    }
+    @media (prefers-color-scheme: dark) {
+        :root { --fg: var(--content-color, #f0f0f0); }
+    }
+    html, body {
+        margin: 0;
+        height: 100%;
+        background: transparent;
+        color: var(--fg);
+        font-family: var(--font-family, "Poppins", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif);
+        overflow: hidden;
+        user-select: none;
+        -webkit-user-select: none;
+        -webkit-tap-highlight-color: transparent;
+    }
+    #tile {
+        box-sizing: border-box;
+        /* 100vh = Höhe der Kachel, auch wenn Symcon keine Höhe an html/body vorgibt */
+        height: 100vh;
+        /* oben Platz für den Titel und das Vergrößern-Symbol, die Symcon selbst zeichnet */
+        padding: 58px 14px 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    /* ---------- Kennzahlen ---------- */
+    .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+    .kpis.bottom { grid-template-columns: repeat(3, 1fr); }
+    .kpi { min-width: 0; padding: 5px 8px; border-radius: 8px; background: var(--box); }
+    .kpi .label { font-size: 11px; opacity: .65; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .kpi .value { font-size: 16px; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .kpi.cop .value { color: var(--acc); }
+    @media (max-width: 440px) {
+        .kpis { grid-template-columns: repeat(2, 1fr); }
+        .kpi .value { font-size: 14px; }
+    }
+    .kpi[hidden] { display: none; }
+
+    /* ---------- Anlagenschema ---------- */
+    #schema { flex: 1; min-height: 0; width: 100%; display: block; }
+    #schema text { fill: var(--fg); font-size: 9px; }
+    #schema .small { font-size: 7.5px; opacity: .65; }
+    #schema .title { font-size: 10px; font-weight: 600; }
+    #schema .center { text-anchor: middle; }
+    #schema .unit-box { fill: var(--box); stroke: var(--stroke); stroke-width: 1; }
+    #schema .fan-ring { fill: none; stroke: var(--stroke); stroke-width: 1.5; }
+    #schema .blade { fill: var(--fg); opacity: .5; }
+    #schema .pipe-bg { fill: none; stroke-width: 5; stroke-linecap: round; opacity: .25; }
+    #schema .pipe { fill: none; stroke-width: 5; stroke-linecap: round; }
+    #schema .hot { stroke: var(--hot); }
+    #schema .cold { stroke: var(--cold); }
+    #schema .tank-shell { fill: none; stroke: var(--stroke); stroke-width: 1.5; }
+    #schema .tank-temp { fill: #fff; font-size: 11px; font-weight: 600; text-anchor: middle; paint-order: stroke; stroke: rgba(0, 0, 0, .25); stroke-width: 2px; }
+    #schema .pump { fill: var(--box); stroke: var(--stroke); stroke-width: 1.2; }
+    #schema .pump-tri { fill: var(--fg); opacity: .55; }
+
+    /* Strömung: laufende Striche auf den Leitungen, wenn die Pumpe läuft */
+    @keyframes flow { to { stroke-dashoffset: -24; } }
+    #schema .pipe { stroke-dasharray: 8 4; }
+    #schema.running .pipe { animation: flow 1s linear infinite; }
+    #schema:not(.running) .pipe { stroke-dasharray: none; }
+
+    /* Lüfter dreht sich im Betrieb */
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #fan { transform-box: fill-box; transform-origin: center; }
+    #schema.heating #fan { animation: spin 1.6s linear infinite; }
+    #schema.heating .blade { fill: var(--acc); opacity: .9; }
+    #schema.heating .fan-ring { stroke: var(--acc); }
+</style>
+
+<div id="tile">
+    <div class="kpis">
+        <div class="kpi" data-key="OutdoorTemp"><div class="label">Außen</div><div class="value">–</div></div>
+        <div class="kpi" data-key="RoomSetpoint"><div class="label">Raum Soll</div><div class="value">–</div></div>
+        <div class="kpi" data-key="OperatingMode"><div class="label">Betriebsart</div><div class="value">–</div></div>
+        <div class="kpi" data-key="WaterPressure"><div class="label">Wasserdruck</div><div class="value">–</div></div>
+    </div>
+
+    <svg id="schema" viewBox="0 0 360 214" preserveAspectRatio="xMidYMid meet">
+        <!-- Wärmepumpe -->
+        <rect class="unit-box" x="6" y="6" width="116" height="168" rx="10"/>
+        <circle class="fan-ring" cx="64" cy="48" r="28"/>
+        <g id="fan">
+            <circle cx="64" cy="48" r="26" fill="none" stroke="none"/>
+            <path class="blade" d="M64 48 C60 34 62 26 70 24 C74 32 71 41 64 48 Z"/>
+            <path class="blade" d="M64 48 C60 34 62 26 70 24 C74 32 71 41 64 48 Z" transform="rotate(120 64 48)"/>
+            <path class="blade" d="M64 48 C60 34 62 26 70 24 C74 32 71 41 64 48 Z" transform="rotate(240 64 48)"/>
+            <circle class="blade" cx="64" cy="48" r="4"/>
+        </g>
+        <text class="title center" x="64" y="96">Wärmepumpe</text>
+        <text class="center" x="64" y="111" id="tStatus">–</text>
+        <text class="small" x="16" y="128">Soll</text>
+        <text x="112" y="128" text-anchor="end" id="tWezSoll">–</text>
+        <text class="small" x="16" y="143">Ist</text>
+        <text x="112" y="143" text-anchor="end" id="tWezIst">–</text>
+        <text class="small" x="16" y="158">Leistung</text>
+        <text x="112" y="158" text-anchor="end" id="tWezPower">–</text>
+
+        <!-- Vorlauf (oben) und Rücklauf (unten) -->
+        <path class="pipe-bg hot" d="M122 40 H268"/>
+        <path class="pipe hot" d="M122 40 H268"/>
+        <path class="pipe-bg cold" d="M268 150 H122"/>
+        <path class="pipe cold" d="M268 150 H122"/>
+        <text class="small center" x="195" y="28">Vorlauf</text>
+        <text class="center" x="195" y="58" id="tFlow" style="font-weight:600">–</text>
+        <text class="small center" x="195" y="72" id="tFlowRate"></text>
+        <text class="small center" x="195" y="174">Rücklauf</text>
+        <text class="center" x="195" y="186" id="tReturn" style="font-weight:600">–</text>
+        <!-- Umwälzpumpe im Rücklauf -->
+        <circle class="pump" cx="195" cy="150" r="9"/>
+        <path class="pump-tri" d="M191 145 L191 155 L200 150 Z" transform="rotate(180 195 150)"/>
+        <text class="small center" x="195" y="134" id="tPump"></text>
+
+        <!-- Speicher: Schichtung aus Streifen (ohne SVG-Verläufe, funktioniert in jeder Einbettung) -->
+        <g id="tankSlices"></g>
+        <rect class="tank-shell" x="268" y="10" width="74" height="176" rx="16"/>
+        <text class="small center" x="305" y="26" style="fill:#fff;opacity:.9">oben</text>
+        <text class="tank-temp" x="305" y="42" id="tTop">–</text>
+        <text class="tank-temp" x="305" y="166" id="tBottom">–</text>
+        <text class="small center" x="305" y="178" style="fill:#fff;opacity:.9">unten</text>
+        <text class="small center" x="305" y="204" id="tDhw"></text>
+    </svg>
+
+    <div class="kpis bottom">
+        <div class="kpi" data-key="ElecPower"><div class="label">Elektrisch</div><div class="value">–</div></div>
+        <div class="kpi" data-key="ThermPower"><div class="label">Thermisch</div><div class="value">–</div></div>
+        <div class="kpi cop"><div class="label">COP aktuell</div><div class="value" id="cop">–</div></div>
+    </div>
+</div>
+
+<script>
+    const $ = (id) => document.getElementById(id);
+    const NS = 'http://www.w3.org/2000/svg';
+    let values = {};
+
+    const f = (key) => values[key] ? values[key].f : '–';          // formatiert (Profil)
+    const n = (key) => values[key] ? Number(values[key].v) : null;  // Zahl
+    const has = (key) => key in values;
+
+    // Temperatur -> Farbe: 15 °C blau, 38 °C orange, 55 °C rot
+    const STOPS = [[15, [59, 130, 246]], [38, [242, 153, 74]], [55, [229, 72, 77]]];
+    function tempColor(t) {
+        if (t === null || isNaN(t)) return 'rgba(128,128,128,.3)';
+        if (t <= STOPS[0][0]) return `rgb(${STOPS[0][1]})`;
+        for (let i = 1; i < STOPS.length; i++) {
+            const [t0, c0] = STOPS[i - 1], [t1, c1] = STOPS[i];
+            if (t <= t1) {
+                const p = (t - t0) / (t1 - t0);
+                return `rgb(${c0.map((c, j) => Math.round(c + (c1[j] - c) * p))})`;
+            }
+        }
+        return `rgb(${STOPS[STOPS.length - 1][1]})`;
+    }
+
+    function drawTank() {
+        const g = $('tankSlices');
+        g.innerHTML = '';
+        const top = n('StorageTop'), bottom = n('StorageBottom');
+        const t1 = top !== null ? top : bottom, t2 = bottom !== null ? bottom : top;
+        const x = 268, y = 10, w = 74, h = 176, r = 16, steps = 60;
+        // Ersatz für einen Clip-Pfad: schmale Streifen, in den Rundungen jeweils so weit eingerückt,
+        // dass die äußere Kante des Streifens noch innerhalb der Rundung liegt
+        const insetAt = (yy) => yy < y + r ? r - Math.sqrt(Math.max(0, r * r - (y + r - yy) ** 2))
+            : yy > y + h - r ? r - Math.sqrt(Math.max(0, r * r - (yy - (y + h - r)) ** 2)) : 0;
+        for (let i = 0; i < steps; i++) {
+            const sy = y + i * h / steps, sh = h / steps + 0.4;
+            const t = t1 === null ? null : t1 + (t2 - t1) * (i / (steps - 1));
+            const inset = Math.max(insetAt(sy + 0.75), insetAt(Math.min(y + h - 0.75, sy + sh)));
+            const rect = document.createElementNS(NS, 'rect');
+            rect.setAttribute('x', x + inset + 0.75);
+            rect.setAttribute('y', sy);
+            rect.setAttribute('width', Math.max(0, w - 2 * inset - 1.5));
+            rect.setAttribute('height', sh);
+            rect.setAttribute('fill', tempColor(t));
+            g.appendChild(rect);
+        }
+    }
+
+    // Wird von IP-Symcon aufgerufen (Startwert + jede Änderung eines Datenpunkts)
+    function handleMessage(data) {
+        const msg = typeof data === 'string' ? JSON.parse(data) : data;
+        values = msg.values || {};
+
+        document.querySelectorAll('.kpi[data-key]').forEach(k => {
+            k.hidden = !has(k.dataset.key);
+            k.querySelector('.value').textContent = f(k.dataset.key);
+        });
+        $('cop').textContent = msg.cop === null || msg.cop === undefined ? '–'
+            : Number(msg.cop).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+        $('tStatus').textContent = has('WEZStatus') ? 'Status: ' + f('WEZStatus') : '';
+        $('tWezSoll').textContent = f('WEZSetpoint');
+        $('tWezIst').textContent = f('WEZTemp');
+        $('tWezPower').textContent = f('WEZPower');
+        $('tFlow').textContent = f('FlowTemp');
+        $('tReturn').textContent = f('ReturnTemp');
+        $('tFlowRate').textContent = has('FlowRate') ? f('FlowRate') : '';
+        $('tPump').textContent = has('PumpSpeed') ? 'Pumpe ' + f('PumpSpeed') : '';
+        $('tTop').textContent = f('StorageTop');
+        $('tBottom').textContent = f('StorageBottom');
+        $('tDhw').textContent = has('DHWSetpoint') ? 'WW-Soll ' + f('DHWSetpoint') : '';
+        drawTank();
+
+        // Betrieb erkennen: Pumpe/Volumenstrom -> Strömung, Leistung -> Lüfter
+        const pumping = (n('PumpSpeed') || 0) > 0 || (n('FlowRate') || 0) > 0;
+        const heating = (n('WEZPower') || 0) > 0 || (n('ElecPower') || 0) > 0.05;
+        $('schema').classList.toggle('running', pumping);
+        $('schema').classList.toggle('heating', heating);
+    }
+</script>

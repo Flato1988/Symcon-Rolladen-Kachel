@@ -1,0 +1,127 @@
+{
+    "elements": [
+        {
+            "type": "ValidationTextBox",
+            "name": "TileName",
+            "caption": "Bezeichnung (Titel der Kachel, z.B. Wärmepumpe)"
+        },
+        {
+            "type": "ExpansionPanel",
+            "caption": "Allgemein",
+            "expanded": true,
+            "items": [
+                {
+                    "type": "SelectVariable",
+                    "name": "OutdoorTempID",
+                    "caption": "Außentemperatur"
+                },
+                {
+                    "type": "SelectVariable",
+                    "name": "RoomSetpointID",
+                    "caption": "Sollwert Raum"
+                },
+                {
+                    "type": "SelectVariable",
+                    "name": "OperatingModeID",
+                    "caption": "Betriebsart"
+                },
+                {
+                    "type": "SelectVariable",
+                    "name": "WaterPressureID",
+                    "caption": "Wasserdruck"
+                }
+            ]
+        },
+        {
+            "type": "ExpansionPanel",
+            "caption": "Wärmepumpe (WEZ)",
+            "expanded": true,
+            "items": [
+                {
+                    "type": "SelectVariable",
+                    "name": "WEZStatusID",
+                    "caption": "WEZ Status"
+                },
+                {
+                    "type": "SelectVariable",
+                    "name": "WEZSetpointID",
+                    "caption": "WEZ Sollwert"
+                },
+                {
+                    "type": "SelectVariable",
+                    "name": "WEZTempID",
+                    "caption": "WEZ Temperatur"
+                },
+                {
+                    "type": "SelectVariable",
+                    "name": "WEZPowerID",
+                    "caption": "WEZ Leistung (Modulation)"
+                },
+                {
+                    "type": "SelectVariable",
+                    "name": "ElecPowerID",
+                    "caption": "Elektrische Leistungsaufnahme errechnet"
+                },
+                {
+                    "type": "SelectVariable",
+                    "name": "ThermPowerID",
+                    "caption": "Thermische Leistung errechnet"
+                }
+            ]
+        },
+        {
+            "type": "ExpansionPanel",
+            "caption": "Hydraulik",
+            "expanded": true,
+            "items": [
+                {
+                    "type": "SelectVariable",
+                    "name": "FlowTempID",
+                    "caption": "Vorlauftemperatur aktuell"
+                },
+                {
+                    "type": "SelectVariable",
+                    "name": "ReturnTempID",
+                    "caption": "Rücklauftemperatur"
+                },
+                {
+                    "type": "SelectVariable",
+                    "name": "FlowRateID",
+                    "caption": "Volumenstrom"
+                },
+                {
+                    "type": "SelectVariable",
+                    "name": "PumpSpeedID",
+                    "caption": "Drehzahl Pumpe"
+                }
+            ]
+        },
+        {
+            "type": "ExpansionPanel",
+            "caption": "Speicher / Warmwasser",
+            "expanded": true,
+            "items": [
+                {
+                    "type": "SelectVariable",
+                    "name": "StorageTopID",
+                    "caption": "Speichertemperatur oben"
+                },
+                {
+                    "type": "SelectVariable",
+                    "name": "StorageBottomID",
+                    "caption": "Speichertemperatur unten"
+                },
+                {
+                    "type": "SelectVariable",
+                    "name": "DHWSetpointID",
+                    "caption": "Warmwasser Soll"
+                }
+            ]
+        },
+        {
+            "type": "Label",
+            "caption": "Alle Felder sind optional. Angezeigt wird mit dem Profil der jeweiligen Variable (Einheit, Nachkommastellen, Texte z.B. für Status/Betriebsart)."
+        }
+    ],
+    "actions": []
+}
