@@ -14,7 +14,8 @@ class HovalWaermepumpeKachel extends IPSModule
         'WEZSetpoint'   => 'WEZ Sollwert',
         'WEZTemp'       => 'WEZ Temperatur',
         'WEZPower'      => 'WEZ Leistung (Modulation)',
-        'ElecPower'     => 'Elektrische Leistungsaufnahme',
+        'ElecPower'     => 'Elektrische Leistungsaufnahme (errechnet)',
+        'MeasuredPower' => 'Elektrische Leistungsaufnahme (gemessen)',
         'ThermPower'    => 'Thermische Leistung',
         'FlowTemp'      => 'Vorlauftemperatur',
         'ReturnTemp'    => 'Rücklauftemperatur',
@@ -22,7 +23,9 @@ class HovalWaermepumpeKachel extends IPSModule
         'PumpSpeed'     => 'Drehzahl Pumpe',
         'StorageTop'    => 'Speichertemperatur oben',
         'StorageBottom' => 'Speichertemperatur unten',
-        'DHWSetpoint'   => 'Warmwasser Soll'
+        'DHWSetpoint'   => 'Warmwasser Soll',
+        'BufferTemp'    => 'Puffertemperatur',
+        'Valve'         => 'Umschaltventil (Y-Ventil)'
     ];
 
     public function Create()
@@ -33,6 +36,11 @@ class HovalWaermepumpeKachel extends IPSModule
         foreach (array_keys(self::DATAPOINTS) as $key) {
             $this->RegisterPropertyInteger($key . 'ID', 0);
         }
+        // Einheiten der beiden elektrischen Leistungen (0 = W, 1 = kW), damit sie vergleichbar sind
+        $this->RegisterPropertyInteger('ElecPowerUnit', 1);
+        $this->RegisterPropertyInteger('MeasuredPowerUnit', 0);
+        // Wert der Ventil-Variable, bei dem das Ventil auf Warmwasser steht (sonst: Heizung/Puffer)
+        $this->RegisterPropertyFloat('ValveDHWValue', 1);
 
         // Kachel über das HTML-SDK darstellen
         $this->SetVisualizationType(1);
@@ -73,8 +81,20 @@ class HovalWaermepumpeKachel extends IPSModule
             IPS_SetVariableProfileDigits('HWP.COP', 2);
             IPS_SetVariableProfileIcon('HWP.COP', 'Graph');
         }
+        if (!IPS_VariableProfileExists('HWP.Percent')) {
+            IPS_CreateVariableProfile('HWP.Percent', VARIABLETYPE_FLOAT);
+            IPS_SetVariableProfileText('HWP.Percent', '', ' %');
+            IPS_SetVariableProfileDigits('HWP.Percent', 1);
+            IPS_SetVariableProfileIcon('HWP.Percent', 'Graph');
+        }
         $this->RegisterVariableFloat('COP', 'COP (aktuell)', 'HWP.COP', 0);
         $this->EnableLogging('COP');
+        // Abweichung errechnete gegenüber gemessener Leistungsaufnahme
+        $hasDeviation = $this->GetVariableID('ElecPower') > 0 && $this->GetVariableID('MeasuredPower') > 0;
+        $this->MaintainVariable('Deviation', 'Abweichung errechnet / gemessen', VARIABLETYPE_FLOAT, 'HWP.Percent', 0, $hasDeviation);
+        if ($hasDeviation) {
+            $this->EnableLogging('Deviation');
+        }
 
         // Großansicht: zeigt die Objekte unterhalb der Instanz -> Links auf alle konfigurierten Datenpunkte
         if (IPS_GetKernelRunlevel() === KR_READY) {
@@ -124,26 +144,67 @@ class HovalWaermepumpeKachel extends IPSModule
             }
         }
         $cop = $this->CalculateCOP();
+        $deviation = $this->CalculateDeviation();
         return json_encode([
-            'values' => $values,
-            'cop'    => $cop === null ? null : round($cop, 2)
+            'values'    => $values,
+            'cop'       => $cop === null ? null : round($cop, 2),
+            'deviation' => $deviation === null ? null : round($deviation, 1),
+            'valve'     => $this->GetValvePosition(),
+            // läuft die Wärmepumpe? (über 100 W elektrisch oder Modulation > 0)
+            'heating'   => ($this->GetPowerKW('MeasuredPower') ?? $this->GetPowerKW('ElecPower') ?? 0) > 0.1
+                || ($this->GetVariableID('WEZPower') > 0 && (float) GetValue($this->GetVariableID('WEZPower')) > 0)
         ]);
     }
 
-    /** COP = thermische ÷ elektrische Leistung (nur wenn die Wärmepumpe läuft) */
+    /**
+     * COP = thermische ÷ elektrische Leistung (nur wenn die Wärmepumpe läuft).
+     * Verwendet die gemessene Leistung, wenn vorhanden, sonst die errechnete.
+     * Die thermische Leistung hat dieselbe Einheit wie die errechnete elektrische.
+     */
     private function CalculateCOP(): ?float
     {
-        $elecID = $this->GetVariableID('ElecPower');
         $thermID = $this->GetVariableID('ThermPower');
-        if ($elecID === 0 || $thermID === 0) {
+        $elecKW = $this->GetPowerKW('MeasuredPower') ?? $this->GetPowerKW('ElecPower');
+        if ($thermID === 0 || $elecKW === null) {
             return null;
         }
-        $elec = (float) GetValue($elecID);
-        $therm = (float) GetValue($thermID);
-        if ($elec <= 0.05 || $therm <= 0) {
+        $thermKW = (float) GetValue($thermID) / ($this->ReadPropertyInteger('ElecPowerUnit') === 0 ? 1000 : 1);
+        if ($elecKW <= 0.05 || $thermKW <= 0) {
             return null;
         }
-        return min(15, $therm / $elec);
+        return min(15, $thermKW / $elecKW);
+    }
+
+    /** Abweichung in % = (errechnet − gemessen) ÷ gemessen × 100 (nur bei nennenswerter Leistung) */
+    private function CalculateDeviation(): ?float
+    {
+        $calculated = $this->GetPowerKW('ElecPower');
+        $measured = $this->GetPowerKW('MeasuredPower');
+        if ($calculated === null || $measured === null || $measured < 0.1) {
+            return null;
+        }
+        return ($calculated - $measured) / $measured * 100;
+    }
+
+    /** Leistung in kW (Einheit laut Einstellung), null wenn nicht konfiguriert */
+    private function GetPowerKW(string $key): ?float
+    {
+        $id = $this->GetVariableID($key);
+        if ($id === 0) {
+            return null;
+        }
+        $unit = $this->ReadPropertyInteger($key === 'MeasuredPower' ? 'MeasuredPowerUnit' : 'ElecPowerUnit');
+        return (float) GetValue($id) / ($unit === 0 ? 1000 : 1);
+    }
+
+    /** Stellung des Y-Ventils: "ww" (Warmwasser), "heat" (Puffer/FBH) oder null (unbekannt) */
+    private function GetValvePosition(): ?string
+    {
+        $id = $this->GetVariableID('Valve');
+        if ($id === 0) {
+            return null;
+        }
+        return abs((float) GetValue($id) - $this->ReadPropertyFloat('ValveDHWValue')) < 0.001 ? 'ww' : 'heat';
     }
 
     private function UpdateCOP()
@@ -152,6 +213,10 @@ class HovalWaermepumpeKachel extends IPSModule
         $value = $cop === null ? 0.0 : round($cop, 2);
         if (@$this->GetIDForIdent('COP') && $this->GetValue('COP') !== $value) {
             $this->SetValue('COP', $value);
+        }
+        $deviation = $this->CalculateDeviation();
+        if ($deviation !== null && @$this->GetIDForIdent('Deviation')) {
+            $this->SetValue('Deviation', round($deviation, 1));
         }
     }
 

@@ -59,13 +59,59 @@
                 },
                 {
                     "type": "SelectVariable",
+                    "name": "ThermPowerID",
+                    "caption": "Thermische Leistung errechnet"
+                }
+            ]
+        },
+        {
+            "type": "ExpansionPanel",
+            "caption": "Elektrische Leistungsaufnahme",
+            "expanded": true,
+            "items": [
+                {
+                    "type": "SelectVariable",
                     "name": "ElecPowerID",
-                    "caption": "Elektrische Leistungsaufnahme errechnet"
+                    "caption": "errechnet (Hoval)"
+                },
+                {
+                    "type": "Select",
+                    "name": "ElecPowerUnit",
+                    "caption": "Einheit errechnet (gilt auch für die thermische Leistung)",
+                    "options": [
+                        {
+                            "caption": "W",
+                            "value": 0
+                        },
+                        {
+                            "caption": "kW",
+                            "value": 1
+                        }
+                    ]
                 },
                 {
                     "type": "SelectVariable",
-                    "name": "ThermPowerID",
-                    "caption": "Thermische Leistung errechnet"
+                    "name": "MeasuredPowerID",
+                    "caption": "gemessen (externer Zähler)"
+                },
+                {
+                    "type": "Select",
+                    "name": "MeasuredPowerUnit",
+                    "caption": "Einheit gemessen",
+                    "options": [
+                        {
+                            "caption": "W",
+                            "value": 0
+                        },
+                        {
+                            "caption": "kW",
+                            "value": 1
+                        }
+                    ]
+                },
+                {
+                    "type": "Label",
+                    "caption": "Abweichung % = (errechnet − gemessen) ÷ gemessen × 100. Der COP verwendet die gemessene Leistung, wenn vorhanden."
                 }
             ]
         },
@@ -98,23 +144,43 @@
         },
         {
             "type": "ExpansionPanel",
-            "caption": "Speicher / Warmwasser",
+            "caption": "Y-Ventil / Speicher",
             "expanded": true,
             "items": [
                 {
                     "type": "SelectVariable",
+                    "name": "ValveID",
+                    "caption": "Umschaltventil (Y-Ventil), optional"
+                },
+                {
+                    "type": "NumberSpinner",
+                    "name": "ValveDHWValue",
+                    "caption": "Wert bei Stellung Warmwasser",
+                    "digits": 0
+                },
+                {
+                    "type": "Label",
+                    "caption": "Ohne Ventil-Variable werden beide Zweige (WW-Speicher und Puffer/FBH) neutral dargestellt."
+                },
+                {
+                    "type": "SelectVariable",
                     "name": "StorageTopID",
-                    "caption": "Speichertemperatur oben"
+                    "caption": "WW-Speichertemperatur oben"
                 },
                 {
                     "type": "SelectVariable",
                     "name": "StorageBottomID",
-                    "caption": "Speichertemperatur unten"
+                    "caption": "WW-Speichertemperatur unten"
                 },
                 {
                     "type": "SelectVariable",
                     "name": "DHWSetpointID",
                     "caption": "Warmwasser Soll"
+                },
+                {
+                    "type": "SelectVariable",
+                    "name": "BufferTempID",
+                    "caption": "Puffertemperatur, optional"
                 }
             ]
         },

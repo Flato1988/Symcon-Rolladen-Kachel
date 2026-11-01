@@ -122,16 +122,22 @@ Dazu Verbrauch heute, Kosten heute / Monat / Jahr, Spitze heute (Uhrzeit) und ge
 # HovalWaermepumpeKachel
 
 Anlagenschema für eine Hoval UltraSource (Werte per Modbus):
-- **Wärmepumpe** links: Lüfter dreht sich im Betrieb (WEZ-Leistung > 0 oder elektrische Leistung > 0),
-  Status, WEZ Soll / Ist, Leistung (Modulation)
-- **Vorlauf** (rot) / **Rücklauf** (blau) mit Temperaturen, Volumenstrom und Pumpendrehzahl;
-  die Strömung ist animiert, sobald die Pumpe läuft
-- **Speicher** rechts: Schichtung als Farbverlauf (blau = kalt, orange, rot = heiß) mit Temperatur oben/unten und Warmwasser-Soll
-- Kennzahlen: Außentemperatur, Raum-Soll, Betriebsart, Wasserdruck, elektrische / thermische Leistung, **COP** (thermisch ÷ elektrisch)
+- **Wärmepumpe** links: Lüfter dreht sich im Betrieb, Status, WEZ Soll / Ist, Leistung (Modulation)
+- **Vorlauf → Y-Ventil (Umschaltventil)** → entweder **WW-Speicher** oder **Pufferspeicher → FBH**;
+  mit Ventil-Variable wird der aktive Zweig rot hervorgehoben, der andere ausgegraut
+- **Gemeinsamer Rücklauf** mit Umwälzpumpe; die Strömung ist animiert, sobald die Pumpe läuft
+- **WW-Speicher**: Schichtung als Farbverlauf (blau = kalt, orange, rot = heiß), oben/unten, WW-Soll
+- **Puffer** (optional mit Temperatur, dann farbig), **FBH** mit Raum-Soll
+- Kennzahlen: Außentemperatur, Raum-Soll, Betriebsart, Wasserdruck,
+  elektrische Leistung **errechnet** (Hoval) und **gemessen** (externer Zähler), **Abweichung %**, thermische Leistung, **COP**
+
+**Abweichung** = (errechnet − gemessen) ÷ gemessen × 100 (nur ab 100 W gemessen);
+grün < 10 %, orange < 25 %, rot ab 25 %. Die Einheiten (W / kW) beider Werte sind einstellbar.
+Der **COP** verwendet die gemessene Leistung, wenn vorhanden.
 
 Alle Werte werden mit dem **Profil der jeweiligen Variable** angezeigt (Einheit, Nachkommastellen,
 Texte – z.B. ein Profil mit Assoziationen für WEZ Status / Betriebsart zeigt Klartext).
 Alle Datenpunkte sind optional; nicht konfigurierte werden ausgeblendet.
 
-**Großansicht:** Links auf alle konfigurierten Datenpunkte unterhalb der Instanz sowie die Variable
-**COP (aktuell)** (im Archiv aufgezeichnet).
+**Großansicht:** Links auf alle konfigurierten Datenpunkte unterhalb der Instanz sowie
+**COP (aktuell)** und **Abweichung errechnet / gemessen** (beide im Archiv aufgezeichnet).
