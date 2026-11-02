@@ -52,7 +52,8 @@ class HovalWaermepumpeKachel extends IPSModule
         'MeasuredEnergy'  => ['Elektrische Energie gemessen (externer Zähler)', null, 'menergy'],
         'Valve'           => ['Umschaltventil (Y-Ventil)', null, 'raw'],
         'WaterPressure'   => ['Wasserdruck', null, 'raw'],
-        'PumpSpeed'       => ['Drehzahl Pumpe', null, 'raw']
+        'PumpSpeed'       => ['Drehzahl Pumpe', null, 'raw'],
+        'DefrostState'    => ['Abtauung aktiv (optional, sonst Erkennung über VL < RL)', null, 'raw']
     ];
 
     private const GROUPS = [
@@ -63,7 +64,7 @@ class HovalWaermepumpeKachel extends IPSModule
         'Heizkreis 1 (FBH)'              => ['HC1FlowTemp', 'HC1FlowSetpoint', 'HC1Status', 'HC1Mode', 'RoomSetpoint', 'HC1Pump'],
         'Warmwasser'                     => ['DHWSetpoint', 'StorageTop', 'StorageBottom', 'DHWStatus', 'DHWMode'],
         'Pufferspeicher'                 => ['BufferTemp', 'BufferTop', 'BufferBottom', 'BufferSetpoint', 'BufferStatus'],
-        'Sonstiges (nicht in Hoval-Liste)' => ['Valve', 'WaterPressure', 'PumpSpeed']
+        'Sonstiges (nicht in Hoval-Liste)' => ['Valve', 'WaterPressure', 'PumpSpeed', 'DefrostState']
     ];
 
     // Klartexte laut Hoval-Datenpunktliste
@@ -114,11 +115,16 @@ class HovalWaermepumpeKachel extends IPSModule
         $this->RegisterPropertyInteger('MeasuredPowerUnit', 0);  // 0 = W, 1 = kW
         $this->RegisterPropertyInteger('MeasuredEnergyUnit', 1); // 0 = Wh, 1 = kWh, 2 = MWh
         $this->RegisterPropertyFloat('ValveDHWValue', 1);        // Wert der Ventil-Variable bei Stellung Warmwasser
+        $this->RegisterPropertyFloat('DefrostThreshold', 0.5);   // Abtauung erkannt, wenn VL mindestens so viel K unter RL liegt
 
         // Vergleichszeitraum: Zählerstände zu Beginn, aufsummierte hydraulische Wärme
         $this->RegisterAttributeString('Baseline', '');
         $this->RegisterAttributeFloat('HydEnergy', 0);
         $this->RegisterAttributeInteger('LastHydTime', 0);
+        // Abtauerkennung {active, last, start} und Tageswerte für das Verlaufsdiagramm
+        $this->RegisterAttributeString('DefrostState', '');
+        $this->RegisterAttributeString('DayStats', '');
+        $this->RegisterAttributeString('DailyHistory', '[]');
 
         $this->RegisterTimer('Tick', 0, 'HWP_Tick($_IPS[\'TARGET\']);');
 
@@ -177,6 +183,25 @@ class HovalWaermepumpeKachel extends IPSModule
             $this->RegisterVariableFloat($ident, $caption, $profile, $position++);
             $this->EnableLogging($ident);
         }
+        // Abtauungen
+        $this->RegisterVariableBoolean('DefrostActive', 'Abtauung aktiv', '~Switch', $position++);
+        $this->RegisterVariableInteger('DefrostCountToday', 'Abtauungen heute', '', $position++);
+        $this->RegisterVariableInteger('DefrostCountTotal', 'Abtauungen gesamt', '', $position++);
+        $this->RegisterVariableFloat('DefrostLastMinutes', 'Dauer letzte Abtauung (min)', 'HWP.COP', $position++);
+        foreach (['DefrostElecToday' => 'Strom für Abtauung heute', 'DefrostElecTotal' => 'Strom für Abtauung gesamt',
+                     'DefrostHeatToday' => 'Wärmeentnahme Abtauung heute', 'DefrostHeatTotal' => 'Wärmeentnahme Abtauung gesamt'] as $ident => $caption) {
+            $this->RegisterVariableFloat($ident, $caption, 'HWP.kWh', $position++);
+        }
+        // Tageswerte (am Tagesende geschrieben, im Archiv aufgezeichnet)
+        $this->CreateProfile('HWP.Temp', 1, ' °C', 'Temperature');
+        foreach (['DailyElec' => ['Stromverbrauch Vortag', 'HWP.kWh'], 'DailyHeat' => ['Wärme Vortag', 'HWP.kWh'],
+                     'DailyTemp' => ['Außentemperatur Ø Vortag', 'HWP.Temp'], 'DailyDefrost' => ['Abtauungen Vortag', 'HWP.COP']] as $ident => [$caption, $profile]) {
+            $this->RegisterVariableFloat($ident, $caption, $profile, $position++);
+            $this->EnableLogging($ident);
+        }
+        $this->EnableLogging('DefrostCountTotal');
+        $this->EnableLogging('DefrostElecTotal');
+
         @$this->UnregisterVariable('COP');        // aus Version 1.6
         @$this->UnregisterVariable('Deviation');  // aus Version 1.6
 
@@ -198,6 +223,13 @@ class HovalWaermepumpeKachel extends IPSModule
                 break;
 
             case VM_UPDATE:
+                // Abtauung möglichst sofort erkennen (nicht erst beim nächsten Minutentakt)
+                foreach (['FlowTemp', 'ReturnTemp', 'FlowRate', 'DefrostState'] as $key) {
+                    if ($SenderID === $this->GetVariableID($key)) {
+                        $this->EvaluateDefrost(time());
+                        break;
+                    }
+                }
                 $this->UpdateCalculations();
                 $this->UpdateVisualizationValue($this->GetFullUpdateMessage());
                 break;
@@ -239,6 +271,8 @@ class HovalWaermepumpeKachel extends IPSModule
                 case 'Sonstiges (nicht in Hoval-Liste)':
                     $items[] = ['type' => 'NumberSpinner', 'name' => 'ValveDHWValue', 'caption' => 'Wert der Ventil-Variable bei Warmwasser', 'digits' => 0];
                     $items[] = ['type' => 'Label', 'caption' => 'Ohne Ventil-Variable wird die Stellung aus dem Status (WFA) erkannt: „Warmwasser mit WP“ bzw. „Heizen mit WP“.'];
+                    $items[] = ['type' => 'NumberSpinner', 'name' => 'DefrostThreshold', 'caption' => 'Abtauerkennung: Vorlauf mindestens … unter Rücklauf', 'digits' => 1, 'suffix' => 'K'];
+                    $items[] = ['type' => 'Label', 'caption' => 'Ohne Abtau-Variable gilt: Volumenstrom > 0 und Vorlauf kälter als Rücklauf = Abtauung (Wärme wird dem Heizwasser entzogen).'];
                     break;
             }
             $elements[] = ['type' => 'ExpansionPanel', 'caption' => $group, 'items' => $items];
@@ -284,6 +318,8 @@ class HovalWaermepumpeKachel extends IPSModule
         }
         $this->WriteAttributeInteger('LastHydTime', $now);
 
+        $this->EvaluateDefrost($now);
+        $this->UpdateDayStats($now);
         $this->UpdateCalculations();
         $this->UpdateVisualizationValue($this->GetFullUpdateMessage());
     }
@@ -292,10 +328,147 @@ class HovalWaermepumpeKachel extends IPSModule
     public function ResetComparison()
     {
         $this->WriteAttributeString('Baseline', '');
+        // Tagesbilanz (falls sie die hydraulische Wärme nutzt) um den Reset korrigieren
+        $day = json_decode($this->ReadAttributeString('DayStats'), true);
+        if ($day && $this->ThermEnergyHovalKWh() === null && $day['heatStart'] !== null) {
+            $day['heatStart'] -= $this->ReadAttributeFloat('HydEnergy');
+            $this->WriteAttributeString('DayStats', json_encode($day));
+        }
         $this->WriteAttributeFloat('HydEnergy', 0);
         $this->UpdateCalculations();
         $this->UpdateVisualizationValue($this->GetFullUpdateMessage());
         $this->ReloadForm();
+    }
+
+    // ---------------------------------------------------------------- Abtauung
+
+    /**
+     * Abtauung erkennen und Energie aufsummieren. Während der Abtauung läuft der Kältekreis umgekehrt:
+     * Die Wärmepumpe entzieht dem Heizwasser Wärme (Vorlauf kälter als Rücklauf) und braucht dafür Strom.
+     */
+    private function EvaluateDefrost(int $now)
+    {
+        $state = (json_decode($this->ReadAttributeString('DefrostState'), true) ?: []) + ['active' => false, 'last' => 0, 'start' => 0, 'q' => 0, 'p' => 0];
+        $q = $this->GetHydraulicPower();
+        $p = $this->MeasuredPowerKW() ?? $this->Value('ElecPower') ?? 0;
+
+        // Energie seit der letzten Auswertung mit den Werten von damals dem bisherigen Zustand zuordnen
+        $dt = ($state['last'] > 0 && $now > $state['last'] && $now - $state['last'] <= 15 * 60) ? $now - $state['last'] : 0;
+        if ($state['active'] && $dt > 0) {
+            $elec = max(0, $state['p']) * $dt / 3600;
+            $heat = max(0, -$state['q']) * $dt / 3600;
+            foreach (['DefrostElecToday' => $elec, 'DefrostElecTotal' => $elec, 'DefrostHeatToday' => $heat, 'DefrostHeatTotal' => $heat] as $ident => $add) {
+                if ($add > 0) {
+                    $this->SetValue($ident, $this->GetValue($ident) + $add);
+                }
+            }
+        }
+
+        // Zustand bestimmen: Abtau-Variable, sonst Spreizung (mit Hysterese: Ende erst, wenn VL wieder ≥ RL)
+        $defrostVar = $this->Value('DefrostState');
+        if ($defrostVar !== null) {
+            $active = $defrostVar != 0;
+        } else {
+            $vl = $this->Value('FlowTemp');
+            $rl = $this->Value('ReturnTemp');
+            $flow = $this->Value('FlowRate') ?? 0;
+            $spread = ($vl !== null && $rl !== null) ? $vl - $rl : null;
+            $limit = $state['active'] ? 0 : -$this->ReadPropertyFloat('DefrostThreshold');
+            $active = $spread !== null && $flow > 0 && $spread < $limit;
+        }
+
+        if ($active && !$state['active']) {
+            $state['start'] = $now;
+            $this->SetValue('DefrostCountToday', $this->GetValue('DefrostCountToday') + 1);
+            $this->SetValue('DefrostCountTotal', $this->GetValue('DefrostCountTotal') + 1);
+        } elseif (!$active && $state['active'] && $state['start'] > 0) {
+            $this->SetValue('DefrostLastMinutes', round(($now - $state['start']) / 60, 1));
+        }
+        if ($this->GetValue('DefrostActive') !== $active) {
+            $this->SetValue('DefrostActive', $active);
+        }
+        $state['active'] = $active;
+        $state['last'] = $now;
+        $state['q'] = $q ?? 0;
+        $state['p'] = $p;
+        $this->WriteAttributeString('DefrostState', json_encode($state));
+    }
+
+    // ---------------------------------------------------------------- Tageswerte
+
+    /** Zählerstand Strom in kWh für die Tagesbilanz: externer Zähler, sonst Hoval */
+    private function DayElecCounter(): ?float
+    {
+        return $this->EnergyKWh('MeasuredEnergy') ?? $this->EnergyKWh('ElecEnergy');
+    }
+
+    /** Zählerstand Wärme in kWh: Hoval-Wärmezähler, sonst die selbst aufsummierte hydraulische Wärme */
+    private function DayHeatCounter(): ?float
+    {
+        $hoval = $this->ThermEnergyHovalKWh();
+        if ($hoval !== null) {
+            return $hoval;
+        }
+        return $this->GetVariableID('FlowRate') > 0 ? $this->ReadAttributeFloat('HydEnergy') : null;
+    }
+
+    /** Tagesbilanz aus den Zählerständen zu Tagesbeginn */
+    private function DaySummary(array $day): array
+    {
+        $elec = $this->DayElecCounter();
+        $heat = $this->DayHeatCounter();
+        $dElec = ($elec !== null && $day['elecStart'] !== null && $elec >= $day['elecStart']) ? $elec - $day['elecStart'] : null;
+        $dHeat = ($heat !== null && $day['heatStart'] !== null && $heat >= $day['heatStart']) ? $heat - $day['heatStart'] : null;
+        return [
+            'd'    => $day['date'],
+            't'    => $day['tCount'] > 0 ? round($day['tSum'] / $day['tCount'], 1) : null,
+            'tmin' => $day['tMin'],
+            'tmax' => $day['tMax'],
+            'e'    => $dElec === null ? null : round($dElec, 2),
+            'h'    => $dHeat === null ? null : round($dHeat, 2),
+            'df'   => $this->GetValue('DefrostCountToday'),
+            'dfe'  => round($this->GetValue('DefrostElecToday'), 2)
+        ];
+    }
+
+    /** Jede Minute: Außentemperatur sammeln; um Mitternacht den Tag abschließen */
+    private function UpdateDayStats(int $now)
+    {
+        $today = date('Y-m-d', $now);
+        $day = json_decode($this->ReadAttributeString('DayStats'), true);
+
+        if ($day && $day['date'] !== $today) {
+            // Tag abschließen: in den Verlauf schreiben und als Tageswerte (Archiv) setzen
+            $summary = $this->DaySummary($day);
+            $history = json_decode($this->ReadAttributeString('DailyHistory'), true) ?: [];
+            $history[] = $summary;
+            $this->WriteAttributeString('DailyHistory', json_encode(array_slice($history, -60)));
+            foreach (['DailyElec' => 'e', 'DailyHeat' => 'h', 'DailyTemp' => 't', 'DailyDefrost' => 'df'] as $ident => $field) {
+                if ($summary[$field] !== null) {
+                    $this->SetValue($ident, $summary[$field]);
+                }
+            }
+            foreach (['DefrostCountToday', 'DefrostElecToday', 'DefrostHeatToday'] as $ident) {
+                $this->SetValue($ident, 0);
+            }
+            $day = null;
+        }
+        if (!$day) {
+            $day = ['date' => $today, 'tSum' => 0, 'tCount' => 0, 'tMin' => null, 'tMax' => null,
+                    'elecStart' => $this->DayElecCounter(), 'heatStart' => $this->DayHeatCounter()];
+        }
+        // Zähler, die erst später verfügbar werden, nachtragen
+        $day['elecStart'] = $day['elecStart'] ?? $this->DayElecCounter();
+        $day['heatStart'] = $day['heatStart'] ?? $this->DayHeatCounter();
+
+        $temperature = $this->Value('OutdoorTemp');
+        if ($temperature !== null) {
+            $day['tSum'] += $temperature;
+            $day['tCount']++;
+            $day['tMin'] = $day['tMin'] === null ? $temperature : min($day['tMin'], $temperature);
+            $day['tMax'] = $day['tMax'] === null ? $temperature : max($day['tMax'], $temperature);
+        }
+        $this->WriteAttributeString('DayStats', json_encode($day));
     }
 
     // ---------------------------------------------------------------- Werte
@@ -574,8 +747,27 @@ class HovalWaermepumpeKachel extends IPSModule
             'rows'    => $rows,
             'valve'   => $this->GetValvePosition(),
             'heating' => $c['running'],
-            'error'   => ($error !== null && (int) $error !== 255) ? $this->Format('ErrorCode') : null
+            'error'   => ($error !== null && (int) $error !== 255) ? $this->Format('ErrorCode') : null,
+            'defrost' => [
+                'active' => $this->GetValue('DefrostActive'),
+                'today'  => $this->GetValue('DefrostCountToday'),
+                'elec'   => round($this->GetValue('DefrostElecToday'), 2),
+                'heat'   => round($this->GetValue('DefrostHeatToday'), 2),
+                'total'  => $this->GetValue('DefrostCountTotal')
+            ],
+            // Tageswerte: abgeschlossene Tage + der laufende Tag (p = unvollständig)
+            'daily'   => $this->GetDailySeries()
         ]);
+    }
+
+    private function GetDailySeries(): array
+    {
+        $history = array_slice(json_decode($this->ReadAttributeString('DailyHistory'), true) ?: [], -29);
+        $day = json_decode($this->ReadAttributeString('DayStats'), true);
+        if ($day) {
+            $history[] = $this->DaySummary($day) + ['p' => true];
+        }
+        return $history;
     }
 
     // ---------------------------------------------------------------- Verwaltung

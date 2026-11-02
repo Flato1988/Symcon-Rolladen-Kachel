@@ -6,6 +6,8 @@
         --cold: #3b82f6;
         --box: rgba(128, 128, 128, .08);
         --stroke: rgba(128, 128, 128, .45);
+        --elec: #6b7f8c;
+        --heat: #f2994a;
     }
     @media (prefers-color-scheme: dark) {
         :root { --fg: var(--content-color, #f0f0f0); }
@@ -33,8 +35,8 @@
     }
 
     /* ---------- Kennzahlen ---------- */
-    .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); gap: 8px; }
-    .kpis .kpi .value { font-size: 14px; }
+    .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 8px; }
+    .kpis .kpi .value { font-size: 13.5px; }
     .kpi.error .value { color: var(--hot); font-weight: 600; }
     .kpi.noerror .value { color: var(--acc); }
 
@@ -62,6 +64,40 @@
 
     /* ---------- Anlagenschema ---------- */
     #schema { flex: 1; min-height: 0; width: 100%; display: block; }
+    .kpi.defrost.active .value { color: var(--cold); }
+
+    /* ---------- Umschalter Anlage / Verlauf ---------- */
+    .view { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+    .view[hidden] { display: none; }
+    .tabs { display: flex; gap: 4px; align-items: center; }
+    .tabs button {
+        border: 1px solid rgba(128, 128, 128, .3); background: transparent; color: inherit; font: inherit;
+        font-size: 11px; padding: 3px 10px; border-radius: 12px; cursor: pointer;
+    }
+    .tabs button.on { background: var(--acc); border-color: var(--acc); color: #fff; }
+    .tabs .spacer { flex: 1; }
+
+    /* ---------- Tagesdiagramm ---------- */
+    .legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 11px; opacity: .75; margin: 4px 0 2px; }
+    .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
+    .legend .l-elec { background: var(--elec); }
+    .legend .l-heat { background: var(--heat); }
+    .legend .l-temp { height: 3px; vertical-align: 2px; background: var(--cold); }
+    .chart-wrap { position: relative; flex: 1; min-height: 0; display: flex; }
+    #daily { flex: 1; width: 100%; min-height: 0; display: block; touch-action: pan-y; }
+    #daily text { fill: var(--fg); font-size: 10px; opacity: .6; }
+    #daily .grid { stroke: rgba(128, 128, 128, .22); stroke-width: 1; }
+    #daily .b-elec { fill: var(--elec); }
+    #daily .b-heat { fill: var(--heat); }
+    #daily .partial { opacity: .45; }
+    #daily .temp { fill: none; stroke: var(--cold); stroke-width: 2; stroke-linejoin: round; }
+    #daily .tdot { fill: var(--cold); }
+    #daily .cursor { fill: rgba(128, 128, 128, .12); }
+    #dTip {
+        position: absolute; top: 4px; padding: 5px 8px; border-radius: 6px; background: rgba(30, 30, 30, .88); color: #fff;
+        font-size: 11px; line-height: 1.45; white-space: nowrap; pointer-events: none; display: none;
+    }
+    #dEmpty { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; font-size: 12px; opacity: .6; text-align: center; }
     #schema text { fill: var(--fg); font-size: 9px; }
     #schema .small { font-size: 7.5px; opacity: .65; }
     #schema .title { font-size: 10px; font-weight: 600; }
@@ -107,9 +143,18 @@
         <div class="kpi" data-key="WEZStatus"><div class="label">Wärmeerzeuger</div><div class="value">–</div></div>
         <div class="kpi" data-key="DHWStatus"><div class="label">Warmwasser</div><div class="value">–</div></div>
         <div class="kpi" data-key="WaterPressure"><div class="label">Wasserdruck</div><div class="value">–</div></div>
+        <div class="kpi defrost" id="dfBox"><div class="label">Abtauungen heute</div><div class="value" id="dfValue">–</div></div>
         <div class="kpi" id="errBox" data-key="ErrorCode"><div class="label">Fehler</div><div class="value">–</div></div>
     </div>
 
+    <div class="tabs">
+        <button id="tabSchema" class="on">Anlage</button>
+        <button id="tabDaily">Verlauf</button>
+        <span class="spacer"></span>
+        <span id="rangeBtns" hidden><button data-days="14" class="on">14 Tage</button> <button data-days="30">30 Tage</button></span>
+    </div>
+
+    <div class="view" id="viewSchema">
     <svg id="schema" viewBox="0 0 440 232" preserveAspectRatio="xMidYMid meet">
         <!-- Wärmepumpe -->
         <rect class="unit-box" x="6" y="30" width="104" height="176" rx="10"/>
@@ -192,6 +237,20 @@
         <text class="small" x="160" y="230">Rücklauf</text>
         <text x="194" y="230" id="tReturn" style="font-weight:600">–</text>
     </svg>
+    </div>
+
+    <div class="view" id="viewDaily" hidden>
+        <div class="legend">
+            <span><i class="l-elec"></i>Strom (kWh, gemessen)</span>
+            <span><i class="l-heat"></i>Wärme (kWh)</span>
+            <span><i class="l-temp"></i>Außentemperatur Ø (°C)</span>
+        </div>
+        <div class="chart-wrap">
+            <svg id="daily"></svg>
+            <div id="dTip"></div>
+            <div id="dEmpty">Noch keine Tageswerte – der Verlauf füllt sich ab heute Tag für Tag.</div>
+        </div>
+    </div>
 
     <table id="cmp">
         <thead><tr><th>Vergleich</th><th>Pumpe</th><th>Eigene</th><th class="src">Quelle</th><th>Abw.</th></tr></thead>
@@ -247,6 +306,114 @@
         }
     }
 
+    // ---------- Tagesdiagramm: Strom und Wärme je Tag (Balken), Außentemperatur (Linie) ----------
+    let daily = [], days = 14, dGeo = null;
+    const num = (v, d) => v === null || v === undefined ? '–' : Number(v).toLocaleString('de-DE', { minimumFractionDigits: d, maximumFractionDigits: d });
+    const niceCeil = (v) => { const p = Math.pow(10, Math.floor(Math.log10(v))); for (const m of [1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10]) if (m * p >= v) return m * p; return 10 * p; };
+    function svgEl(name, attrs, parent) {
+        const e = document.createElementNS(NS, name);
+        for (const k in attrs) e.setAttribute(k, attrs[k]);
+        parent.appendChild(e);
+        return e;
+    }
+
+    function drawDaily() {
+        const svg = $('daily');
+        const W = svg.clientWidth, H = svg.clientHeight;
+        svg.innerHTML = '';
+        if (W < 60 || H < 50) return;
+        svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+        const data = daily.slice(-days);
+        $('dEmpty').style.display = data.some(d => d.e !== null || d.h !== null || d.t !== null) ? 'none' : 'flex';
+
+        const L = 36, R = 32, T = 8, B = 20;
+        const n = days, slot = (W - L - R) / n;
+        const eMax = niceCeil(Math.max(1, ...data.map(d => Math.max(d.e || 0, d.h || 0))));
+        const temps = data.map(d => d.t).filter(t => t !== null);
+        let tMin = temps.length ? Math.floor(Math.min(...temps) / 5) * 5 : -5;
+        let tMax = temps.length ? Math.ceil(Math.max(...temps) / 5) * 5 : 15;
+        if (tMax - tMin < 10) tMax = tMin + 10;
+        const yE = (v) => H - B - v / eMax * (H - T - B);
+        const yT = (v) => H - B - (v - tMin) / (tMax - tMin) * (H - T - B);
+        const off = n - data.length; // fehlende Tage links leer lassen
+        const xs = (i) => L + (i + off) * slot;
+
+        for (let i = 0; i <= 4; i++) {
+            const y = T + i * (H - T - B) / 4;
+            svgEl('line', { x1: L, x2: W - R, y1: y, y2: y, class: 'grid' }, svg);
+            svgEl('text', { x: L - 4, y: y + 3, 'text-anchor': 'end' }, svg).textContent = num(eMax * (4 - i) / 4, 0);
+            svgEl('text', { x: W - R + 4, y: y + 3 }, svg).textContent = num(tMax - i * (tMax - tMin) / 4, 0) + '°';
+        }
+        const bw = Math.max(1.5, slot * 0.36);
+        const labelEvery = Math.max(1, Math.ceil(36 / slot)); // Datum braucht ca. 36 px
+        data.forEach((d, i) => {
+            const x = xs(i);
+            const cls = d.p ? ' partial' : '';
+            if (d.e !== null) svgEl('rect', { x: x + slot / 2 - bw - 0.5, y: yE(d.e), width: bw, height: H - B - yE(d.e), class: 'b-elec' + cls, rx: 1 }, svg);
+            if (d.h !== null) svgEl('rect', { x: x + slot / 2 + 0.5, y: yE(d.h), width: bw, height: H - B - yE(d.h), class: 'b-heat' + cls, rx: 1 }, svg);
+            if ((data.length - 1 - i) % labelEvery === 0) {
+                const dt = new Date(d.d + 'T12:00');
+                svgEl('text', { x: x + slot / 2, y: H - 5, 'text-anchor': 'middle' }, svg).textContent = d.p ? 'heute' : dt.getDate() + '.' + (dt.getMonth() + 1) + '.';
+            }
+        });
+        let path = '';
+        data.forEach((d, i) => {
+            if (d.t === null) return;
+            path += (path ? 'L' : 'M') + (xs(i) + slot / 2).toFixed(1) + ' ' + yT(d.t).toFixed(1) + ' ';
+        });
+        if (path) svgEl('path', { d: path, class: 'temp' }, svg);
+        data.forEach((d, i) => { if (d.t !== null) svgEl('circle', { cx: xs(i) + slot / 2, cy: yT(d.t), r: 2.5, class: 'tdot' }, svg); });
+        dGeo = { data, xs, slot, T, B, H, W };
+    }
+
+    function showDailyTip(e) {
+        if (!dGeo) return;
+        const r = $('daily').getBoundingClientRect();
+        const px = e.clientX - r.left;
+        const i = dGeo.data.findIndex((d, k) => px >= dGeo.xs(k) && px < dGeo.xs(k) + dGeo.slot);
+        $('daily').querySelectorAll('.cursor').forEach(c => c.remove());
+        if (i < 0) return hideDailyTip();
+        const d = dGeo.data[i];
+        const cur = svgEl('rect', { x: dGeo.xs(i), y: dGeo.T, width: dGeo.slot, height: dGeo.H - dGeo.T - dGeo.B, class: 'cursor' }, $('daily'));
+        $('daily').insertBefore(cur, $('daily').firstChild);
+        const dt = new Date(d.d + 'T12:00');
+        const az = d.e && d.h !== null && d.e > 0.2 ? num(d.h / d.e, 2) : '–';
+        const tip = $('dTip');
+        tip.innerHTML = `<b>${dt.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' })}${d.p ? ' (bis jetzt)' : ''}</b><br>`
+            + `Außen Ø ${num(d.t, 1)} °C (${num(d.tmin, 1)} … ${num(d.tmax, 1)})<br>`
+            + `Strom ${num(d.e, 1)} kWh · Wärme ${num(d.h, 1)} kWh<br>`
+            + `Arbeitszahl ${az} · Abtauungen ${d.df ?? '–'} (${num(d.dfe, 2)} kWh)`;
+        tip.style.display = 'block';
+        const cx = dGeo.xs(i) + dGeo.slot / 2;
+        tip.style.left = Math.min(Math.max(0, cx - tip.offsetWidth / 2), r.width - tip.offsetWidth) + 'px';
+    }
+    function hideDailyTip() {
+        $('dTip').style.display = 'none';
+        $('daily').querySelectorAll('.cursor').forEach(c => c.remove());
+    }
+    $('daily').addEventListener('pointermove', showDailyTip);
+    $('daily').addEventListener('pointerdown', showDailyTip);
+    $('daily').addEventListener('pointerleave', hideDailyTip);
+
+    // Umschalter Anlage / Verlauf (Auswahl wird im Browser gemerkt)
+    function showView(name) {
+        $('viewSchema').hidden = name !== 'schema';
+        $('viewDaily').hidden = name !== 'daily';
+        $('tabSchema').classList.toggle('on', name === 'schema');
+        $('tabDaily').classList.toggle('on', name === 'daily');
+        $('rangeBtns').hidden = name !== 'daily';
+        try { localStorage.setItem('hwpView', name); } catch (e) {}
+        if (name === 'daily') drawDaily();
+    }
+    $('tabSchema').addEventListener('click', () => showView('schema'));
+    $('tabDaily').addEventListener('click', () => showView('daily'));
+    document.querySelectorAll('#rangeBtns button').forEach(b => b.addEventListener('click', () => {
+        days = Number(b.dataset.days);
+        document.querySelectorAll('#rangeBtns button').forEach(x => x.classList.toggle('on', x === b));
+        drawDaily();
+    }));
+    window.addEventListener('resize', () => { if (!$('viewDaily').hidden) drawDaily(); });
+
     // Wird von IP-Symcon aufgerufen (Startwert + jede Änderung eines Datenpunkts)
     function handleMessage(data) {
         const msg = typeof data === 'string' ? JSON.parse(data) : data;
@@ -261,6 +428,15 @@
         $('tWezSoll').textContent = f('WEZSetpoint');
         $('tWezIst').textContent = f('WEZPower');
         $('tWezPower').textContent = f('Hours');
+        // Abtauungen heute: Anzahl und Strom
+        const df = msg.defrost;
+        $('dfBox').hidden = !df;
+        if (df) {
+            $('dfValue').textContent = df.active ? 'läuft …' : `${df.today} · ${num(df.elec, 2)} kWh`;
+            $('dfBox').classList.toggle('active', !!df.active);
+        }
+        daily = msg.daily || [];
+        if (!$('viewDaily').hidden) drawDaily();
         const err = $('errBox');
         err.classList.toggle('error', !!msg.error);
         err.classList.toggle('noerror', has('ErrorCode') && !msg.error);
@@ -314,4 +490,5 @@
         $('schema').classList.toggle('running', pumping);
         $('schema').classList.toggle('heating', !!msg.heating);
     }
+    try { if (localStorage.getItem('hwpView') === 'daily') showView('daily'); } catch (e) {}
 </script>

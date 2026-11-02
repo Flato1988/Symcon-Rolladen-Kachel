@@ -144,6 +144,17 @@ grün < 10 %, orange < 25 %, rot ab 25 %):
 Der **Vergleichszeitraum** beginnt beim Einrichten und kann in der Instanz neu gestartet werden
 (z.B. jährlich für eine echte Jahresarbeitszahl).
 
+**Abtauungen:** erkannt über eine optionale Abtau-Variable oder automatisch, wenn bei laufendem Volumenstrom
+der Vorlauf mindestens 0,5 K (einstellbar) kälter als der Rücklauf ist (Kältekreis läuft umgekehrt);
+Ende mit Hysterese, sobald der Vorlauf wieder ≥ Rücklauf ist. Gezählt werden Anzahl (heute/gesamt),
+Dauer der letzten Abtauung, **Strom** während der Abtauung (externer Zähler, sonst Hoval) und die dem
+Heizwasser **entzogene Wärme**.
+
+**Verlauf (Umschalter „Anlage | Verlauf“ in der Kachel):** je Tag gemessener **Stromverbrauch** und **erbrachte Wärme**
+(Balken) und **Außentemperatur Ø** (Linie), 14 oder 30 Tage; antippen zeigt Min/Max-Temperatur, Tagesarbeitszahl und
+Abtauungen. Strom: externer Zähler (sonst Hoval 25613); Wärme: Hoval-Wärmezähler (sonst hydraulisch aufsummiert).
+Die Tageswerte werden zusätzlich als Variablen (Vortag) ins Archiv geschrieben.
+
 **Fühler-Offsets:** für jeden Temperaturfühler eine Korrektur in K (wird zum Messwert addiert);
 gilt für Anzeige und alle Berechnungen.
 
