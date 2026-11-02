@@ -121,23 +121,32 @@ Dazu Verbrauch heute, Kosten heute / Monat / Jahr, Spitze heute (Uhrzeit) und ge
 
 # HovalWaermepumpeKachel
 
-Anlagenschema für eine Hoval UltraSource (Werte per Modbus):
-- **Wärmepumpe** links: Lüfter dreht sich im Betrieb, Status, WEZ Soll / Ist, Leistung (Modulation)
-- **Vorlauf → Y-Ventil (Umschaltventil)** → entweder **WW-Speicher** oder **Pufferspeicher → FBH**;
-  mit Ventil-Variable wird der aktive Zweig rot hervorgehoben, der andere ausgegraut
-- **Gemeinsamer Rücklauf** mit Umwälzpumpe; die Strömung ist animiert, sobald die Pumpe läuft
-- **WW-Speicher**: Schichtung als Farbverlauf (blau = kalt, orange, rot = heiß), oben/unten, WW-Soll
-- **Puffer** (optional mit Temperatur, dann farbig), **FBH** mit Raum-Soll
-- Kennzahlen: Außentemperatur, Raum-Soll, Betriebsart, Wasserdruck,
-  elektrische Leistung **errechnet** (Hoval) und **gemessen** (externer Zähler), **Abweichung %**, thermische Leistung, **COP**
+Anlagenschema und Auswertung für Hoval-Wärmepumpen mit WFA-Funktionsautomat (z.B. **UltraSource**, Belaria Pro).
+Die Datenpunkte entsprechen der **Hoval-Modbus-Liste** (Registeradresse steht im Konfigurationsformular);
+Status, Betriebswahl, Fehlercode usw. werden mit den **Klartexten aus der Hoval-Liste** angezeigt.
 
-**Abweichung** = (errechnet − gemessen) ÷ gemessen × 100 (nur ab 100 W gemessen);
-grün < 10 %, orange < 25 %, rot ab 25 %. Die Einheiten (W / kW) beider Werte sind einstellbar.
-Der **COP** verwendet die gemessene Leistung, wenn vorhanden.
+**Schema:** Wärmepumpe (Status WFA, VL-Soll, Modulation, Betriebsstunden) → Vorlauf → **Y-Ventil** →
+**WW-Speicher** (oben SF1 / unten SF2, Soll) oder **Pufferspeicher** (PF1/PF2 bzw. WPF) → **FBH** (Heizkreis 1: VL, Raum-Soll)
+→ gemeinsamer Rücklauf. Die Ventilstellung kommt aus einer Ventil-Variable oder automatisch aus dem
+**Status (WFA, 18723)**: 4 = Warmwasser mit WP, 1 = Heizen mit WP.
 
-Alle Werte werden mit dem **Profil der jeweiligen Variable** angezeigt (Einheit, Nachkommastellen,
-Texte – z.B. ein Profil mit Assoziationen für WEZ Status / Betriebsart zeigt Klartext).
-Alle Datenpunkte sind optional; nicht konfigurierte werden ausgeblendet.
+**Vergleich Pumpe ↔ eigene Messung/Berechnung** (Abweichung = (Pumpe − eigene) ÷ eigene × 100;
+grün < 10 %, orange < 25 %, rot ab 25 %):
 
-**Großansicht:** Links auf alle konfigurierten Datenpunkte unterhalb der Instanz sowie
-**COP (aktuell)** und **Abweichung errechnet / gemessen** (beide im Archiv aufgezeichnet).
+| Zeile | Pumpe (Hoval) | Eigene |
+|---|---|---|
+| El. Leistung | 25611 | externer Zähler (W/kW) |
+| El. Energie | Δ 25613 | Δ externer Zähler – im Vergleichszeitraum |
+| Therm. Leistung | 25612 | Q = V̇ · 0,997 kg/l · 4,18 kJ/(kg·K) · (VL − RL) |
+| COP | 27490 | Q hydraulisch ÷ el. Leistung (Zähler, sonst Hoval) |
+| JAZ | 27467 | Wärme (Δ 27484 + 27488, sonst aufsummiertes Q) ÷ Strom (Δ Zähler, sonst Δ 25613) im Vergleichszeitraum |
+
+Der **Vergleichszeitraum** beginnt beim Einrichten und kann in der Instanz neu gestartet werden
+(z.B. jährlich für eine echte Jahresarbeitszahl).
+
+**Fühler-Offsets:** für jeden Temperaturfühler eine Korrektur in K (wird zum Messwert addiert);
+gilt für Anzeige und alle Berechnungen.
+
+**Großansicht / Archiv:** Links auf alle konfigurierten Datenpunkte sowie die berechneten Werte
+(COP/JAZ berechnet, alle Abweichungen, thermische Leistung hydraulisch, Wärme/Strom im Vergleichszeitraum),
+alle im Archiv aufgezeichnet.

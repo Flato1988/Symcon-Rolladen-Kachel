@@ -33,20 +33,29 @@
     }
 
     /* ---------- Kennzahlen ---------- */
-    .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
-    .kpis.bottom { grid-template-columns: repeat(5, 1fr); }
-    .kpi.dev.ok .value { color: var(--acc); }
-    .kpi.dev.warn .value { color: #f2994a; }
-    .kpi.dev.bad .value { color: var(--hot); }
-    @media (max-width: 620px) {
-        .kpis.bottom { grid-template-columns: repeat(3, 1fr); }
+    .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); gap: 8px; }
+    .kpis .kpi .value { font-size: 14px; }
+    .kpi.error .value { color: var(--hot); font-weight: 600; }
+    .kpi.noerror .value { color: var(--acc); }
+
+    /* ---------- Vergleich Pumpe / eigene Messung ---------- */
+    #cmp { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
+    #cmp th { font-size: 10.5px; font-weight: 400; opacity: .6; text-align: right; padding: 0 6px 2px; white-space: nowrap; }
+    #cmp th:first-child, #cmp td:first-child, #cmp th.src { text-align: left; padding-left: 8px; }
+    #cmp td { text-align: right; padding: 3px 6px; white-space: nowrap; border-top: 1px solid rgba(128, 128, 128, .15); }
+    #cmp td.src { font-size: 10px; opacity: .55; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px; }
+    #cmp td.dev { font-weight: 600; }
+    #cmp .ok { color: var(--acc); }
+    #cmp .warn { color: #f2994a; }
+    #cmp .bad { color: var(--hot); }
+    @media (max-width: 520px) {
+        #cmp td.src, #cmp th.src { display: none; }
     }
     .kpi { min-width: 0; padding: 5px 8px; border-radius: 8px; background: var(--box); }
     .kpi .label { font-size: 11px; opacity: .65; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .kpi .value { font-size: 16px; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .kpi.cop .value { color: var(--acc); }
     @media (max-width: 440px) {
-        .kpis { grid-template-columns: repeat(2, 1fr); }
         .kpi .value { font-size: 14px; }
     }
     .kpi[hidden] { display: none; }
@@ -94,9 +103,11 @@
 <div id="tile">
     <div class="kpis">
         <div class="kpi" data-key="OutdoorTemp"><div class="label">Außen</div><div class="value">–</div></div>
-        <div class="kpi" data-key="RoomSetpoint"><div class="label">Raum Soll</div><div class="value">–</div></div>
-        <div class="kpi" data-key="OperatingMode"><div class="label">Betriebsart</div><div class="value">–</div></div>
+        <div class="kpi" data-key="OperatingMode"><div class="label">Betriebswahl</div><div class="value">–</div></div>
+        <div class="kpi" data-key="WEZStatus"><div class="label">Wärmeerzeuger</div><div class="value">–</div></div>
+        <div class="kpi" data-key="DHWStatus"><div class="label">Warmwasser</div><div class="value">–</div></div>
         <div class="kpi" data-key="WaterPressure"><div class="label">Wasserdruck</div><div class="value">–</div></div>
+        <div class="kpi" id="errBox" data-key="ErrorCode"><div class="label">Fehler</div><div class="value">–</div></div>
     </div>
 
     <svg id="schema" viewBox="0 0 440 232" preserveAspectRatio="xMidYMid meet">
@@ -112,11 +123,11 @@
         </g>
         <text class="title center" x="58" y="116">Wärmepumpe</text>
         <text class="center" x="58" y="131" id="tStatus">–</text>
-        <text class="small" x="14" y="150">Soll</text>
+        <text class="small" x="14" y="150">VL-Soll</text>
         <text x="102" y="150" text-anchor="end" id="tWezSoll">–</text>
-        <text class="small" x="14" y="165">Ist</text>
+        <text class="small" x="14" y="165">Modulation</text>
         <text x="102" y="165" text-anchor="end" id="tWezIst">–</text>
-        <text class="small" x="14" y="180">Leistung</text>
+        <text class="small" x="14" y="180">Betriebsstd.</text>
         <text x="102" y="180" text-anchor="end" id="tWezPower">–</text>
 
         <!-- Vorlauf bis zum Y-Ventil -->
@@ -152,10 +163,12 @@
         <text class="small center on-tank" x="224" y="189">unten</text>
 
         <!-- Pufferspeicher -->
-        <rect class="buffer-fill" id="bufferFill" x="297" y="41" width="50" height="134" rx="11"/>
+        <g id="bufferSlices"></g>
         <rect class="tank-shell" x="296" y="40" width="52" height="136" rx="12"/>
-        <text class="title center" x="322" y="100">Puffer</text>
-        <text class="center" x="322" y="116" id="tBuffer" style="font-weight:600"></text>
+        <text class="tank-temp" x="322" y="62" id="tBufTop"></text>
+        <text class="title center" x="322" y="104" id="tBufTitle">Puffer</text>
+        <text class="center" x="322" y="118" id="tBufMid" style="font-weight:600"></text>
+        <text class="tank-temp" x="322" y="164" id="tBufBottom"></text>
 
         <!-- Fußbodenheizung am Puffer -->
         <path class="pipe-bg hot" d="M348 62 H372"/>
@@ -164,7 +177,8 @@
         <path class="pipe-bg cold" d="M372 142 H348"/>
         <path class="pipe cold" id="pipeFbhRl" d="M372 142 H348"/>
         <text class="title center" x="400" y="162">FBH</text>
-        <text class="small center" x="400" y="174" id="tRoom"></text>
+        <text class="center" x="400" y="175" id="tHc1"></text>
+        <text class="small center" x="400" y="187" id="tRoom"></text>
 
         <!-- gemeinsamer Rücklauf zur Wärmepumpe -->
         <path class="pipe-bg cold" d="M322 176 V218 H58 V206"/>
@@ -179,13 +193,10 @@
         <text x="194" y="230" id="tReturn" style="font-weight:600">–</text>
     </svg>
 
-    <div class="kpis bottom">
-        <div class="kpi" data-key="ElecPower"><div class="label">Elektr. errechnet</div><div class="value">–</div></div>
-        <div class="kpi" data-key="MeasuredPower"><div class="label">Elektr. gemessen</div><div class="value">–</div></div>
-        <div class="kpi dev" id="devBox"><div class="label">Abweichung</div><div class="value" id="dev">–</div></div>
-        <div class="kpi" data-key="ThermPower"><div class="label">Thermisch</div><div class="value">–</div></div>
-        <div class="kpi cop"><div class="label">COP aktuell</div><div class="value" id="cop">–</div></div>
-    </div>
+    <table id="cmp">
+        <thead><tr><th>Vergleich</th><th>Pumpe</th><th>Eigene</th><th class="src">Quelle</th><th>Abw.</th></tr></thead>
+        <tbody></tbody>
+    </table>
 </div>
 
 <script>
@@ -212,12 +223,12 @@
         return `rgb(${STOPS[STOPS.length - 1][1]})`;
     }
 
-    function drawTank() {
-        const g = $('tankSlices');
+    // Speicher mit Schichtung zeichnen (oben -> unten); fehlt ein Fühler, wird der andere verwendet
+    function drawTank(groupId, x, y, w, h, r, top, bottom) {
+        const g = $(groupId);
         g.innerHTML = '';
-        const top = n('StorageTop'), bottom = n('StorageBottom');
         const t1 = top !== null ? top : bottom, t2 = bottom !== null ? bottom : top;
-        const x = 196, y = 34, w = 56, h = 162, r = 14, steps = 60;
+        const steps = 60;
         // Ersatz für einen Clip-Pfad: schmale Streifen, in den Rundungen jeweils so weit eingerückt,
         // dass die äußere Kante des Streifens noch innerhalb der Rundung liegt
         const insetAt = (yy) => yy < y + r ? r - Math.sqrt(Math.max(0, r * r - (y + r - yy) ** 2))
@@ -245,13 +256,14 @@
             k.hidden = !has(k.dataset.key);
             k.querySelector('.value').textContent = f(k.dataset.key);
         });
-        $('cop').textContent = msg.cop === null || msg.cop === undefined ? '–'
-            : Number(msg.cop).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-        $('tStatus').textContent = has('WEZStatus') ? 'Status: ' + f('WEZStatus') : '';
+        $('tStatus').textContent = has('WFAStatus') ? f('WFAStatus') : has('WEZStatus') ? f('WEZStatus') : '';
         $('tWezSoll').textContent = f('WEZSetpoint');
-        $('tWezIst').textContent = f('WEZTemp');
-        $('tWezPower').textContent = f('WEZPower');
+        $('tWezIst').textContent = f('WEZPower');
+        $('tWezPower').textContent = f('Hours');
+        const err = $('errBox');
+        err.classList.toggle('error', !!msg.error);
+        err.classList.toggle('noerror', has('ErrorCode') && !msg.error);
         $('tFlow').textContent = f('FlowTemp');
         $('tReturn').textContent = f('ReturnTemp');
         $('tFlowRate').textContent = has('FlowRate') ? f('FlowRate') : '';
@@ -259,21 +271,34 @@
         $('tTop').textContent = f('StorageTop');
         $('tBottom').textContent = f('StorageBottom');
         $('tDhw').textContent = has('DHWSetpoint') ? 'Soll ' + f('DHWSetpoint') : '';
-        $('tBuffer').textContent = has('BufferTemp') ? f('BufferTemp') : '';
-        $('bufferFill').setAttribute('fill', has('BufferTemp') ? tempColor(n('BufferTemp')) : 'rgba(128,128,128,.12)');
-        $('tBuffer').style.fill = has('BufferTemp') ? '#fff' : '';
+        // Puffer: oben/unten (PF1/PF2) oder ein Fühler (WPF)
+        const bufTop = n('BufferTop') ?? n('BufferTemp'), bufBottom = n('BufferBottom') ?? n('BufferTemp');
+        const hasBuf = bufTop !== null || bufBottom !== null;
+        $('tBufTop').textContent = has('BufferTop') ? f('BufferTop') : '';
+        $('tBufBottom').textContent = has('BufferBottom') ? f('BufferBottom') : '';
+        $('tBufMid').textContent = !has('BufferTop') && !has('BufferBottom') && has('BufferTemp') ? f('BufferTemp') : '';
+        $('tBufTitle').style.fill = $('tBufMid').style.fill = hasBuf ? '#fff' : '';
+        drawTank('bufferSlices', 296, 40, 52, 136, 12, bufTop, bufBottom);
+        $('tHc1').textContent = has('HC1FlowTemp') ? 'VL ' + f('HC1FlowTemp') : '';
         $('tRoom').textContent = has('RoomSetpoint') ? 'Raum Soll ' + f('RoomSetpoint') : '';
-        drawTank();
+        drawTank('tankSlices', 196, 34, 56, 162, 14, n('StorageTop'), n('StorageBottom'));
 
-        // Abweichung errechnet / gemessen: grün < 10 %, orange < 25 %, sonst rot
-        const dev = msg.deviation;
-        $('devBox').hidden = !(has('ElecPower') && has('MeasuredPower'));
-        $('dev').textContent = dev === null || dev === undefined ? '–'
-            : (dev > 0 ? '+' : '') + Number(dev).toLocaleString('de-DE', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + ' %';
-        const abs = Math.abs(dev || 0);
-        $('devBox').classList.toggle('ok', dev !== null && abs < 10);
-        $('devBox').classList.toggle('warn', dev !== null && abs >= 10 && abs < 25);
-        $('devBox').classList.toggle('bad', dev !== null && abs >= 25);
+        // Vergleichstabelle: Abweichung grün < 10 %, orange < 25 %, sonst rot
+        const tbody = document.querySelector('#cmp tbody');
+        tbody.innerHTML = '';
+        for (const [label, pump, own, src, dev] of msg.rows || []) {
+            const tr = document.createElement('tr');
+            const cls = dev === null ? '' : Math.abs(dev) < 10 ? 'ok' : Math.abs(dev) < 25 ? 'warn' : 'bad';
+            const devText = dev === null ? '–' : (dev > 0 ? '+' : '') + Number(dev).toLocaleString('de-DE', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + ' %';
+            for (const [text, className] of [[label, ''], [pump, ''], [own, ''], [src, 'src'], [devText, 'dev ' + cls]]) {
+                const td = document.createElement('td');
+                td.textContent = text;
+                td.className = className;
+                tr.appendChild(td);
+            }
+            tbody.appendChild(tr);
+        }
+        $('cmp').style.display = (msg.rows || []).length ? '' : 'none';
 
         // Y-Ventil: aktiven Zweig hervorheben, den anderen ausgrauen
         const valve = msg.valve; // "ww", "heat" oder null
@@ -285,7 +310,7 @@
         $('tValve').textContent = valve === 'ww' ? 'Ventil: Warmwasser' : valve === 'heat' ? 'Ventil: Heizung' : 'Y-Ventil';
 
         // Betrieb erkennen: Pumpe/Volumenstrom -> Strömung, Leistung -> Lüfter
-        const pumping = (n('PumpSpeed') || 0) > 0 || (n('FlowRate') || 0) > 0;
+        const pumping = (n('PumpSpeed') || 0) > 0 || (n('FlowRate') || 0) > 0 || n('HC1Pump') === 1;
         $('schema').classList.toggle('running', pumping);
         $('schema').classList.toggle('heating', !!msg.heating);
     }
