@@ -180,7 +180,7 @@ class HovalWaermepumpeKachel extends IPSModule
             'HeatPeriod' => ['Wärme im Vergleichszeitraum', 'HWP.kWh'],
             'ElecPeriod' => ['Strom im Vergleichszeitraum', 'HWP.kWh']
         ];
-        $position = 0;
+        $position = 200; // nach den Anzeige-Variablen der Datenpunkte
         foreach ($calculated as $ident => [$caption, $profile]) {
             $this->RegisterVariableFloat($ident, $caption, $profile, $position++);
             $this->EnableLogging($ident);
@@ -207,10 +207,8 @@ class HovalWaermepumpeKachel extends IPSModule
         @$this->UnregisterVariable('COP');        // aus Version 1.6
         @$this->UnregisterVariable('Deviation');  // aus Version 1.6
 
-        // Großansicht: zeigt die Objekte unterhalb der Instanz -> Links auf alle konfigurierten Datenpunkte
-        if (IPS_GetKernelRunlevel() === KR_READY) {
-            $this->MaintainLinks();
-        }
+        // Großansicht: zeigt die Objekte unterhalb der Instanz -> eigene Anzeige-Variablen (ohne Aktion, mit Klartext/Einheit)
+        $this->MaintainMirrors();
 
         $this->SetStatus(102);
         $this->SetTimerInterval('Tick', 60 * 1000);
@@ -225,6 +223,11 @@ class HovalWaermepumpeKachel extends IPSModule
                 break;
 
             case VM_UPDATE:
+                foreach (array_keys(self::DATAPOINTS) as $key) {
+                    if ($SenderID === $this->GetVariableID($key)) {
+                        $this->UpdateMirror($key);
+                    }
+                }
                 // Abtauung möglichst sofort erkennen (nicht erst beim nächsten Minutentakt)
                 foreach (['FlowTemp', 'ReturnTemp', 'FlowRate', 'DefrostState'] as $key) {
                     if ($SenderID === $this->GetVariableID($key)) {
@@ -341,6 +344,9 @@ class HovalWaermepumpeKachel extends IPSModule
 
         $this->EvaluateDefrost($now);
         $this->UpdateDayStats($now);
+        foreach (array_keys(self::DATAPOINTS) as $key) {
+            $this->UpdateMirror($key);
+        }
         $this->UpdateCalculations();
         $this->UpdateVisualizationValue($this->GetFullUpdateMessage());
     }
@@ -846,41 +852,146 @@ class HovalWaermepumpeKachel extends IPSModule
 
     // ---------------------------------------------------------------- Verwaltung
 
-    /** Links unterhalb der Instanz anlegen/aktualisieren/entfernen (Ident "L" + Schlüssel) */
-    private function MaintainLinks()
+    public function Destroy()
     {
-        $position = 20;
-        foreach (self::DATAPOINTS as $key => [$caption]) {
-            $linkID = @IPS_GetObjectIDByIdent('L' . $key, $this->InstanceID);
-            $targetID = $this->GetVariableID($key);
-            if ($targetID > 0) {
-                if ($linkID === false) {
-                    $linkID = IPS_CreateLink();
-                    IPS_SetParent($linkID, $this->InstanceID);
-                    IPS_SetIdent($linkID, 'L' . $key);
-                    IPS_SetName($linkID, $caption);
-                }
-                IPS_SetLinkTargetID($linkID, $targetID);
-                IPS_SetPosition($linkID, $position);
-            } elseif ($linkID !== false) {
-                IPS_DeleteLink($linkID);
+        parent::Destroy();
+        // Klartext-Profile dieser Instanz entfernen
+        foreach (array_keys(self::DATAPOINTS) as $key) {
+            if (IPS_VariableProfileExists($this->TextProfileName($key))) {
+                IPS_DeleteVariableProfile($this->TextProfileName($key));
             }
+        }
+    }
+
+    private function TextProfileName(string $key): string
+    {
+        return 'HWP.' . $this->InstanceID . '.' . $key;
+    }
+
+    /**
+     * Anzeige-Variablen für die Großansicht (Ident "M" + Schlüssel): reine Anzeige ohne Aktion
+     * (kein Schieberegler), Temperaturen inkl. Offset, Status/Betriebsarten/Fehler mit Klartext-Profil.
+     */
+    private function MaintainMirrors()
+    {
+        $this->CreateProfile('HWP.Temp', 1, ' °C', 'Temperature');
+        $this->CreateProfile('HWP.Pct', 0, ' %', 'Intensity');
+        $this->CreateProfile('HWP.Num', 1, '', 'Graph');
+        $this->CreateProfile('HWP.FlowMin', 1, ' l/min', 'Drops');
+        $this->CreateProfile('HWP.FlowH', 0, ' l/h', 'Drops');
+        $this->CreateProfile('HWP.kWh0', 0, ' kWh', 'Electricity');
+        $this->CreateProfile('HWP.W', 0, ' W', 'Electricity');
+        $this->CreateProfile('HWP.Hours', 0, ' h', 'Clock', VARIABLETYPE_INTEGER);
+        $this->CreateProfile('HWP.Count', 0, '', 'Repeat', VARIABLETYPE_INTEGER);
+        $overrides = $this->GetTextOverrides();
+
+        $position = 10;
+        foreach (self::DATAPOINTS as $key => [$caption, $register, $kind]) {
+            $ident = 'M' . $key;
+            if ($this->GetVariableID($key) === 0) {
+                @$this->UnregisterVariable($ident);
+                $position++;
+                continue;
+            }
+            $logging = false;
+            if (strpos($kind, 'map:') === 0) {
+                // Klartext-Profil dieser Instanz: Hoval-Texte + eigene Texte (neu aufgebaut, damit Änderungen greifen)
+                $profile = $this->TextProfileName($key);
+                if (IPS_VariableProfileExists($profile)) {
+                    IPS_DeleteVariableProfile($profile);
+                }
+                IPS_CreateVariableProfile($profile, VARIABLETYPE_INTEGER);
+                IPS_SetVariableProfileIcon($profile, $key === 'ErrorCode' ? 'Warning' : 'Information');
+                $texts = ($overrides[$key] ?? []) + self::MAPS[substr($kind, 4)];
+                ksort($texts);
+                foreach ($texts as $value => $text) {
+                    IPS_SetVariableProfileAssociation($profile, $value, $text, '', -1);
+                }
+                $this->RegisterVariableInteger($ident, $caption, $profile, $position);
+            } else {
+                switch ($kind) {
+                    case 'temp':
+                    case 'setp':
+                        $this->RegisterVariableFloat($ident, $caption, 'HWP.Temp', $position);
+                        $logging = $kind === 'temp';
+                        break;
+                    case 'pct':
+                        $this->RegisterVariableFloat($ident, $caption, 'HWP.Pct', $position);
+                        $logging = true;
+                        break;
+                    case 'kw':
+                        $this->RegisterVariableFloat($ident, $caption, 'HWP.kW', $position);
+                        $logging = true;
+                        break;
+                    case 'num':
+                        $this->RegisterVariableFloat($ident, $caption, 'HWP.Num', $position);
+                        break;
+                    case 'flow':
+                        $this->RegisterVariableFloat($ident, $caption, $this->ReadPropertyInteger('FlowRateUnit') === 0 ? 'HWP.FlowMin' : 'HWP.FlowH', $position);
+                        $logging = true;
+                        break;
+                    case 'energy':
+                    case 'menergy':
+                        $this->RegisterVariableFloat($ident, $caption, 'HWP.kWh0', $position);
+                        break;
+                    case 'mpower':
+                        $this->RegisterVariableFloat($ident, $caption, $this->ReadPropertyInteger('MeasuredPowerUnit') === 0 ? 'HWP.W' : 'HWP.kW', $position);
+                        $logging = true;
+                        break;
+                    case 'int:h':
+                        $this->RegisterVariableInteger($ident, $caption, 'HWP.Hours', $position);
+                        break;
+                    case 'int':
+                        $this->RegisterVariableInteger($ident, $caption, 'HWP.Count', $position);
+                        break;
+                    default: // raw: formatierter Text (Profil der Quelle bzw. eigener Klartext)
+                        $this->RegisterVariableString($ident, $caption, '', $position);
+                }
+            }
+            if ($logging) {
+                $this->EnableLogging($ident);
+            }
+            $this->UpdateMirror($key);
             $position++;
         }
-        // Links früherer Versionen entfernen (z.B. "WEZ Temperatur")
+
+        // Links früherer Versionen (bis 2.2) entfernen
         foreach (IPS_GetChildrenIDs($this->InstanceID) as $childID) {
-            $ident = IPS_GetObject($childID)['ObjectIdent'];
-            if (IPS_LinkExists($childID) && strpos($ident, 'L') === 0 && !isset(self::DATAPOINTS[substr($ident, 1)])) {
+            if (IPS_LinkExists($childID) && strpos(IPS_GetObject($childID)['ObjectIdent'], 'L') === 0) {
                 IPS_DeleteLink($childID);
             }
         }
     }
 
-    private function CreateProfile(string $name, int $digits, string $suffix, string $icon)
+    /** Anzeige-Variable eines Datenpunkts auf den aktuellen Wert setzen */
+    private function UpdateMirror(string $key)
+    {
+        $ident = 'M' . $key;
+        if (!@$this->GetIDForIdent($ident) || $this->Value($key) === null) {
+            return;
+        }
+        $kind = self::DATAPOINTS[$key][2];
+        if (strpos($kind, 'map:') === 0 || strpos($kind, 'int') === 0) {
+            $value = (int) round($this->Value($key));
+        } elseif ($kind === 'energy' || $kind === 'menergy') {
+            $value = round($this->EnergyKWh($key), 1);
+        } elseif ($kind === 'raw') {
+            $value = $this->Format($key);
+        } else {
+            $value = round($this->Value($key), 3);
+        }
+        if ($this->GetValue($ident) !== $value) {
+            $this->SetValue($ident, $value);
+        }
+    }
+
+    private function CreateProfile(string $name, int $digits, string $suffix, string $icon, int $type = VARIABLETYPE_FLOAT)
     {
         if (!IPS_VariableProfileExists($name)) {
-            IPS_CreateVariableProfile($name, VARIABLETYPE_FLOAT);
-            IPS_SetVariableProfileDigits($name, $digits);
+            IPS_CreateVariableProfile($name, $type);
+            if ($type === VARIABLETYPE_FLOAT) {
+                IPS_SetVariableProfileDigits($name, $digits);
+            }
             IPS_SetVariableProfileText($name, '', $suffix);
             IPS_SetVariableProfileIcon($name, $icon);
         }

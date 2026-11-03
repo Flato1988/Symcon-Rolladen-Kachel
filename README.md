@@ -130,8 +130,8 @@ Status, Betriebswahl, Fehlercode usw. werden mit den **Klartexten aus der Hoval-
 → gemeinsamer Rücklauf. Der **Puffer erscheint nur, wenn eine Puffertemperatur eingetragen ist** – sonst führt
 der Heizungszweig direkt zur FBH. Die Ventilstellung kommt aus einer Ventil-Variable, sonst aus dem
 **Status (WFA, 18723)** (4 = Warmwasser mit WP, 1 = Heizen mit WP), dann aus dem Status Wärmeerzeuger
-(43 = Handbetrieb Warmwasser); sonst gilt die Grundstellung **Heizung**. Die Strömung wird als durchgehende Leitung
-mit weich wandernden Lichtreflexen dargestellt.
+(43 = Handbetrieb Warmwasser); sonst gilt die Grundstellung **Heizung**. Animationen: Rohre mit Glanzlinie, weichem
+Schimmer und wandernden Wasserperlen; Umwälzpumpe mit drehendem Laufrad; Y-Ventil mit Zeiger, der beim Umschalten dreht.
 
 **Vergleich Pumpe ↔ eigene Messung/Berechnung** (Abweichung = (Pumpe − eigene) ÷ eigene × 100;
 grün < 10 %, orange < 25 %, rot ab 25 %):
@@ -166,6 +166,8 @@ aus der Hoval-Liste zum Anpassen.
 **Fühler-Offsets:** für jeden Temperaturfühler eine Korrektur in K (wird zum Messwert addiert);
 gilt für Anzeige und alle Berechnungen.
 
-**Großansicht / Archiv:** Links auf alle konfigurierten Datenpunkte sowie die berechneten Werte
+**Großansicht / Archiv:** eigene **Anzeige-Variablen** für alle konfigurierten Datenpunkte (reine Anzeige ohne
+Schieberegler; Temperaturen inkl. Offset; Status/Betriebsarten/Fehler mit Klartext-Profil aus Hoval-Texten und eigenen Texten)
+sowie die berechneten Werte
 (COP/JAZ berechnet, alle Abweichungen, thermische Leistung hydraulisch, Wärme/Strom im Vergleichszeitraum),
 alle im Archiv aufgezeichnet.

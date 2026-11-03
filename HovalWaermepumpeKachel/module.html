@@ -105,35 +105,53 @@
     #schema .unit-box { fill: var(--box); stroke: var(--stroke); stroke-width: 1; }
     #schema .fan-ring { fill: none; stroke: var(--stroke); stroke-width: 1.5; }
     #schema .blade { fill: var(--fg); opacity: .5; }
-    #schema .pipe-bg { fill: none; stroke-width: 5; stroke-linecap: round; opacity: .25; }
+    #schema .pipe-bg { fill: none; stroke-width: 9; stroke-linecap: round; opacity: .13; }
     #schema .pipe { fill: none; stroke-width: 5; stroke-linecap: round; }
     #schema .hot { stroke: var(--hot); }
     #schema .cold { stroke: var(--cold); }
     #schema .tank-shell { fill: none; stroke: var(--stroke); stroke-width: 1.5; }
     #schema .tank-temp { fill: #fff; font-size: 11px; font-weight: 600; text-anchor: middle; paint-order: stroke; stroke: rgba(0, 0, 0, .25); stroke-width: 2px; }
-    #schema .pump { fill: var(--box); stroke: var(--stroke); stroke-width: 1.2; }
-    #schema .pump-tri { fill: var(--fg); opacity: .55; }
+    /* Umwälzpumpe: Laufrad dreht sich, Ring pulsiert, solange Wasser fließt */
+    #schema .pump { fill: #fff; stroke: var(--cold); stroke-width: 1.6; }
+    #schema .pump-ring { fill: none; stroke: var(--cold); stroke-width: 1.2; opacity: 0; transform-box: fill-box; transform-origin: center; }
+    #schema .blade-p { fill: none; stroke: var(--cold); stroke-width: 1.8; stroke-linecap: round; }
+    #schema .hub { fill: var(--cold); }
+    #impeller { transform-box: fill-box; transform-origin: center; }
+    @keyframes ripple { 0% { transform: scale(1); opacity: .5; } 100% { transform: scale(1.9); opacity: 0; } }
+    #schema.running #impeller { animation: spin .9s linear infinite; }
+    #schema.running .pump-ring { animation: ripple 1.8s ease-out infinite; }
+    #schema.running .pump-ring.r2 { animation-delay: .9s; }
     #schema .fbh { fill: none; stroke: #f2994a; stroke-width: 2.5; stroke-linejoin: round; }
     #schema .buffer-fill { stroke: none; }
-    #schema .valve-port { fill: var(--box); stroke: var(--fg); stroke-width: 1; stroke-opacity: .55; }
-    #schema .valve-port.active { fill: var(--hot); stroke: var(--hot); }
+    /* Y-Ventil: Zeiger dreht beim Umschalten in die aktive Richtung, aktiver Ausgang pulsiert */
+    #schema .valve-port { fill: #fff; stroke: var(--fg); stroke-width: 1; stroke-opacity: .45; transition: fill .5s, stroke .5s; }
+    #schema .valve-port.active { fill: var(--hot); stroke: var(--hot); stroke-opacity: 1; }
+    #valveIndicator { transform-box: fill-box; transform-origin: center; transition: transform .8s cubic-bezier(.5, -0.4, .3, 1.4); }
+    #valveIndicator.heat { transform: rotate(-90deg); }
+    #schema .valve-hub { fill: #fff; stroke: var(--fg); stroke-width: 1; stroke-opacity: .6; }
+    #schema .valve-arm { stroke: var(--fg); stroke-width: 2.4; stroke-linecap: round; }
+    @keyframes portPulse { 50% { opacity: .55; } }
+    #schema.running .valve-port.active { animation: portPulse 1.6s ease-in-out infinite; }
     #schema .on-tank { fill: #fff; opacity: .9; }
     /* Zweig, auf den das Y-Ventil gerade nicht geschaltet ist */
     #schema .pipe.inactive { stroke: var(--stroke); animation: none !important; }
     #schema .glint.inactive { opacity: 0 !important; animation: none !important; }
+    #schema .glint.core.inactive { opacity: .15 !important; }
     #schema .pipe-bg.inactive { opacity: 0; }
 
     /* Strömung: laufende Striche auf den Leitungen, wenn die Pumpe läuft */
     /* Strömung: durchgehende Leitung, darüber zwei weiche Lichtreflexe, die in Fließrichtung wandern
        (breit + blass und schmal + heller ergibt einen schimmernden Verlauf – ohne SVG-Verläufe/Filter) */
-    @keyframes glint { to { stroke-dashoffset: -60; } }
-    @keyframes breathe { 50% { opacity: .82; } }
-    #schema .glint { fill: none; stroke: #fff; stroke-linecap: round; opacity: 0; pointer-events: none; transition: opacity .8s ease; }
-    #schema .glint.wide { stroke-width: 4.5; stroke-dasharray: 22 38; }
-    #schema .glint.thin { stroke-width: 2; stroke-dasharray: 7 53; stroke-dashoffset: -8; }
-    #schema.running .pipe:not(.inactive) { animation: breathe 3s ease-in-out infinite; }
-    #schema.running .glint.wide:not(.inactive) { opacity: .22; animation: glint 2.6s linear infinite; }
-    #schema.running .glint.thin:not(.inactive) { opacity: .55; animation: glint 2.6s linear infinite; }
+    /* Rohre: feine Glanzlinie (wie ein rundes Rohr), darüber ein breiter, weicher Schimmer und
+       kleine Wasserperlen, die in Fließrichtung wandern – ohne SVG-Verläufe/Filter */
+    @keyframes sheen { to { stroke-dashoffset: -110; } }
+    @keyframes beads { to { stroke-dashoffset: -28; } }
+    #schema .glint { fill: none; stroke: #fff; stroke-linecap: round; pointer-events: none; transition: opacity 1s ease; }
+    #schema .glint.core { stroke-width: 1.2; opacity: .35; transform: translateY(-1px); }
+    #schema .glint.sheen { stroke-width: 5; stroke-dasharray: 34 76; opacity: 0; }
+    #schema .glint.beads { stroke-width: 2.4; stroke-dasharray: .01 14; opacity: 0; }
+    #schema.running .glint.sheen:not(.inactive) { opacity: .22; animation: sheen 3.2s linear infinite; }
+    #schema.running .glint.beads:not(.inactive) { opacity: .85; animation: beads 1.1s linear infinite; }
 
     /* Lüfter dreht sich im Betrieb */
     @keyframes spin { to { transform: rotate(360deg); } }
@@ -201,6 +219,12 @@
             <path class="valve-port" id="portIn" d="M148 53 L148 67 L160 60 Z"/>
             <path class="valve-port" id="portWW" d="M172 53 L172 67 L160 60 Z"/>
             <path class="valve-port" id="portHeat" d="M153 48 L167 48 L160 60 Z"/>
+            <!-- Zeiger: rechts = Warmwasser, oben = Heizung (unsichtbarer Kreis hält den Drehpunkt in der Mitte) -->
+            <g id="valveIndicator">
+                <circle cx="160" cy="60" r="10" fill="none" stroke="none"/>
+                <line class="valve-arm" x1="160" y1="60" x2="170.5" y2="60"/>
+                <circle class="valve-hub" cx="160" cy="60" r="3.6"/>
+            </g>
         </g>
         <text class="small center" x="160" y="84" id="tValve">Y-Ventil</text>
 
@@ -240,8 +264,17 @@
         <path class="pipe cold" id="pipeRetWW" d="M224 196 V218"/>
         <path class="pipe cold" d="M224 218 H58 V206"/>
         <!-- Umwälzpumpe im Rücklauf -->
-        <circle class="pump" cx="140" cy="218" r="9"/>
-        <path class="pump-tri" d="M136 213 L136 223 L145 218 Z" transform="rotate(180 140 218)"/>
+        <circle class="pump-ring" cx="140" cy="218" r="10"/>
+        <circle class="pump-ring r2" cx="140" cy="218" r="10"/>
+        <circle class="pump" cx="140" cy="218" r="10"/>
+        <g id="impeller">
+            <circle cx="140" cy="218" r="7.5" fill="none" stroke="none"/>
+            <path class="blade-p" d="M140 218 C143.5 216 144 213 141.5 210.8"/>
+            <path class="blade-p" d="M140 218 C143.5 216 144 213 141.5 210.8" transform="rotate(90 140 218)"/>
+            <path class="blade-p" d="M140 218 C143.5 216 144 213 141.5 210.8" transform="rotate(180 140 218)"/>
+            <path class="blade-p" d="M140 218 C143.5 216 144 213 141.5 210.8" transform="rotate(270 140 218)"/>
+            <circle class="hub" cx="140" cy="218" r="2.2"/>
+        </g>
         <text class="small center" x="140" y="204" id="tPump"></text>
         <text class="small" x="160" y="230">Rücklauf</text>
         <text x="194" y="230" id="tReturn" style="font-weight:600">–</text>
@@ -432,7 +465,7 @@
                 return;
             }
             if (!glints.has(pipe)) {
-                const pair = ['wide', 'thin'].map(cls => {
+                const pair = ['core', 'sheen', 'beads'].map(cls => {
                     const g = document.createElementNS(NS, 'path');
                     g.setAttribute('class', 'glint ' + cls);
                     pipe.parentNode.insertBefore(g, pipe.nextSibling);
@@ -524,6 +557,7 @@
         $('portWW').classList.toggle('active', valve === 'ww');
         $('portHeat').classList.toggle('active', valve === 'heat');
         $('tValve').textContent = valve === 'ww' ? 'Ventil: Warmwasser' : 'Ventil: Heizung';
+        $('valveIndicator').classList.toggle('heat', valve !== 'ww');
 
         // Betrieb erkennen: Pumpe/Volumenstrom -> Strömung, Leistung -> Lüfter
         const pumping = (n('PumpSpeed') || 0) > 0 || (n('FlowRate') || 0) > 0 || n('HC1Pump') === 1;
