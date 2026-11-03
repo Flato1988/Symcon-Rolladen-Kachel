@@ -116,6 +116,8 @@ class HovalWaermepumpeKachel extends IPSModule
         $this->RegisterPropertyInteger('MeasuredEnergyUnit', 1); // 0 = Wh, 1 = kWh, 2 = MWh
         $this->RegisterPropertyFloat('ValveDHWValue', 1);        // Wert der Ventil-Variable bei Stellung Warmwasser
         $this->RegisterPropertyFloat('DefrostThreshold', 0.5);   // Abtauung erkannt, wenn VL mindestens so viel K unter RL liegt
+        // Eigene Klartexte [{Key, Value, Text}] – haben Vorrang vor den Hoval-Texten
+        $this->RegisterPropertyString('TextOverrides', '[]');
 
         // Vergleichszeitraum: Zählerstände zu Beginn, aufsummierte hydraulische Wärme
         $this->RegisterAttributeString('Baseline', '');
@@ -287,6 +289,25 @@ class HovalWaermepumpeKachel extends IPSModule
         }
         $elements[] = ['type' => 'ExpansionPanel', 'caption' => 'Fühler-Offsets', 'items' => $offsets];
 
+        // Eigene Klartexte für Status, Betriebsarten, Störungen
+        $options = [];
+        foreach ($this->GetTextKeys() as $key) {
+            $options[] = ['caption' => self::DATAPOINTS[$key][0], 'value' => $key];
+        }
+        $elements[] = ['type' => 'ExpansionPanel', 'caption' => 'Klartexte (Status, Betriebsarten, Störungen)', 'items' => [
+            ['type' => 'Label', 'caption' => 'Eigener Text je Datenpunkt und Wert, z.B. „Status Wärmeerzeuger“ · 1 · „Betriebsbereit“. '
+                . 'Eigene Texte haben Vorrang; Werte ohne Eintrag zeigen den Hoval-Text bzw. „Code X“.'],
+            ['type' => 'List', 'name' => 'TextOverrides', 'caption' => 'Klartexte', 'rowCount' => 12, 'add' => true, 'delete' => true,
+             'sort' => ['column' => 'Key', 'direction' => 'ascending'],
+             'columns' => [
+                 ['caption' => 'Datenpunkt', 'name' => 'Key', 'width' => '320px', 'add' => 'WEZStatus', 'edit' => ['type' => 'Select', 'options' => $options]],
+                 ['caption' => 'Wert', 'name' => 'Value', 'width' => '90px', 'add' => 0, 'edit' => ['type' => 'NumberSpinner', 'digits' => 0]],
+                 ['caption' => 'Klartext', 'name' => 'Text', 'width' => 'auto', 'add' => '', 'edit' => ['type' => 'ValidationTextBox']]
+             ]],
+            ['type' => 'Button', 'caption' => 'Hoval-Standardtexte als Vorlage laden', 'onClick' => 'HWP_LoadDefaultTexts($id);'],
+            ['type' => 'Label', 'caption' => 'Lädt die Texte aus der Hoval-Liste für alle eingetragenen Datenpunkte in die Tabelle (vorhandene Einträge bleiben). Danach anpassen und „Übernehmen“.']
+        ]];
+
         $baseline = json_decode($this->ReadAttributeString('Baseline'), true);
         $since = $baseline ? date('d.m.Y H:i', $baseline['ts']) : 'noch nicht gestartet';
         return json_encode([
@@ -322,6 +343,29 @@ class HovalWaermepumpeKachel extends IPSModule
         $this->UpdateDayStats($now);
         $this->UpdateCalculations();
         $this->UpdateVisualizationValue($this->GetFullUpdateMessage());
+    }
+
+    /** Hoval-Standardtexte als Vorlage in die Klartext-Tabelle des Formulars laden (vorhandene Einträge bleiben) */
+    public function LoadDefaultTexts()
+    {
+        $rows = json_decode($this->ReadPropertyString('TextOverrides'), true) ?: [];
+        $existing = [];
+        foreach ($rows as $row) {
+            $existing[$row['Key'] . '|' . (int) $row['Value']] = true;
+        }
+        $configured = array_filter($this->GetTextKeys(), fn ($key) => $this->GetVariableID($key) > 0);
+        foreach ($configured ?: $this->GetTextKeys() as $key) {
+            $kind = self::DATAPOINTS[$key][2];
+            if (strpos($kind, 'map:') !== 0) {
+                continue;
+            }
+            foreach (self::MAPS[substr($kind, 4)] as $value => $text) {
+                if (!isset($existing[$key . '|' . $value])) {
+                    $rows[] = ['Key' => $key, 'Value' => $value, 'Text' => $text];
+                }
+            }
+        }
+        $this->UpdateFormField('TextOverrides', 'values', json_encode($rows));
     }
 
     /** Vergleichszeitraum (Energie, JAZ) ab jetzt neu beginnen */
@@ -500,6 +544,11 @@ class HovalWaermepumpeKachel extends IPSModule
             return '–';
         }
         $kind = self::DATAPOINTS[$key][2];
+        // eigener Klartext hat Vorrang
+        $own = $this->GetTextOverrides()[$key][(int) round($value)] ?? null;
+        if ($own !== null) {
+            return $own;
+        }
         if (strpos($kind, 'map:') === 0) {
             $map = self::MAPS[substr($kind, 4)];
             return $map[(int) round($value)] ?? ('Code ' . (int) round($value));
@@ -528,6 +577,25 @@ class HovalWaermepumpeKachel extends IPSModule
             return $this->Number($value, 0) . (strpos($kind, ':') ? ' ' . substr($kind, 4) : '');
         }
         return (string) $value;
+    }
+
+    /** Datenpunkte, für die Klartexte sinnvoll sind (Status, Betriebsarten, Störungen, Sonstiges) */
+    private function GetTextKeys(): array
+    {
+        return array_keys(array_filter(self::DATAPOINTS, fn ($d) => strpos($d[2], 'map:') === 0 || $d[2] === 'raw'));
+    }
+
+    /** Eigene Klartexte als [Schlüssel][Wert] => Text */
+    private function GetTextOverrides(): array
+    {
+        $overrides = [];
+        foreach (json_decode($this->ReadPropertyString('TextOverrides'), true) ?: [] as $row) {
+            $text = trim((string) ($row['Text'] ?? ''));
+            if ($text !== '' && isset($row['Key'])) {
+                $overrides[$row['Key']][(int) ($row['Value'] ?? 0)] = $text;
+            }
+        }
+        return $overrides;
     }
 
     private function Number(float $value, int $digits): string

@@ -155,6 +155,11 @@ Heizwasser **entzogene Wärme**.
 Abtauungen. Strom: externer Zähler (sonst Hoval 25613); Wärme: Hoval-Wärmezähler (sonst hydraulisch aufsummiert).
 Die Tageswerte werden zusätzlich als Variablen (Vortag) ins Archiv geschrieben.
 
+**Eigene Klartexte:** In der Instanz unter „Klartexte (Status, Betriebsarten, Störungen)“ kann je Datenpunkt
+und Wert ein eigener Text hinterlegt werden (z.B. Status Wärmeerzeuger · 1 · „Betriebsbereit“). Eigene Texte haben
+Vorrang vor den Hoval-Texten; der Button „Hoval-Standardtexte als Vorlage laden“ füllt die Tabelle mit den Texten
+aus der Hoval-Liste zum Anpassen.
+
 **Fühler-Offsets:** für jeden Temperaturfühler eine Korrektur in K (wird zum Messwert addiert);
 gilt für Anzeige und alle Berechnungen.
 
