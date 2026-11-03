@@ -645,23 +645,26 @@ class HovalWaermepumpeKachel extends IPSModule
         return ($this->Value('RunState') ?? 0) >= 1 || ($this->Value('WEZPower') ?? 0) > 0 || $powerKW > 0.1;
     }
 
-    /** Stellung des Y-Ventils: Ventil-Variable, sonst aus dem Status (WFA) – "ww", "heat" oder null */
-    private function GetValvePosition(): ?string
+    /** Stellung des Y-Ventils: Ventil-Variable, sonst aus dem Status (WFA / Wärmeerzeuger) – "ww" oder "heat" */
+    private function GetValvePosition(): string
     {
         $valve = $this->Value('Valve');
         if ($valve !== null) {
             return abs($valve - $this->ReadPropertyFloat('ValveDHWValue')) < 0.001 ? 'ww' : 'heat';
         }
-        $status = $this->Value('WFAStatus');
-        if ($status !== null) {
-            if ((int) $status === 4) {
-                return 'ww';
-            }
-            if ((int) $status === 1) {
-                return 'heat';
-            }
+        // Status (WFA): 4 = Warmwasser mit WP, 1 = Heizen mit WP
+        $wfa = $this->Value('WFAStatus');
+        if ($wfa !== null && in_array((int) $wfa, [1, 4], true)) {
+            return (int) $wfa === 4 ? 'ww' : 'heat';
         }
-        return null;
+        // Status Wärmeerzeuger: 43 = Handbetrieb Warmwasser; Heiz-Zustände -> Heizung
+        $wez = $this->Value('WEZStatus');
+        if ($wez !== null && (int) $wez === 43) {
+            return 'ww';
+        }
+        // sonst Grundstellung des Y-Ventils: Heizung
+        // (z.B. Verdichter aus, aber Umwälzpumpe läuft – dann fließt das Wasser über den Heizkreis)
+        return 'heat';
     }
 
     // ---------------------------------------------------------------- Berechnungen

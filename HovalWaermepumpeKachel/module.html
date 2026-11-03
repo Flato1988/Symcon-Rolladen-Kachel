@@ -119,14 +119,21 @@
     #schema .valve-port.active { fill: var(--hot); stroke: var(--hot); }
     #schema .on-tank { fill: #fff; opacity: .9; }
     /* Zweig, auf den das Y-Ventil gerade nicht geschaltet ist */
-    #schema .pipe.inactive { stroke: var(--stroke); stroke-dasharray: none !important; animation: none !important; }
+    #schema .pipe.inactive { stroke: var(--stroke); animation: none !important; }
+    #schema .glint.inactive { opacity: 0 !important; animation: none !important; }
     #schema .pipe-bg.inactive { opacity: 0; }
 
     /* Strömung: laufende Striche auf den Leitungen, wenn die Pumpe läuft */
-    @keyframes flow { to { stroke-dashoffset: -24; } }
-    #schema .pipe { stroke-dasharray: 8 4; }
-    #schema.running .pipe { animation: flow 1s linear infinite; }
-    #schema:not(.running) .pipe { stroke-dasharray: none; }
+    /* Strömung: durchgehende Leitung, darüber zwei weiche Lichtreflexe, die in Fließrichtung wandern
+       (breit + blass und schmal + heller ergibt einen schimmernden Verlauf – ohne SVG-Verläufe/Filter) */
+    @keyframes glint { to { stroke-dashoffset: -60; } }
+    @keyframes breathe { 50% { opacity: .82; } }
+    #schema .glint { fill: none; stroke: #fff; stroke-linecap: round; opacity: 0; pointer-events: none; transition: opacity .8s ease; }
+    #schema .glint.wide { stroke-width: 4.5; stroke-dasharray: 22 38; }
+    #schema .glint.thin { stroke-width: 2; stroke-dasharray: 7 53; stroke-dashoffset: -8; }
+    #schema.running .pipe:not(.inactive) { animation: breathe 3s ease-in-out infinite; }
+    #schema.running .glint.wide:not(.inactive) { opacity: .22; animation: glint 2.6s linear infinite; }
+    #schema.running .glint.thin:not(.inactive) { opacity: .55; animation: glint 2.6s linear infinite; }
 
     /* Lüfter dreht sich im Betrieb */
     @keyframes spin { to { transform: rotate(360deg); } }
@@ -207,7 +214,8 @@
         <text class="tank-temp" x="224" y="178" id="tBottom">–</text>
         <text class="small center on-tank" x="224" y="189">unten</text>
 
-        <!-- Pufferspeicher -->
+        <!-- Pufferspeicher (nur sichtbar, wenn eine Puffertemperatur eingetragen ist) -->
+        <g id="bufferGroup">
         <g id="bufferSlices"></g>
         <rect class="tank-shell" x="296" y="40" width="52" height="136" rx="12"/>
         <text class="tank-temp" x="322" y="62" id="tBufTop"></text>
@@ -218,15 +226,16 @@
         <!-- Fußbodenheizung am Puffer -->
         <path class="pipe-bg hot" d="M348 62 H372"/>
         <path class="pipe hot" id="pipeFbhVl" d="M348 62 H372"/>
-        <path class="fbh" d="M372 62 H428 V78 H380 V94 H428 V110 H380 V126 H428 V142 H372"/>
         <path class="pipe-bg cold" d="M372 142 H348"/>
         <path class="pipe cold" id="pipeFbhRl" d="M372 142 H348"/>
+        </g>
+        <path class="fbh" d="M372 62 H428 V78 H380 V94 H428 V110 H380 V126 H428 V142 H372"/>
         <text class="title center" x="400" y="162">FBH</text>
         <text class="center" x="400" y="175" id="tHc1"></text>
         <text class="small center" x="400" y="187" id="tRoom"></text>
 
         <!-- gemeinsamer Rücklauf zur Wärmepumpe -->
-        <path class="pipe-bg cold" d="M322 176 V218 H58 V206"/>
+        <path class="pipe-bg cold" id="bgRetHeat" d="M322 176 V218 H58 V206"/>
         <path class="pipe cold" id="pipeRetHeat" d="M322 176 V218 H224"/>
         <path class="pipe cold" id="pipeRetWW" d="M224 196 V218"/>
         <path class="pipe cold" d="M224 218 H58 V206"/>
@@ -414,6 +423,30 @@
     }));
     window.addEventListener('resize', () => { if (!$('viewDaily').hidden) drawDaily(); });
 
+    // Lichtreflexe: zu jeder Leitung zwei Overlay-Pfade (breit/schmal) mit gleichem Verlauf und Zustand
+    const glints = new Map();
+    function syncGlints() {
+        document.querySelectorAll('#schema .pipe').forEach(pipe => {
+            if (pipe.closest('[style*="display: none"]')) {
+                (glints.get(pipe) || []).forEach(g => g.classList.add('inactive'));
+                return;
+            }
+            if (!glints.has(pipe)) {
+                const pair = ['wide', 'thin'].map(cls => {
+                    const g = document.createElementNS(NS, 'path');
+                    g.setAttribute('class', 'glint ' + cls);
+                    pipe.parentNode.insertBefore(g, pipe.nextSibling);
+                    return g;
+                });
+                glints.set(pipe, pair);
+            }
+            glints.get(pipe).forEach(g => {
+                g.setAttribute('d', pipe.getAttribute('d'));
+                g.classList.toggle('inactive', pipe.classList.contains('inactive'));
+            });
+        });
+    }
+
     // Wird von IP-Symcon aufgerufen (Startwert + jede Änderung eines Datenpunkts)
     function handleMessage(data) {
         const msg = typeof data === 'string' ? JSON.parse(data) : data;
@@ -455,6 +488,13 @@
         $('tBufMid').textContent = !has('BufferTop') && !has('BufferBottom') && has('BufferTemp') ? f('BufferTemp') : '';
         $('tBufTitle').style.fill = $('tBufMid').style.fill = hasBuf ? '#fff' : '';
         drawTank('bufferSlices', 296, 40, 52, 136, 12, bufTop, bufBottom);
+        // ohne Puffer: Heizungszweig direkt vom Ventil zur FBH und von dort zurück
+        $('bufferGroup').style.display = hasBuf ? '' : 'none';
+        const heatPath = hasBuf ? 'M160 48 V16 H322 V40' : 'M160 48 V16 H372 V62';
+        $('pipeHeat').setAttribute('d', heatPath);
+        $('bgHeat').setAttribute('d', heatPath);
+        $('pipeRetHeat').setAttribute('d', hasBuf ? 'M322 176 V218 H224' : 'M372 142 H360 V218 H224');
+        $('bgRetHeat').setAttribute('d', hasBuf ? 'M322 176 V218 H58 V206' : 'M372 142 H360 V218 H58 V206');
         $('tHc1').textContent = has('HC1FlowTemp') ? 'VL ' + f('HC1FlowTemp') : '';
         $('tRoom').textContent = has('RoomSetpoint') ? 'Raum Soll ' + f('RoomSetpoint') : '';
         drawTank('tankSlices', 196, 34, 56, 162, 14, n('StorageTop'), n('StorageBottom'));
@@ -477,18 +517,19 @@
         $('cmp').style.display = (msg.rows || []).length ? '' : 'none';
 
         // Y-Ventil: aktiven Zweig hervorheben, den anderen ausgrauen
-        const valve = msg.valve; // "ww", "heat" oder null
+        const valve = msg.valve; // "ww" oder "heat"
         const wwOff = valve === 'heat', heatOff = valve === 'ww';
         ['pipeWW', 'bgWW', 'pipeRetWW'].forEach(id => $(id).classList.toggle('inactive', wwOff));
-        ['pipeHeat', 'bgHeat'].forEach(id => $(id).classList.toggle('inactive', heatOff));
+        ['pipeHeat', 'bgHeat', 'pipeRetHeat'].forEach(id => $(id).classList.toggle('inactive', heatOff));
         $('portWW').classList.toggle('active', valve === 'ww');
         $('portHeat').classList.toggle('active', valve === 'heat');
-        $('tValve').textContent = valve === 'ww' ? 'Ventil: Warmwasser' : valve === 'heat' ? 'Ventil: Heizung' : 'Y-Ventil';
+        $('tValve').textContent = valve === 'ww' ? 'Ventil: Warmwasser' : 'Ventil: Heizung';
 
         // Betrieb erkennen: Pumpe/Volumenstrom -> Strömung, Leistung -> Lüfter
         const pumping = (n('PumpSpeed') || 0) > 0 || (n('FlowRate') || 0) > 0 || n('HC1Pump') === 1;
         $('schema').classList.toggle('running', pumping);
         $('schema').classList.toggle('heating', !!msg.heating);
+        syncGlints();
     }
     try { if (localStorage.getItem('hwpView') === 'daily') showView('daily'); } catch (e) {}
 </script>

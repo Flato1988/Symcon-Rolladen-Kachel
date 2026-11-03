@@ -127,8 +127,11 @@ Status, Betriebswahl, Fehlercode usw. werden mit den **Klartexten aus der Hoval-
 
 **Schema:** Wärmepumpe (Status WFA, VL-Soll, Modulation, Betriebsstunden) → Vorlauf → **Y-Ventil** →
 **WW-Speicher** (oben SF1 / unten SF2, Soll) oder **Pufferspeicher** (PF1/PF2 bzw. WPF) → **FBH** (Heizkreis 1: VL, Raum-Soll)
-→ gemeinsamer Rücklauf. Die Ventilstellung kommt aus einer Ventil-Variable oder automatisch aus dem
-**Status (WFA, 18723)**: 4 = Warmwasser mit WP, 1 = Heizen mit WP.
+→ gemeinsamer Rücklauf. Der **Puffer erscheint nur, wenn eine Puffertemperatur eingetragen ist** – sonst führt
+der Heizungszweig direkt zur FBH. Die Ventilstellung kommt aus einer Ventil-Variable, sonst aus dem
+**Status (WFA, 18723)** (4 = Warmwasser mit WP, 1 = Heizen mit WP), dann aus dem Status Wärmeerzeuger
+(43 = Handbetrieb Warmwasser); sonst gilt die Grundstellung **Heizung**. Die Strömung wird als durchgehende Leitung
+mit weich wandernden Lichtreflexen dargestellt.
 
 **Vergleich Pumpe ↔ eigene Messung/Berechnung** (Abweichung = (Pumpe − eigene) ÷ eigene × 100;
 grün < 10 %, orange < 25 %, rot ab 25 %):
