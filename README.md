@@ -159,6 +159,15 @@ Heizwasser **entzogene Wärme**.
 Abtauungen. Strom: externer Zähler (sonst Hoval 25613); Wärme: Hoval-Wärmezähler (sonst hydraulisch aufsummiert).
 Die Tageswerte werden zusätzlich als Variablen (Vortag) ins Archiv geschrieben.
 
+**Auswertung (dritte Ansicht „Auswertung“ in der Kachel):** je Tag dauerhaft gespeichert (ca. 3 Jahre) und als
+**Tage / Wochen / Monate** vergleichbar (‹ › blättert zurück):
+- Strom gesamt, aufgeteilt in **Heizen**, **Warmwasser** (Strom, solange das Y-Ventil auf Warmwasser steht) und
+  **Abtauen** (Strom während erkannter Abtauungen) – gestapelte Balken
+- **Ø Außentemperatur** (mit Min/Max) und **Ø Luftfeuchtigkeit** (optionaler Datenpunkt) als Linien
+- **Anzahl Abtauungen** (❄ über den Balken), Wärme und Arbeitszahl
+- Antippen eines Balkens: Detailkarte mit allen Werten, Anteilen in % und Vergleich zum Vortag / zur Vorwoche / zum Vormonat
+Die Daten werden erst beim Öffnen bzw. Blättern beim Modul angefordert (keine großen Datenmengen im Minutentakt).
+
 **Eigene Klartexte:** In der Instanz unter „Klartexte (Status, Betriebsarten, Störungen)“ kann je Datenpunkt
 und Wert ein eigener Text hinterlegt werden (z.B. Status Wärmeerzeuger · 1 · „Betriebsbereit“). Eigene Texte haben
 Vorrang vor den Hoval-Texten; der Button „Hoval-Standardtexte als Vorlage laden“ füllt die Tabelle mit den Texten

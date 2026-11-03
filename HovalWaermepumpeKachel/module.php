@@ -53,7 +53,8 @@ class HovalWaermepumpeKachel extends IPSModule
         'Valve'           => ['Umschaltventil (Y-Ventil)', null, 'raw'],
         'WaterPressure'   => ['Wasserdruck', null, 'raw'],
         'PumpSpeed'       => ['Drehzahl Pumpe', null, 'raw'],
-        'DefrostState'    => ['Abtauung aktiv (optional, sonst Erkennung über VL < RL)', null, 'raw']
+        'DefrostState'    => ['Abtauung aktiv (optional, sonst Erkennung über VL < RL)', null, 'raw'],
+        'Humidity'        => ['Luftfeuchtigkeit außen', null, 'hum']
     ];
 
     private const GROUPS = [
@@ -64,7 +65,7 @@ class HovalWaermepumpeKachel extends IPSModule
         'Heizkreis 1 (FBH)'              => ['HC1FlowTemp', 'HC1FlowSetpoint', 'HC1Status', 'HC1Mode', 'RoomSetpoint', 'HC1Pump'],
         'Warmwasser'                     => ['DHWSetpoint', 'StorageTop', 'StorageBottom', 'DHWStatus', 'DHWMode'],
         'Pufferspeicher'                 => ['BufferTemp', 'BufferTop', 'BufferBottom', 'BufferSetpoint', 'BufferStatus'],
-        'Sonstiges (nicht in Hoval-Liste)' => ['Valve', 'WaterPressure', 'PumpSpeed', 'DefrostState']
+        'Sonstiges (nicht in Hoval-Liste)' => ['Humidity', 'Valve', 'WaterPressure', 'PumpSpeed', 'DefrostState']
     ];
 
     // Klartexte laut Hoval-Datenpunktliste
@@ -139,6 +140,8 @@ class HovalWaermepumpeKachel extends IPSModule
         $this->RegisterAttributeString('DefrostState', '');
         $this->RegisterAttributeString('DayStats', '');
         $this->RegisterAttributeString('DailyHistory', '[]');
+        // Aufteilung des Stroms nach Betriebsart: {last, p (kW), mode: heat|ww|defrost}
+        $this->RegisterAttributeString('SplitState', '');
 
         $this->RegisterTimer('Tick', 0, 'HWP_Tick($_IPS[\'TARGET\']);');
 
@@ -240,6 +243,8 @@ class HovalWaermepumpeKachel extends IPSModule
                         $this->UpdateMirror($key);
                     }
                 }
+                // Strom bis jetzt der bisherigen Betriebsart zuordnen (Leistung/Ventil/Status können sich geändert haben)
+                $this->IntegrateSplit(time());
                 // Abtauung möglichst sofort erkennen (nicht erst beim nächsten Minutentakt)
                 foreach (['FlowTemp', 'ReturnTemp', 'FlowRate', 'DefrostState'] as $key) {
                     if ($SenderID === $this->GetVariableID($key)) {
@@ -255,7 +260,15 @@ class HovalWaermepumpeKachel extends IPSModule
 
     public function RequestAction($Ident, $Value)
     {
-        throw new Exception('Invalid Ident: ' . $Ident);
+        switch ($Ident) {
+            case 'Stats': // Kachel fordert die Auswertung an: {"p": "day"|"week"|"month", "o": Seite (0 = aktuell)}
+                $request = json_decode((string) $Value, true) ?: [];
+                $period = in_array($request['p'] ?? '', ['day', 'week', 'month'], true) ? $request['p'] : 'day';
+                $this->UpdateVisualizationValue(json_encode(['stats' => $this->GetStats($period, max(0, (int) ($request['o'] ?? 0)))]));
+                break;
+            default:
+                throw new Exception('Invalid Ident: ' . $Ident);
+        }
     }
 
     public function GetConfigurationForm()
@@ -355,6 +368,7 @@ class HovalWaermepumpeKachel extends IPSModule
         $this->WriteAttributeInteger('LastHydTime', $now);
 
         $this->EvaluateDefrost($now);
+        $this->IntegrateSplit($now);
         $this->UpdateDayStats($now);
         foreach (array_keys(self::DATAPOINTS) as $key) {
             $this->UpdateMirror($key);
@@ -481,12 +495,26 @@ class HovalWaermepumpeKachel extends IPSModule
         $heat = $this->DayHeatCounter();
         $dElec = ($elec !== null && $day['elecStart'] !== null && $elec >= $day['elecStart']) ? $elec - $day['elecStart'] : null;
         $dHeat = ($heat !== null && $day['heatStart'] !== null && $heat >= $day['heatStart']) ? $heat - $day['heatStart'] : null;
+        // Strom gesamt: Zähler, sonst die aufsummierte Leistung; aufgeteilt in Abtauen, Warmwasser, Heizen (Rest)
+        $total = $dElec ?? (($day['eInt'] ?? 0) > 0 ? $day['eInt'] : null);
+        $defrost = $this->GetValue('DefrostElecToday');
+        $dhw = $day['eDhw'] ?? 0;
+        if ($total !== null && $defrost + $dhw > $total) {
+            // Zähler und aufsummierte Leistung weichen leicht ab: Anteile auf den Zählerwert begrenzen
+            $scale = $total / ($defrost + $dhw);
+            $defrost *= $scale;
+            $dhw *= $scale;
+        }
         return [
             'd'    => $day['date'],
             't'    => $day['tCount'] > 0 ? round($day['tSum'] / $day['tCount'], 1) : null,
             'tmin' => $day['tMin'],
             'tmax' => $day['tMax'],
-            'e'    => $dElec === null ? null : round($dElec, 2),
+            'hum'  => ($day['humCount'] ?? 0) > 0 ? round($day['humSum'] / $day['humCount'], 0) : null,
+            'e'    => $total === null ? null : round($total, 2),
+            'eh'   => $total === null ? null : round(max(0, $total - $defrost - $dhw), 2),
+            'ew'   => round($dhw, 2),
+            'ed'   => round($defrost, 2),
             'h'    => $dHeat === null ? null : round($dHeat, 2),
             'df'   => $this->GetValue('DefrostCountToday'),
             'dfe'  => round($this->GetValue('DefrostElecToday'), 2)
@@ -504,7 +532,8 @@ class HovalWaermepumpeKachel extends IPSModule
             $summary = $this->DaySummary($day);
             $history = json_decode($this->ReadAttributeString('DailyHistory'), true) ?: [];
             $history[] = $summary;
-            $this->WriteAttributeString('DailyHistory', json_encode(array_slice($history, -60)));
+            // dauerhaft speichern (ca. 3 Jahre) – Grundlage für Tages-, Wochen- und Monatsvergleiche
+            $this->WriteAttributeString('DailyHistory', json_encode(array_slice($history, -1100)));
             foreach (['DailyElec' => 'e', 'DailyHeat' => 'h', 'DailyTemp' => 't', 'DailyDefrost' => 'df'] as $ident => $field) {
                 if ($summary[$field] !== null) {
                     $this->SetValue($ident, $summary[$field]);
@@ -516,8 +545,8 @@ class HovalWaermepumpeKachel extends IPSModule
             $day = null;
         }
         if (!$day) {
-            $day = ['date' => $today, 'tSum' => 0, 'tCount' => 0, 'tMin' => null, 'tMax' => null,
-                    'elecStart' => $this->DayElecCounter(), 'heatStart' => $this->DayHeatCounter()];
+            $day = ['date' => $today, 'tSum' => 0, 'tCount' => 0, 'tMin' => null, 'tMax' => null, 'humSum' => 0, 'humCount' => 0,
+                    'eDhw' => 0, 'eInt' => 0, 'elecStart' => $this->DayElecCounter(), 'heatStart' => $this->DayHeatCounter()];
         }
         // Zähler, die erst später verfügbar werden, nachtragen
         $day['elecStart'] = $day['elecStart'] ?? $this->DayElecCounter();
@@ -530,7 +559,164 @@ class HovalWaermepumpeKachel extends IPSModule
             $day['tMin'] = $day['tMin'] === null ? $temperature : min($day['tMin'], $temperature);
             $day['tMax'] = $day['tMax'] === null ? $temperature : max($day['tMax'], $temperature);
         }
+        $humidity = $this->Value('Humidity');
+        if ($humidity !== null) {
+            $day['humSum'] = ($day['humSum'] ?? 0) + $humidity;
+            $day['humCount'] = ($day['humCount'] ?? 0) + 1;
+        }
         $this->WriteAttributeString('DayStats', json_encode($day));
+    }
+
+    /**
+     * Strom der Wärmepumpe nach Betriebsart aufsummieren: Leistung × Zeit seit der letzten Auswertung wird der
+     * Betriebsart zugeordnet, die in dieser Zeit galt (Abtauung > Warmwasser (Y-Ventil) > Heizen).
+     */
+    private function IntegrateSplit(int $now)
+    {
+        $state = (json_decode($this->ReadAttributeString('SplitState'), true) ?: []) + ['last' => 0, 'p' => 0, 'mode' => 'heat'];
+        $day = json_decode($this->ReadAttributeString('DayStats'), true);
+        $dt = ($state['last'] > 0 && $now > $state['last'] && $now - $state['last'] <= 15 * 60) ? $now - $state['last'] : 0;
+        if ($day && $dt > 0 && $state['p'] > 0) {
+            $kWh = $state['p'] * $dt / 3600;
+            $day['eInt'] = ($day['eInt'] ?? 0) + $kWh;
+            if ($state['mode'] === 'ww') {
+                $day['eDhw'] = ($day['eDhw'] ?? 0) + $kWh;
+            }
+            $this->WriteAttributeString('DayStats', json_encode($day));
+        }
+        $mode = 'heat';
+        if (@$this->GetIDForIdent('DefrostActive') && $this->GetValue('DefrostActive')) {
+            $mode = 'defrost';
+        } elseif ($this->GetValvePosition() === 'ww') {
+            $mode = 'ww';
+        }
+        $this->WriteAttributeString('SplitState', json_encode([
+            'last' => $now, 'p' => max(0, $this->MeasuredPowerKW() ?? $this->Value('ElecPower') ?? 0), 'mode' => $mode
+        ]));
+    }
+
+    // ---------------------------------------------------------------- Auswertung Tage / Wochen / Monate
+
+    private const WEEKDAYS = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
+    private const MONTHS = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
+
+    /** Schlüssel des Zeitraums, zu dem ein Tag gehört */
+    private static function PeriodKey(string $period, int $ts): string
+    {
+        switch ($period) {
+            case 'week':
+                return date('o-W', $ts);  // ISO-Kalenderwoche
+            case 'month':
+                return date('Y-m', $ts);
+            default:
+                return date('Y-m-d', $ts);
+        }
+    }
+
+    /**
+     * Auswertung für die Kachel: N Zeiträume (plus einen davor für den Vergleich), Seite $page zählt rückwärts.
+     * Je Zeitraum: Strom gesamt / Heizen / Warmwasser / Abtauen, Wärme, Arbeitszahl, Ø Außentemperatur (Min/Max),
+     * Ø Luftfeuchtigkeit, Anzahl Abtauungen.
+     */
+    private function GetStats(string $period, int $page): array
+    {
+        $count = ['day' => 14, 'week' => 12, 'month' => 12][$period];
+
+        // alle Tage inkl. des laufenden
+        $days = json_decode($this->ReadAttributeString('DailyHistory'), true) ?: [];
+        $current = json_decode($this->ReadAttributeString('DayStats'), true);
+        if ($current) {
+            $days[] = $this->DaySummary($current) + ['p' => true];
+        }
+
+        // Zeiträume rückwärts ab heute bestimmen
+        $keys = [];
+        $labels = [];
+        $now = time();
+        for ($i = $page * $count; $i < ($page + 1) * $count + 1; $i++) {
+            switch ($period) {
+                case 'week':
+                    $ts = strtotime("monday this week -$i weeks", $now);
+                    $labels[self::PeriodKey($period, $ts)] = ['KW ' . (int) date('W', $ts), date('d.m.', $ts) . '–' . date('d.m.', $ts + 6 * 86400)];
+                    break;
+                case 'month':
+                    $ts = strtotime(date('Y-m-01', $now) . " -$i months");
+                    $labels[self::PeriodKey($period, $ts)] = [self::MONTHS[(int) date('n', $ts) - 1] . ' ' . date('y', $ts), self::MONTHS[(int) date('n', $ts) - 1] . ' ' . date('Y', $ts)];
+                    break;
+                default:
+                    $ts = strtotime("-$i days", strtotime(date('Y-m-d 12:00', $now)));
+                    $labels[self::PeriodKey($period, $ts)] = [date('d.m.', $ts), self::WEEKDAYS[(int) date('w', $ts)] . ', ' . date('d.m.Y', $ts)];
+            }
+            $keys[] = self::PeriodKey($period, $ts);
+        }
+        $keys = array_reverse($keys); // älteste zuerst
+
+        // Tage den Zeiträumen zuordnen und summieren
+        $buckets = [];
+        $oldestKey = $keys[0];
+        $hasOlder = false;
+        foreach ($days as $day) {
+            $key = self::PeriodKey($period, strtotime($day['d'] . ' 12:00'));
+            if (!isset($labels[$key])) {
+                $hasOlder = $hasOlder || $key < $oldestKey;
+                continue;
+            }
+            $b = &$buckets[$key];
+            $b['days'] = ($b['days'] ?? 0) + 1;
+            $b['partial'] = ($b['partial'] ?? false) || !empty($day['p']);
+            // Tage vor Version 2.6 ohne Aufteilung: Abtauen aus dfe, Rest zählt als Heizen
+            if (isset($day['e']) && $day['e'] !== null && !isset($day['eh'])) {
+                $day['ed'] = $day['ed'] ?? ($day['dfe'] ?? 0);
+                $day['ew'] = $day['ew'] ?? 0;
+                $day['eh'] = max(0, $day['e'] - $day['ed'] - $day['ew']);
+            }
+            foreach (['e', 'eh', 'ew', 'ed', 'h', 'df'] as $field) {
+                if (isset($day[$field]) && $day[$field] !== null) {
+                    $b[$field] = ($b[$field] ?? 0) + $day[$field];
+                }
+            }
+            foreach (['t', 'hum'] as $field) {
+                if (isset($day[$field]) && $day[$field] !== null) {
+                    $b[$field . 'Sum'] = ($b[$field . 'Sum'] ?? 0) + $day[$field];
+                    $b[$field . 'Count'] = ($b[$field . 'Count'] ?? 0) + 1;
+                }
+            }
+            if (isset($day['tmin']) && $day['tmin'] !== null) {
+                $b['tmin'] = isset($b['tmin']) ? min($b['tmin'], $day['tmin']) : $day['tmin'];
+            }
+            if (isset($day['tmax']) && $day['tmax'] !== null) {
+                $b['tmax'] = isset($b['tmax']) ? max($b['tmax'], $day['tmax']) : $day['tmax'];
+            }
+            unset($b);
+        }
+
+        $rows = [];
+        foreach ($keys as $key) {
+            $b = $buckets[$key] ?? [];
+            $r = fn ($v, $d = 2) => $v === null ? null : round($v, $d);
+            $e = $b['e'] ?? null;
+            // Tage ohne Aufteilung (vor Version 2.6): Rest als Heizen
+            $eh = $b['eh'] ?? ($e !== null ? max(0, $e - ($b['ew'] ?? 0) - ($b['ed'] ?? 0)) : null);
+            $rows[] = [
+                'k'     => $key,
+                'label' => $labels[$key][0],
+                'title' => $labels[$key][1],
+                'days'  => $b['days'] ?? 0,
+                'p'     => $b['partial'] ?? false,
+                'e'     => $r($e),
+                'eh'    => $r($eh),
+                'ew'    => $r($b['ew'] ?? ($e !== null ? 0 : null)),
+                'ed'    => $r($b['ed'] ?? ($e !== null ? 0 : null)),
+                'h'     => $r($b['h'] ?? null),
+                'az'    => ($e !== null && $e > 0.5 && isset($b['h'])) ? round($b['h'] / $e, 2) : null,
+                't'     => isset($b['tCount']) ? round($b['tSum'] / $b['tCount'], 1) : null,
+                'tmin'  => $b['tmin'] ?? null,
+                'tmax'  => $b['tmax'] ?? null,
+                'hum'   => isset($b['humCount']) ? round($b['humSum'] / $b['humCount'], 0) : null,
+                'df'    => isset($b['df']) ? (int) $b['df'] : null
+            ];
+        }
+        return ['period' => $period, 'page' => $page, 'rows' => $rows, 'older' => $hasOlder];
     }
 
     // ---------------------------------------------------------------- Werte
@@ -576,6 +762,7 @@ class HovalWaermepumpeKachel extends IPSModule
             case 'setp':
                 return $this->Number($value, 1) . ' °C';
             case 'pct':
+            case 'hum':
                 return $this->Number($value, 0) . ' %';
             case 'kw':
                 return $this->Number($value, 2) . ' kW';
@@ -928,6 +1115,7 @@ class HovalWaermepumpeKachel extends IPSModule
                         $logging = $kind === 'temp';
                         break;
                     case 'pct':
+                    case 'hum':
                         $this->RegisterVariableFloat($ident, $caption, 'HWP.Pct', $position);
                         $logging = true;
                         break;

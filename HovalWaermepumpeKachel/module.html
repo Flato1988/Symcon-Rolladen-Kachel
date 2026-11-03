@@ -97,6 +97,46 @@
         position: absolute; top: 4px; padding: 5px 8px; border-radius: 6px; background: rgba(30, 30, 30, .88); color: #fff;
         font-size: 11px; line-height: 1.45; white-space: nowrap; pointer-events: none; display: none;
     }
+    /* ---------- Auswertung Tage / Wochen / Monate ---------- */
+    #tile.stats-view #cmp { display: none !important; }
+    .stats-bar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+    .seg { display: inline-flex; border: 1px solid rgba(128, 128, 128, .3); border-radius: 12px; overflow: hidden; }
+    .seg button { border: 0; background: transparent; color: inherit; font: inherit; font-size: 11px; padding: 3px 10px; cursor: pointer; }
+    .seg button.on { background: var(--acc); color: #fff; }
+    .nav { border: 1px solid rgba(128, 128, 128, .3); background: transparent; color: inherit; font: inherit; font-size: 12px;
+           width: 26px; height: 22px; border-radius: 11px; cursor: pointer; padding: 0; }
+    .nav:disabled { opacity: .3; cursor: default; }
+    #sRange { font-size: 11px; opacity: .65; }
+    .legend .l-eh { background: var(--heat); }
+    .legend .l-ew { background: var(--hot); }
+    .legend .l-ed { background: var(--cold); }
+    .legend .l-t { height: 3px; vertical-align: 2px; background: var(--acc); }
+    .legend .l-hum { height: 0; border-top: 2px dashed #8b9aa6; vertical-align: 3px; border-radius: 0; }
+    #stats { flex: 1; width: 100%; min-height: 0; display: block; }
+    #stats text { fill: var(--fg); font-size: 10px; opacity: .6; }
+    #stats .grid { stroke: rgba(128, 128, 128, .22); stroke-width: 1; }
+    #stats .seg-eh { fill: var(--heat); }
+    #stats .seg-ew { fill: var(--hot); }
+    #stats .seg-ed { fill: var(--cold); }
+    #stats .partial { opacity: .5; }
+    #stats .sel { fill: rgba(128, 128, 128, .13); }
+    #stats .hit { fill: transparent; cursor: pointer; }
+    #stats .tline { fill: none; stroke: var(--acc); stroke-width: 2; stroke-linejoin: round; }
+    #stats .tdot { fill: var(--acc); }
+    #stats .hline { fill: none; stroke: #8b9aa6; stroke-width: 1.5; stroke-dasharray: 4 3; }
+    #stats text.df { font-size: 9px; opacity: .85; fill: var(--cold); }
+    #sEmpty { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; font-size: 12px; opacity: .6; text-align: center; }
+    #sDetail { border-radius: 8px; background: var(--box); padding: 6px 10px 8px; }
+    #sDetail .head { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; margin-bottom: 4px; }
+    #sDetail .head span:last-child { opacity: .6; font-size: 11px; text-align: right; }
+    #sDetail .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); gap: 4px 12px; }
+    #sDetail .item .l { font-size: 10.5px; opacity: .6; }
+    #sDetail .item .v { font-size: 14px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    #sDetail .item .d { font-size: 10.5px; margin-left: 4px; }
+    #sDetail .up { color: var(--hot); }
+    #sDetail .down { color: var(--acc); }
+    #sDetail .neutral { opacity: .6; }
+    #sDetail i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 4px; }
     #dEmpty { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; font-size: 12px; opacity: .6; text-align: center; }
     #schema text { fill: var(--fg); font-size: 9px; }
     #schema .small { font-size: 7.5px; opacity: .65; }
@@ -179,6 +219,7 @@
     <div class="tabs">
         <button id="tabSchema" class="on">Anlage</button>
         <button id="tabDaily">Verlauf</button>
+        <button id="tabStats">Auswertung</button>
         <span class="spacer"></span>
         <span id="rangeBtns" hidden><button data-days="14" class="on">14 Tage</button> <button data-days="30">30 Tage</button></span>
     </div>
@@ -299,6 +340,30 @@
         </div>
     </div>
 
+    <div class="view" id="viewStats" hidden>
+        <div class="stats-bar">
+            <span class="seg" id="sPeriod">
+                <button data-p="day" class="on">Tage</button><button data-p="week">Wochen</button><button data-p="month">Monate</button>
+            </span>
+            <button class="nav" id="sPrev" title="früher">‹</button>
+            <button class="nav" id="sNext" title="später">›</button>
+            <span id="sRange"></span>
+        </div>
+        <div class="legend">
+            <span><i class="l-eh"></i>Heizen</span>
+            <span><i class="l-ew"></i>Warmwasser</span>
+            <span><i class="l-ed"></i>Abtauen (kWh Strom)</span>
+            <span><i class="l-t"></i>Ø Außen</span>
+            <span><i class="l-hum"></i>Ø Feuchte</span>
+            <span>❄ Abtauungen</span>
+        </div>
+        <div class="chart-wrap">
+            <svg id="stats"></svg>
+            <div id="sEmpty">Noch keine Daten für diesen Zeitraum – die Auswertung füllt sich ab dem Update Tag für Tag.</div>
+        </div>
+        <div id="sDetail"></div>
+    </div>
+
     <table id="cmp">
         <thead><tr><th>Vergleich</th><th>Pumpe</th><th>Eigene</th><th class="src">Quelle</th><th>Abw.</th></tr></thead>
         <tbody></tbody>
@@ -356,7 +421,7 @@
     // ---------- Tagesdiagramm: Strom und Wärme je Tag (Balken), Außentemperatur (Linie) ----------
     let daily = [], days = 14, dGeo = null;
     const num = (v, d) => v === null || v === undefined ? '–' : Number(v).toLocaleString('de-DE', { minimumFractionDigits: d, maximumFractionDigits: d });
-    const niceCeil = (v) => { const p = Math.pow(10, Math.floor(Math.log10(v))); for (const m of [1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10]) if (m * p >= v) return m * p; return 10 * p; };
+    const niceCeil = (v) => { const p = Math.pow(10, Math.floor(Math.log10(v))); for (const m of [1, 1.2, 1.6, 2, 2.4, 3.2, 4, 6, 8, 10]) if (m * p >= v) return m * p; return 10 * p; }; // durch 4 teilbar -> glatte Achsenschritte
     function svgEl(name, attrs, parent) {
         const e = document.createElementNS(NS, name);
         for (const k in attrs) e.setAttribute(k, attrs[k]);
@@ -379,7 +444,8 @@
         const temps = data.map(d => d.t).filter(t => t !== null);
         let tMin = temps.length ? Math.floor(Math.min(...temps) / 5) * 5 : -5;
         let tMax = temps.length ? Math.ceil(Math.max(...temps) / 5) * 5 : 15;
-        if (tMax - tMin < 10) tMax = tMin + 10;
+        if (tMax - tMin < 12) tMax = tMin + 12;
+        tMax = tMin + Math.ceil((tMax - tMin) / 4) * 4; // glatte Schritte auf der Temperaturachse
         const yE = (v) => H - B - v / eMax * (H - T - B);
         const yT = (v) => H - B - (v - tMin) / (tMax - tMin) * (H - T - B);
         const off = n - data.length; // fehlende Tage links leer lassen
@@ -446,14 +512,138 @@
     function showView(name) {
         $('viewSchema').hidden = name !== 'schema';
         $('viewDaily').hidden = name !== 'daily';
+        $('viewStats').hidden = name !== 'stats';
+        $('tile').classList.toggle('stats-view', name === 'stats');
         $('tabSchema').classList.toggle('on', name === 'schema');
         $('tabDaily').classList.toggle('on', name === 'daily');
+        $('tabStats').classList.toggle('on', name === 'stats');
         $('rangeBtns').hidden = name !== 'daily';
         try { localStorage.setItem('hwpView', name); } catch (e) {}
         if (name === 'daily') drawDaily();
+        if (name === 'stats') requestStats();
     }
     $('tabSchema').addEventListener('click', () => showView('schema'));
     $('tabDaily').addEventListener('click', () => showView('daily'));
+    $('tabStats').addEventListener('click', () => showView('stats'));
+
+    // ---------- Auswertung: Daten werden beim Öffnen/Blättern beim Modul angefordert ----------
+    let sPeriod = 'day', sPage = 0, sData = null, sSel = null, sGeo = null;
+    try { sPeriod = localStorage.getItem('hwpPeriod') || 'day'; } catch (e) {}
+    let sLastRequest = 0;
+    function requestStats() {
+        sLastRequest = Date.now();
+        document.querySelectorAll('#sPeriod button').forEach(b => b.classList.toggle('on', b.dataset.p === sPeriod));
+        $('sNext').disabled = sPage === 0;
+        requestAction('Stats', JSON.stringify({ p: sPeriod, o: sPage }));
+    }
+    document.querySelectorAll('#sPeriod button').forEach(b => b.addEventListener('click', () => {
+        sPeriod = b.dataset.p; sPage = 0; sSel = null;
+        try { localStorage.setItem('hwpPeriod', sPeriod); } catch (e) {}
+        requestStats();
+    }));
+    $('sPrev').addEventListener('click', () => { sPage++; sSel = null; requestStats(); });
+    $('sNext').addEventListener('click', () => { if (sPage > 0) { sPage--; sSel = null; requestStats(); } });
+
+    function renderStats(stats) {
+        if (stats.period !== sPeriod || stats.page !== sPage) return; // veraltete Antwort
+        sData = stats;
+        const rows = stats.rows.slice(1);
+        if (sSel === null || sSel >= rows.length) sSel = rows.length - 1;
+        $('sPrev').disabled = !stats.older; // ältere Daten vorhanden?
+        $('sRange').textContent = rows.length ? rows[0].title.replace(/^\w+, /, '') + ' – ' + rows[rows.length - 1].title.replace(/^\w+, /, '') : '';
+        drawStats();
+        drawStatDetail();
+    }
+
+    function drawStats() {
+        const svg = $('stats');
+        const W = svg.clientWidth, H = svg.clientHeight;
+        svg.innerHTML = '';
+        if (!sData || W < 60 || H < 50) return;
+        svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+        const rows = sData.rows.slice(1);
+        $('sEmpty').style.display = rows.some(r => r.e !== null || r.t !== null) ? 'none' : 'flex';
+
+        const L = 36, R = 32, T = 14, B = 20, n = rows.length, slot = (W - L - R) / n;
+        const eMax = niceCeil(Math.max(1, ...rows.map(r => r.e || 0)));
+        const temps = rows.flatMap(r => [r.t]).filter(t => t !== null);
+        let tMin = temps.length ? Math.floor(Math.min(...temps) / 5) * 5 : -5;
+        let tMax = temps.length ? Math.ceil(Math.max(...temps) / 5) * 5 : 15;
+        if (tMax - tMin < 12) tMax = tMin + 12;
+        tMax = tMin + Math.ceil((tMax - tMin) / 4) * 4; // glatte Schritte auf der Temperaturachse
+        const yE = (v) => H - B - v / eMax * (H - T - B);
+        const yT = (v) => H - B - (v - tMin) / (tMax - tMin) * (H - T - B);
+        const yH = (v) => H - B - v / 100 * (H - T - B);
+        const xs = (i) => L + i * slot;
+
+        svgEl('rect', { x: xs(sSel), y: T - 12, width: slot, height: H - B - T + 12, class: 'sel' }, svg);
+        for (let i = 0; i <= 4; i++) {
+            const y = T + i * (H - T - B) / 4;
+            svgEl('line', { x1: L, x2: W - R, y1: y, y2: y, class: 'grid' }, svg);
+            svgEl('text', { x: L - 4, y: y + 3, 'text-anchor': 'end' }, svg).textContent = num(eMax * (4 - i) / 4, 0);
+            svgEl('text', { x: W - R + 4, y: y + 3 }, svg).textContent = num(tMax - i * (tMax - tMin) / 4, 0) + '°';
+        }
+        const bw = Math.max(3, Math.min(34, slot * 0.6));
+        const every = Math.max(1, Math.ceil(44 / slot));
+        rows.forEach((r, i) => {
+            const x = xs(i) + (slot - bw) / 2, cls = r.p ? ' partial' : '';
+            let y = H - B;
+            for (const [field, c] of [['eh', 'seg-eh'], ['ew', 'seg-ew'], ['ed', 'seg-ed']]) {
+                const v = r[field] || 0;
+                if (v <= 0) continue;
+                const h = v / eMax * (H - T - B);
+                y -= h;
+                svgEl('rect', { x, y, width: bw, height: Math.max(0.5, h), class: c + cls }, svg);
+            }
+            if (r.df) svgEl('text', { x: xs(i) + slot / 2, y: (r.e ? yE(r.e) : H - B) - 3, 'text-anchor': 'middle', class: 'df' }, svg).textContent = '❄' + r.df;
+            if ((n - 1 - i) % every === 0) svgEl('text', { x: xs(i) + slot / 2, y: H - 5, 'text-anchor': 'middle' }, svg).textContent = r.p && sPeriod === 'day' ? 'heute' : r.label;
+        });
+        for (const [field, scale, cls] of [['hum', yH, 'hline'], ['t', yT, 'tline']]) {
+            let d = '';
+            rows.forEach((r, i) => { if (r[field] !== null) d += (d ? 'L' : 'M') + (xs(i) + slot / 2).toFixed(1) + ' ' + scale(r[field]).toFixed(1) + ' '; });
+            if (d) svgEl('path', { d, class: cls }, svg);
+        }
+        rows.forEach((r, i) => { if (r.t !== null) svgEl('circle', { cx: xs(i) + slot / 2, cy: yT(r.t), r: 2.5, class: 'tdot' }, svg); });
+        rows.forEach((r, i) => {
+            const hit = svgEl('rect', { x: xs(i), y: 0, width: slot, height: H, class: 'hit' }, svg);
+            hit.addEventListener('click', () => { sSel = i; drawStats(); drawStatDetail(); });
+        });
+    }
+
+    // Detailkarte: gewählter Zeitraum mit Vergleich zum Vorzeitraum
+    function drawStatDetail() {
+        const box = $('sDetail');
+        if (!sData) { box.innerHTML = ''; return; }
+        const r = sData.rows[sSel + 1], prev = sData.rows[sSel];
+        const pct = (a, b) => (a === null || b === null || !b) ? null : (a - b) / b * 100;
+        const delta = (a, b, goodWhenLower = true, unitAbs = false) => {
+            if (unitAbs) {
+                if (a === null || b === null) return '';
+                const d = a - b;
+                return `<span class="d neutral">${d > 0 ? '+' : ''}${num(d, 1)}</span>`;
+            }
+            const p = pct(a, b);
+            if (p === null) return '';
+            const cls = Math.abs(p) < 1 ? 'neutral' : (p > 0) === goodWhenLower ? 'up' : 'down';
+            return `<span class="d ${cls}">${p > 0 ? '+' : ''}${num(p, 0)} %</span>`;
+        };
+        const share = (v) => r.e ? ` <span class="d neutral">${num(v / r.e * 100, 0)} %</span>` : '';
+        const name = { day: 'Vortag', week: 'Vorwoche', month: 'Vormonat' }[sPeriod];
+        const item = (label, value, extra = '', sub = '') => `<div class="item"><div class="l">${label}</div><div class="v">${value}${extra}</div>${sub ? `<div class="l">${sub}</div>` : ''}</div>`;
+        box.innerHTML = `<div class="head"><span><b>${r.title}</b>${r.p ? ' (laufend)' : ''}</span><span>Vergleich mit ${name}: ${prev.title}</span></div>`
+            + '<div class="grid">'
+            + item('Strom gesamt', num(r.e, 1) + ' kWh', delta(r.e, prev.e))
+            + item('<i style="background:var(--heat)"></i>Heizen', num(r.eh, 1) + ' kWh', share(r.eh || 0))
+            + item('<i style="background:var(--hot)"></i>Warmwasser', num(r.ew, 1) + ' kWh', share(r.ew || 0))
+            + item('<i style="background:var(--cold)"></i>Abtauen', num(r.ed, 2) + ' kWh', share(r.ed || 0))
+            + item('Abtauungen', r.df === null ? '–' : r.df, delta(r.df, prev.df))
+            + item('Wärme', num(r.h, 1) + ' kWh', delta(r.h, prev.h))
+            + item('Arbeitszahl', num(r.az, 2), delta(r.az, prev.az, false))
+            + item('Ø Außen', num(r.t, 1) + ' °C', delta(r.t, prev.t, true, true), r.tmin !== null ? `min ${num(r.tmin, 1)} · max ${num(r.tmax, 1)} °C` : '')
+            + item('Ø Feuchte', r.hum === null ? '–' : num(r.hum, 0) + ' %', delta(r.hum, prev.hum, true, true))
+            + '</div>';
+    }
+    window.addEventListener('resize', () => { if (!$('viewStats').hidden) drawStats(); });
     document.querySelectorAll('#rangeBtns button').forEach(b => b.addEventListener('click', () => {
         days = Number(b.dataset.days);
         document.querySelectorAll('#rangeBtns button').forEach(x => x.classList.toggle('on', x === b));
@@ -513,6 +703,10 @@
     // Wird von IP-Symcon aufgerufen (Startwert + jede Änderung eines Datenpunkts)
     function handleMessage(data) {
         const msg = typeof data === 'string' ? JSON.parse(data) : data;
+        if (msg.stats) { // Antwort auf die Anforderung der Auswertung
+            renderStats(msg.stats);
+            return;
+        }
         values = msg.values || {};
 
         document.querySelectorAll('.kpi[data-key]').forEach(k => {
@@ -599,6 +793,8 @@
         $('schema').classList.toggle('running', pumping);
         $('schema').classList.toggle('heating', !!msg.heating);
         syncGlints();
+        // offene Auswertung höchstens einmal pro Minute aktualisieren (laufender Tag/Woche/Monat)
+        if (!$('viewStats').hidden && Date.now() - sLastRequest > 60000) requestStats();
     }
-    try { if (localStorage.getItem('hwpView') === 'daily') showView('daily'); } catch (e) {}
+    try { const v = localStorage.getItem('hwpView'); if (v === 'daily' || v === 'stats') showView(v); } catch (e) {}
 </script>
