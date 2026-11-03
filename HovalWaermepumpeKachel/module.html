@@ -121,7 +121,11 @@
     #schema.running #impeller { animation: spin .9s linear infinite; }
     #schema.running .pump-ring { animation: ripple 1.8s ease-out infinite; }
     #schema.running .pump-ring.r2 { animation-delay: .9s; }
-    #schema .fbh { fill: none; stroke: #f2994a; stroke-width: 2.5; stroke-linejoin: round; }
+    /* FBH-Schlange: Farbverlauf Vorlauf (rot) -> Rücklauf (blau) aus vielen kurzen Abschnitten */
+    #schema .fbh-seg { fill: none; stroke-width: 5; stroke-linecap: round; }
+    #fbhSegs { transition: opacity .8s ease; }
+    #fbhSegs.inactive { opacity: .35; }
+    #schema .pipe.fbh-flow, #schema .pipe.fbh-flow.inactive { stroke: transparent; }
     #schema .buffer-fill { stroke: none; }
     /* Y-Ventil: Zeiger dreht beim Umschalten in die aktive Richtung, aktiver Ausgang pulsiert */
     #schema .valve-port { fill: #fff; stroke: var(--fg); stroke-width: 1; stroke-opacity: .45; transition: fill .5s, stroke .5s; }
@@ -253,7 +257,8 @@
         <path class="pipe-bg cold" d="M372 142 H348"/>
         <path class="pipe cold" id="pipeFbhRl" d="M372 142 H348"/>
         </g>
-        <path class="fbh" d="M372 62 H428 V78 H380 V94 H428 V110 H380 V126 H428 V142 H372"/>
+        <g id="fbhSegs"></g>
+        <path class="pipe fbh-flow" id="pipeFbh" d="M372 62 H428 V78 H380 V94 H428 V110 H380 V126 H428 V142 H372"/>
         <text class="title center" x="400" y="162">FBH</text>
         <text class="center" x="400" y="175" id="tHc1"></text>
         <text class="small center" x="400" y="187" id="tRoom"></text>
@@ -456,6 +461,31 @@
     }));
     window.addEventListener('resize', () => { if (!$('viewDaily').hidden) drawDaily(); });
 
+    // FBH-Schlange in kurze Abschnitte zerlegen und von rot (Vorlauf) nach blau (Rücklauf) einfärben
+    (function drawFbh() {
+        const pts = [[372, 62], [428, 62], [428, 78], [380, 78], [380, 94], [428, 94], [428, 110],
+                     [380, 110], [380, 126], [428, 126], [428, 142], [372, 142]];
+        const hot = [229, 72, 77], cold = [59, 130, 246], step = 4;
+        let total = 0;
+        for (let i = 1; i < pts.length; i++) total += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
+        let done = 0;
+        for (let i = 1; i < pts.length; i++) {
+            const [x0, y0] = pts[i - 1], [x1, y1] = pts[i];
+            const len = Math.hypot(x1 - x0, y1 - y0), n = Math.max(1, Math.round(len / step));
+            for (let k = 0; k < n; k++) {
+                const a = k / n, b = (k + 1) / n;
+                const t = (done + len * (a + b) / 2) / total;
+                const seg = document.createElementNS(NS, 'line');
+                seg.setAttribute('x1', x0 + (x1 - x0) * a); seg.setAttribute('y1', y0 + (y1 - y0) * a);
+                seg.setAttribute('x2', x0 + (x1 - x0) * b); seg.setAttribute('y2', y0 + (y1 - y0) * b);
+                seg.setAttribute('class', 'fbh-seg');
+                seg.setAttribute('stroke', `rgb(${hot.map((c, j) => Math.round(c + (cold[j] - c) * t))})`);
+                $('fbhSegs').appendChild(seg);
+            }
+            done += len;
+        }
+    })();
+
     // Lichtreflexe: zu jeder Leitung zwei Overlay-Pfade (breit/schmal) mit gleichem Verlauf und Zustand
     const glints = new Map();
     function syncGlints() {
@@ -558,6 +588,11 @@
         $('portHeat').classList.toggle('active', valve === 'heat');
         $('tValve').textContent = valve === 'ww' ? 'Ventil: Warmwasser' : 'Ventil: Heizung';
         $('valveIndicator').classList.toggle('heat', valve !== 'ww');
+
+        // FBH durchströmt? Ohne Puffer: Ventil auf Heizung; mit Puffer: eigene Heizkreispumpe (falls bekannt)
+        const fbhActive = hasBuf ? n('HC1Pump') !== 0 : valve !== 'ww';
+        $('pipeFbh').classList.toggle('inactive', !fbhActive);
+        $('fbhSegs').classList.toggle('inactive', !fbhActive);
 
         // Betrieb erkennen: Pumpe/Volumenstrom -> Strömung, Leistung -> Lüfter
         const pumping = (n('PumpSpeed') || 0) > 0 || (n('FlowRate') || 0) > 0 || n('HC1Pump') === 1;

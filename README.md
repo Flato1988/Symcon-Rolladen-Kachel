@@ -131,7 +131,8 @@ Status, Betriebswahl, Fehlercode usw. werden mit den **Klartexten aus der Hoval-
 der Heizungszweig direkt zur FBH. Die Ventilstellung kommt aus einer Ventil-Variable, sonst aus dem
 **Status (WFA, 18723)** (4 = Warmwasser mit WP, 1 = Heizen mit WP), dann aus dem Status Wärmeerzeuger
 (43 = Handbetrieb Warmwasser); sonst gilt die Grundstellung **Heizung**. Animationen: Rohre mit Glanzlinie, weichem
-Schimmer und wandernden Wasserperlen; Umwälzpumpe mit drehendem Laufrad; Y-Ventil mit Zeiger, der beim Umschalten dreht.
+Schimmer und wandernden Wasserperlen; Umwälzpumpe mit drehendem Laufrad; Y-Ventil mit Zeiger, der beim Umschalten dreht. Die FBH-Schlange zeigt einen Farbverlauf von rot (Vorlauf) nach blau (Rücklauf)
+und ist animiert, solange sie durchströmt wird (ohne Puffer: Ventil auf Heizung; mit Puffer: Heizkreispumpe an).
 
 **Vergleich Pumpe ↔ eigene Messung/Berechnung** (Abweichung = (Pumpe − eigene) ÷ eigene × 100;
 grün < 10 %, orange < 25 %, rot ab 25 %):
