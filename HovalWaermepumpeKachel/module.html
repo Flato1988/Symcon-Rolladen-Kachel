@@ -203,6 +203,9 @@
     #schema.heating #fan { animation: spin 1.6s linear infinite; }
     #schema.heating .blade { fill: var(--acc); opacity: .9; }
     #schema.heating .fan-ring { stroke: var(--acc); }
+    /* Abtauung: Lüfter blau */
+    #schema.defrosting .blade { fill: var(--cold); opacity: .9; }
+    #schema.defrosting .fan-ring { stroke: var(--cold); }
 </style>
 
 <div id="tile">
@@ -714,7 +717,8 @@
             k.querySelector('.value').textContent = f(k.dataset.key);
         });
 
-        $('tStatus').textContent = has('WFAStatus') ? f('WFAStatus') : has('WEZStatus') ? f('WEZStatus') : '';
+        const defrosting = n('WEZStatus') === 8 || !!(msg.defrost && msg.defrost.active);
+        $('tStatus').textContent = defrosting ? f('WEZStatus') : has('WFAStatus') ? f('WFAStatus') : has('WEZStatus') ? f('WEZStatus') : '';
         $('tWezSoll').textContent = f('WEZSetpoint');
         $('tWezIst').textContent = f('WEZPower');
         $('tWezPower').textContent = f('Hours');
@@ -733,7 +737,7 @@
         $('tFlow').textContent = f('FlowTemp');
         $('tReturn').textContent = f('ReturnTemp');
         $('tFlowRate').textContent = has('FlowRate') ? f('FlowRate') : '';
-        $('tPump').textContent = has('PumpSpeed') ? 'Pumpe ' + f('PumpSpeed') : '';
+        $('tPump').textContent = '';
         $('tTop').textContent = f('StorageTop');
         $('tBottom').textContent = f('StorageBottom');
         $('tDhw').textContent = has('DHWSetpoint') ? 'Soll ' + f('DHWSetpoint') : '';
@@ -789,9 +793,10 @@
         $('fbhSegs').classList.toggle('inactive', !fbhActive);
 
         // Betrieb erkennen: Pumpe/Volumenstrom -> Strömung, Leistung -> Lüfter
-        const pumping = (n('PumpSpeed') || 0) > 0 || (n('FlowRate') || 0) > 0 || n('HC1Pump') === 1;
+        const pumping = (n('FlowRate') || 0) > 0 || n('HC1Pump') === 1;
         $('schema').classList.toggle('running', pumping);
         $('schema').classList.toggle('heating', !!msg.heating);
+        $('schema').classList.toggle('defrosting', defrosting);
         syncGlints();
         // offene Auswertung höchstens einmal pro Minute aktualisieren (laufender Tag/Woche/Monat)
         if (!$('viewStats').hidden && Date.now() - sLastRequest > 60000) requestStats();

@@ -50,10 +50,7 @@ class HovalWaermepumpeKachel extends IPSModule
         'BufferStatus'    => ['Puffer – Status', 17384, 'map:buffer'],
         'MeasuredPower'   => ['Elektrische Leistung gemessen (externer Zähler)', null, 'mpower'],
         'MeasuredEnergy'  => ['Elektrische Energie gemessen (externer Zähler)', null, 'menergy'],
-        'Valve'           => ['Umschaltventil (Y-Ventil)', null, 'raw'],
         'WaterPressure'   => ['Wasserdruck', null, 'raw'],
-        'PumpSpeed'       => ['Drehzahl Pumpe', null, 'raw'],
-        'DefrostState'    => ['Abtauung aktiv (optional, sonst Erkennung über VL < RL)', null, 'raw'],
         'Humidity'        => ['Luftfeuchtigkeit außen', null, 'hum']
     ];
 
@@ -65,7 +62,7 @@ class HovalWaermepumpeKachel extends IPSModule
         'Heizkreis 1 (FBH)'              => ['HC1FlowTemp', 'HC1FlowSetpoint', 'HC1Status', 'HC1Mode', 'RoomSetpoint', 'HC1Pump'],
         'Warmwasser'                     => ['DHWSetpoint', 'StorageTop', 'StorageBottom', 'DHWStatus', 'DHWMode'],
         'Pufferspeicher'                 => ['BufferTemp', 'BufferTop', 'BufferBottom', 'BufferSetpoint', 'BufferStatus'],
-        'Sonstiges (nicht in Hoval-Liste)' => ['Humidity', 'Valve', 'WaterPressure', 'PumpSpeed', 'DefrostState']
+        'Sonstiges (nicht in Hoval-Liste)' => ['Humidity', 'WaterPressure']
     ];
 
     // Klartexte laut Hoval-Datenpunktliste
@@ -73,7 +70,7 @@ class HovalWaermepumpeKachel extends IPSModule
         'onoff'  => [0 => 'Aus', 1 => 'An'],
         'mode'   => [0 => 'Wärmeerzeuger aus', 1 => 'Automatikbetrieb', 4 => 'Manueller Heizbetrieb', 5 => 'Manueller Kühlbetrieb'],
         'wez'    => [0 => 'Abgeschaltet', 1 => 'Heizbetrieb', 2 => 'Vorlaufzeit Heizbetrieb', 3 => 'Extern gesperrt', 4 => 'Kühlbetrieb',
-                     5 => 'Vorlaufzeit Kühlbetrieb', 15 => 'Alarm', 16 => 'Störung', 17 => 'Blockiert', 21 => 'WFmax Abschaltung',
+                     5 => 'Vorlaufzeit Kühlbetrieb', 8 => 'Abtauvorgang', // 8 fehlt in der Hoval-Liste, von der Anlage gemeldet 15 => 'Alarm', 16 => 'Störung', 17 => 'Blockiert', 21 => 'WFmax Abschaltung',
                      22 => 'WFsoll Abschaltung', 26 => 'Bivalenzabschaltung', 27 => 'Warmwasser Ladesperre', 28 => 'Minimale Auszeit',
                      29 => 'Minimale Einzeit', 32 => 'Nachlauf', 33 => 'Verzögerung Folge WEZ', 34 => 'Betrieb Übertemperatur',
                      42 => 'Handbetrieb Heizen', 43 => 'Handbetrieb Warmwasser', 44 => 'Handbetrieb Kühlen'],
@@ -127,8 +124,6 @@ class HovalWaermepumpeKachel extends IPSModule
         $this->RegisterPropertyInteger('HovalEnergyUnit', 1);    // 0 = kWh, 1 = MWh (Hoval)
         $this->RegisterPropertyInteger('MeasuredPowerUnit', 0);  // 0 = W, 1 = kW
         $this->RegisterPropertyInteger('MeasuredEnergyUnit', 1); // 0 = Wh, 1 = kWh, 2 = MWh
-        $this->RegisterPropertyFloat('ValveDHWValue', 1);        // Wert der Ventil-Variable bei Stellung Warmwasser
-        $this->RegisterPropertyFloat('DefrostThreshold', 0.5);   // Abtauung erkannt, wenn VL mindestens so viel K unter RL liegt
         // Eigene Klartexte [{Key, Value, Text}] – haben Vorrang vor den Hoval-Texten
         $this->RegisterPropertyString('TextOverrides', '[]');
 
@@ -246,7 +241,7 @@ class HovalWaermepumpeKachel extends IPSModule
                 // Strom bis jetzt der bisherigen Betriebsart zuordnen (Leistung/Ventil/Status können sich geändert haben)
                 $this->IntegrateSplit(time());
                 // Abtauung möglichst sofort erkennen (nicht erst beim nächsten Minutentakt)
-                foreach (['FlowTemp', 'ReturnTemp', 'FlowRate', 'DefrostState'] as $key) {
+                foreach (['WEZStatus', 'FlowTemp', 'ReturnTemp', 'FlowRate'] as $key) {
                     if ($SenderID === $this->GetVariableID($key)) {
                         $this->EvaluateDefrost(time());
                         break;
@@ -297,12 +292,6 @@ class HovalWaermepumpeKachel extends IPSModule
                         ['caption' => 'W', 'value' => 0], ['caption' => 'kW', 'value' => 1]]];
                     $items[] = ['type' => 'Select', 'name' => 'MeasuredEnergyUnit', 'caption' => 'Einheit Energie', 'options' => [
                         ['caption' => 'Wh', 'value' => 0], ['caption' => 'kWh', 'value' => 1], ['caption' => 'MWh', 'value' => 2]]];
-                    break;
-                case 'Sonstiges (nicht in Hoval-Liste)':
-                    $items[] = ['type' => 'NumberSpinner', 'name' => 'ValveDHWValue', 'caption' => 'Wert der Ventil-Variable bei Warmwasser', 'digits' => 0];
-                    $items[] = ['type' => 'Label', 'caption' => 'Ohne Ventil-Variable wird die Stellung aus dem Status (WFA) erkannt: „Warmwasser mit WP“ bzw. „Heizen mit WP“.'];
-                    $items[] = ['type' => 'NumberSpinner', 'name' => 'DefrostThreshold', 'caption' => 'Abtauerkennung: Vorlauf mindestens … unter Rücklauf', 'digits' => 1, 'suffix' => 'K'];
-                    $items[] = ['type' => 'Label', 'caption' => 'Ohne Abtau-Variable gilt: Volumenstrom > 0 und Vorlauf kälter als Rücklauf = Abtauung (Wärme wird dem Heizwasser entzogen).'];
                     break;
             }
             $elements[] = ['type' => 'ExpansionPanel', 'caption' => $group, 'items' => $items];
@@ -440,16 +429,17 @@ class HovalWaermepumpeKachel extends IPSModule
             }
         }
 
-        // Zustand bestimmen: Abtau-Variable, sonst Spreizung (mit Hysterese: Ende erst, wenn VL wieder ≥ RL)
-        $defrostVar = $this->Value('DefrostState');
-        if ($defrostVar !== null) {
-            $active = $defrostVar != 0;
+        // Zustand bestimmen: Status Wärmeerzeuger (18722) = 8 "Abtauvorgang";
+        // nur falls der Status nicht eingetragen ist: Ersatz über die Spreizung (VL mind. 0,5 K unter RL, Ende bei VL ≥ RL)
+        $wez = $this->Value('WEZStatus');
+        if ($wez !== null) {
+            $active = (int) round($wez) === 8;
         } else {
             $vl = $this->Value('FlowTemp');
             $rl = $this->Value('ReturnTemp');
             $flow = $this->Value('FlowRate') ?? 0;
             $spread = ($vl !== null && $rl !== null) ? $vl - $rl : null;
-            $limit = $state['active'] ? 0 : -$this->ReadPropertyFloat('DefrostThreshold');
+            $limit = $state['active'] ? 0 : -0.5;
             $active = $spread !== null && $flow > 0 && $spread < $limit;
         }
 
@@ -850,13 +840,9 @@ class HovalWaermepumpeKachel extends IPSModule
         return ($this->Value('RunState') ?? 0) >= 1 || ($this->Value('WEZPower') ?? 0) > 0 || $powerKW > 0.1;
     }
 
-    /** Stellung des Y-Ventils: Ventil-Variable, sonst aus dem Status (WFA / Wärmeerzeuger) – "ww" oder "heat" */
+    /** Stellung des Y-Ventils aus dem Status (WFA / Wärmeerzeuger) – "ww" oder "heat" */
     private function GetValvePosition(): string
     {
-        $valve = $this->Value('Valve');
-        if ($valve !== null) {
-            return abs($valve - $this->ReadPropertyFloat('ValveDHWValue')) < 0.001 ? 'ww' : 'heat';
-        }
         // Status (WFA): 4 = Warmwasser mit WP, 1 = Heizen mit WP
         $wfa = $this->Value('WFAStatus');
         if ($wfa !== null && in_array((int) $wfa, [1, 4], true)) {
@@ -1153,6 +1139,11 @@ class HovalWaermepumpeKachel extends IPSModule
             }
             $this->UpdateMirror($key);
             $position++;
+        }
+
+        // Anzeige-Variablen entfernter Datenpunkte (bis 2.6) löschen
+        foreach (['MValve', 'MPumpSpeed', 'MDefrostState'] as $ident) {
+            @$this->UnregisterVariable($ident);
         }
 
         // Links früherer Versionen (bis 2.2) entfernen

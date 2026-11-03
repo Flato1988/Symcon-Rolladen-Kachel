@@ -128,7 +128,7 @@ Status, Betriebswahl, Fehlercode usw. werden mit den **Klartexten aus der Hoval-
 **Schema:** Wärmepumpe (Status WFA, VL-Soll, Modulation, Betriebsstunden) → Vorlauf → **Y-Ventil** →
 **WW-Speicher** (oben SF1 / unten SF2, Soll) oder **Pufferspeicher** (PF1/PF2 bzw. WPF) → **FBH** (Heizkreis 1: VL, Raum-Soll)
 → gemeinsamer Rücklauf. Der **Puffer erscheint nur, wenn eine Puffertemperatur eingetragen ist** – sonst führt
-der Heizungszweig direkt zur FBH. Die Ventilstellung kommt aus einer Ventil-Variable, sonst aus dem
+der Heizungszweig direkt zur FBH. Die Ventilstellung kommt aus dem
 **Status (WFA, 18723)** (4 = Warmwasser mit WP, 1 = Heizen mit WP), dann aus dem Status Wärmeerzeuger
 (43 = Handbetrieb Warmwasser); sonst gilt die Grundstellung **Heizung**. Animationen: Rohre mit Glanzlinie, weichem
 Schimmer und wandernden Wasserperlen; Umwälzpumpe mit drehendem Laufrad; Y-Ventil mit Zeiger, der beim Umschalten dreht. Die FBH-Schlange zeigt einen Farbverlauf von rot (Vorlauf) nach blau (Rücklauf)
@@ -148,11 +148,11 @@ grün < 10 %, orange < 25 %, rot ab 25 %):
 Der **Vergleichszeitraum** beginnt beim Einrichten und kann in der Instanz neu gestartet werden
 (z.B. jährlich für eine echte Jahresarbeitszahl).
 
-**Abtauungen:** erkannt über eine optionale Abtau-Variable oder automatisch, wenn bei laufendem Volumenstrom
-der Vorlauf mindestens 0,5 K (einstellbar) kälter als der Rücklauf ist (Kältekreis läuft umgekehrt);
-Ende mit Hysterese, sobald der Vorlauf wieder ≥ Rücklauf ist. Gezählt werden Anzahl (heute/gesamt),
-Dauer der letzten Abtauung, **Strom** während der Abtauung (externer Zähler, sonst Hoval) und die dem
-Heizwasser **entzogene Wärme**.
+**Abtauungen:** erkannt über den **Status Wärmeerzeuger (18722) = 8 „Abtauvorgang“** (in der Hoval-Liste nicht
+enthalten, von der Anlage gemeldet). Nur falls der Status nicht eingetragen ist, gilt ersatzweise: Volumenstrom > 0 und
+Vorlauf mindestens 0,5 K kälter als Rücklauf. Gezählt werden Anzahl (heute/gesamt), Dauer der letzten Abtauung,
+**Strom** während der Abtauung (externer Zähler, sonst Hoval) und die dem Heizwasser **entzogene Wärme**.
+In der Kachel wird der Lüfter während der Abtauung blau.
 
 **Verlauf (Umschalter „Anlage | Verlauf“ in der Kachel):** je Tag gemessener **Stromverbrauch** und **erbrachte Wärme**
 (Balken) und **Außentemperatur Ø** (Linie), 14 oder 30 Tage; antippen zeigt Min/Max-Temperatur, Tagesarbeitszahl und
