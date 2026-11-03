@@ -146,6 +146,8 @@ class HovalWaermepumpeKachel extends IPSModule
         $this->RegisterAttributeInteger('QTempCount', 0);
         $this->RegisterAttributeString('QHistory', '[]');
         $this->RegisterAttributeString('QPeaks', '{}');
+        // aus der gemessenen Leistung aufsummierte Energie (ersetzt einen fehlenden kWh-Zählerstand des externen Zählers)
+        $this->RegisterAttributeFloat('MeasEnergyInt', 0);
 
         $this->RegisterTimer('Tick', 0, 'HWP_Tick($_IPS[\'TARGET\']);');
 
@@ -492,9 +494,25 @@ class HovalWaermepumpeKachel extends IPSModule
     // ---------------------------------------------------------------- Tageswerte
 
     /** Zählerstand Strom in kWh für die Tagesbilanz: externer Zähler, sonst Hoval */
+    /** Gemessene Energie in kWh: Zählerstand des externen Zählers, sonst die aufsummierte gemessene Leistung */
+    private function MeasuredEnergyKWh(): ?float
+    {
+        $meter = $this->EnergyKWh('MeasuredEnergy');
+        if ($meter !== null) {
+            return $meter;
+        }
+        return $this->GetVariableID('MeasuredPower') > 0 ? $this->ReadAttributeFloat('MeasEnergyInt') : null;
+    }
+
+    /** Quelle der Tagesbilanz Strom: gemessen (Zähler/Leistung), sonst Hoval */
+    private function DayElecSource(): string
+    {
+        return $this->MeasuredEnergyKWh() !== null ? 'meas' : 'hoval';
+    }
+
     private function DayElecCounter(): ?float
     {
-        return $this->EnergyKWh('MeasuredEnergy') ?? $this->EnergyKWh('ElecEnergy');
+        return $this->MeasuredEnergyKWh() ?? $this->EnergyKWh('ElecEnergy');
     }
 
     /** Zählerstand Wärme in kWh: Hoval-Wärmezähler, sonst die selbst aufsummierte hydraulische Wärme */
@@ -575,6 +593,13 @@ class HovalWaermepumpeKachel extends IPSModule
         }
         // Zähler, die erst später verfügbar werden, nachtragen
         $day['elecStart'] = $day['elecStart'] ?? $this->DayElecCounter();
+        // Quelle gewechselt (z.B. Update auf gemessene Werte): Startstand so setzen, dass der bisherige Tagesverbrauch
+        // (aufsummierte Leistung) erhalten bleibt
+        if (($day['elecSrc'] ?? '') !== $this->DayElecSource()) {
+            $counter = $this->DayElecCounter();
+            $day['elecStart'] = $counter === null ? null : $counter - ($day['eInt'] ?? 0);
+            $day['elecSrc'] = $this->DayElecSource();
+        }
         $day['heatStart'] = $day['heatStart'] ?? $this->DayHeatCounter();
 
         $temperature = $this->Value('OutdoorTemp');
@@ -603,6 +628,9 @@ class HovalWaermepumpeKachel extends IPSModule
         $dt = ($state['last'] > 0 && $now > $state['last'] && $now - $state['last'] <= 15 * 60) ? $now - $state['last'] : 0;
         if ($dt > 0 && $state['p'] > 0) {
             $this->WriteAttributeFloat('QEnergy', $this->ReadAttributeFloat('QEnergy') + $state['p'] * $dt / 3600);
+            if (!empty($state['meas'])) {
+                $this->WriteAttributeFloat('MeasEnergyInt', $this->ReadAttributeFloat('MeasEnergyInt') + $state['p'] * $dt / 3600);
+            }
         }
         if ($day && $dt > 0 && $state['p'] > 0) {
             $kWh = $state['p'] * $dt / 3600;
@@ -619,7 +647,8 @@ class HovalWaermepumpeKachel extends IPSModule
             $mode = 'ww';
         }
         $this->WriteAttributeString('SplitState', json_encode([
-            'last' => $now, 'p' => max(0, $this->MeasuredPowerKW() ?? $this->Value('ElecPower') ?? 0), 'mode' => $mode
+            'last' => $now, 'p' => max(0, $this->MeasuredPowerKW() ?? $this->Value('ElecPower') ?? 0), 'mode' => $mode,
+            'meas' => $this->MeasuredPowerKW() !== null
         ]));
     }
 
@@ -696,8 +725,55 @@ class HovalWaermepumpeKachel extends IPSModule
             'cost'    => $energyToday === null ? null : round($energyToday * $this->ReadPropertyFloat('PricePerKWh'), 2),
             'peak'    => $peaks[date('Y-m-d', $now)] ?? null,
             'series'  => array_values(array_filter($history, fn ($q) => $q[0] >= $now - 86400)),
-            'peaks'   => $peakList
+            'peaks'   => $peakList,
+            'week'    => $this->GetPowerWeek($history, $now),
+            'month'   => $this->GetPowerMonth($peaks, $now)
         ];
+    }
+
+    /** Woche: Stundenmittel der letzten 7 Tage aus den 15-min-Werten [[Stundenbeginn, Ø kW, max kW, °C]] */
+    private function GetPowerWeek(array $history, int $now): array
+    {
+        $hours = [];
+        foreach ($history as [$start, $kW, $temp]) {
+            if ($start < $now - 7 * 86400) {
+                continue;
+            }
+            $h = intdiv($start, 3600) * 3600;
+            $hours[$h]['kw'][] = $kW;
+            if ($temp !== null) {
+                $hours[$h]['t'][] = $temp;
+            }
+        }
+        ksort($hours);
+        $result = [];
+        foreach ($hours as $h => $v) {
+            $result[] = [$h, round(array_sum($v['kw']) / count($v['kw']), 3), max($v['kw']),
+                         isset($v['t']) ? round(array_sum($v['t']) / count($v['t']), 1) : null];
+        }
+        return $result;
+    }
+
+    /** Monat: je Tag (31 Tage) [Datum, Ø kW (Tagesenergie ÷ Stunden), 15-min-Spitze kW, Zeitpunkt Spitze, Ø °C] */
+    private function GetPowerMonth(array $peaks, int $now): array
+    {
+        $days = [];
+        foreach (json_decode($this->ReadAttributeString('DailyHistory'), true) ?: [] as $d) {
+            $days[$d['d']] = $d;
+        }
+        $current = json_decode($this->ReadAttributeString('DayStats'), true);
+        if ($current) {
+            $days[$current['date']] = $this->DaySummary($current) + ['p' => true];
+        }
+        $result = [];
+        for ($i = 30; $i >= 0; $i--) {
+            $date = date('Y-m-d', strtotime("-$i days", $now));
+            $d = $days[$date] ?? null;
+            $hours = ($d && !empty($d['p'])) ? max(1, ($now - strtotime($date)) / 3600) : 24;
+            $result[] = [$date, ($d && $d['e'] !== null) ? round($d['e'] / $hours, 3) : null,
+                         $peaks[$date][0] ?? null, $peaks[$date][1] ?? null, $d['t'] ?? null];
+        }
+        return $result;
     }
 
     // ---------------------------------------------------------------- Auswertung Tage / Wochen / Monate
@@ -990,7 +1066,7 @@ class HovalWaermepumpeKachel extends IPSModule
         $baseline = json_decode($this->ReadAttributeString('Baseline'), true) ?: ['ts' => time()];
         $current = [
             'elecHoval'  => $this->EnergyKWh('ElecEnergy'),
-            'elecMeas'   => $this->EnergyKWh('MeasuredEnergy'),
+            'elecMeas'   => $this->MeasuredEnergyKWh(),
             'thermHoval' => $this->ThermEnergyHovalKWh()
         ];
         $changed = !isset($baseline['ts']) || $this->ReadAttributeString('Baseline') === '';
@@ -1037,7 +1113,7 @@ class HovalWaermepumpeKachel extends IPSModule
         // Energie und JAZ im Vergleichszeitraum
         $baseline = $this->GetBaseline();
         $elecHoval = $this->EnergyKWh('ElecEnergy');
-        $elecMeas = $this->EnergyKWh('MeasuredEnergy');
+        $elecMeas = $this->MeasuredEnergyKWh();
         $thermHoval = $this->ThermEnergyHovalKWh();
         $dElecHoval = ($elecHoval !== null && isset($baseline['elecHoval'])) ? $elecHoval - $baseline['elecHoval'] : null;
         $dElecMeas = ($elecMeas !== null && isset($baseline['elecMeas'])) ? $elecMeas - $baseline['elecMeas'] : null;
@@ -1141,7 +1217,8 @@ class HovalWaermepumpeKachel extends IPSModule
                 'today'  => $this->GetValue('DefrostCountToday'),
                 'elec'   => round($this->GetValue('DefrostElecToday'), 2),
                 'heat'   => round($this->GetValue('DefrostHeatToday'), 2),
-                'total'  => $this->GetValue('DefrostCountTotal')
+                'total'  => $this->GetValue('DefrostCountTotal'),
+                'last'   => $this->GetValue('DefrostLastMinutes')
             ],
             // Tageswerte: abgeschlossene Tage + der laufende Tag (p = unvollständig)
             'daily'   => $this->GetDailySeries(),

@@ -172,7 +172,12 @@ Die Daten werden erst beim Öffnen bzw. Blättern beim Modul angefordert (keine 
 Leistung Ø 15 min, Außentemperatur, Verbrauch und Kosten heute (Strompreis in der Instanz), Spitze heute;
 24-h-Diagramm der 15-min-Leistung (Tagesspitze rot) mit Außentemperatur und die höchste 15-min-Leistung je Tag der
 letzten 7 Tage. Die Viertelstunden laufen synchron zur Uhr (:00/:15/:30/:45), Ø kW = Energie der Viertelstunde × 4.
-Archiv: „Leistung Ø 15 min“ und „Spitze 15 min je Tag“.
+Archiv: „Leistung Ø 15 min“ und „Spitze 15 min je Tag“. Reiter **24 h | Woche | Monat**: Woche = Stundenmittel der letzten 7 Tage,
+Monat = je Tag Ø-Leistung und 15-min-Spitze (31 Tage).
+
+**Gemessene Werte:** Verbrauch, Kosten, Auswertung und Energievergleich verwenden den externen Zähler. Ist nur dessen
+Leistung eingetragen (kein kWh-Zählerstand), summiert das Modul die gemessene Leistung selbst zu Energie auf; erst ohne
+externen Zähler wird der Hoval-Energiezähler (25613) verwendet.
 
 **Eigene Klartexte:** In der Instanz unter „Klartexte (Status, Betriebsarten, Störungen)“ kann je Datenpunkt
 und Wert ein eigener Text hinterlegt werden (z.B. Status Wärmeerzeuger · 1 · „Betriebsbereit“). Eigene Texte haben
