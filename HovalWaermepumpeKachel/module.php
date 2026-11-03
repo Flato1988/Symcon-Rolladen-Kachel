@@ -723,7 +723,9 @@ class HovalWaermepumpeKachel extends IPSModule
         $qHyd = $this->GetHydraulicPower();
 
         // COP: Pumpe vs. eigene Berechnung (Hydraulik ÷ elektrisch, bevorzugt gemessen)
+        // COP/JAZ der Pumpe: 0 bedeutet "kein Wert" (z.B. Verdichter aus, noch keine Jahresbilanz)
         $copPump = $this->Value('COPPump');
+        $copPump = ($copPump !== null && $copPump > 0) ? $copPump : null;
         $copOwn = ($running && $qHyd !== null && $qHyd > 0 && $pElec !== null && $pElec > 0.1) ? min(15, $qHyd / $pElec) : null;
 
         // Energie und JAZ im Vergleichszeitraum
@@ -743,6 +745,7 @@ class HovalWaermepumpeKachel extends IPSModule
         $elec = $dElecMeas ?? $dElecHoval;
         $elecSource = $dElecMeas !== null ? 'Zähler' : 'Hoval';
         $jazPump = $this->Value('JAZPump');
+        $jazPump = ($jazPump !== null && $jazPump > 0) ? $jazPump : null;
         $jazOwn = ($heat !== null && $elec !== null && $elec >= 1) ? min(15, $heat / $elec) : null;
 
         return [
