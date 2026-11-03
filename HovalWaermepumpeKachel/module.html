@@ -98,7 +98,7 @@
         font-size: 11px; line-height: 1.45; white-space: nowrap; pointer-events: none; display: none;
     }
     /* ---------- Auswertung Tage / Wochen / Monate ---------- */
-    #tile.stats-view #cmp { display: none !important; }
+    #tile.stats-view #cmp, #tile.power-view #cmp { display: none !important; }
     .stats-bar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
     .seg { display: inline-flex; border: 1px solid rgba(128, 128, 128, .3); border-radius: 12px; overflow: hidden; }
     .seg button { border: 0; background: transparent; color: inherit; font: inherit; font-size: 11px; padding: 3px 10px; cursor: pointer; }
@@ -137,6 +137,44 @@
     #sDetail .down { color: var(--acc); }
     #sDetail .neutral { opacity: .6; }
     #sDetail i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 4px; }
+    /* ---------- Leistung: Rundanzeige, Kennzahlen, 24-h-Verlauf, 15-min-Spitzen ---------- */
+    .pw-top { display: grid; grid-template-columns: 150px 1fr; gap: 8px; }
+    .pw-gauge { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 4px 6px; border-radius: 8px; background: var(--box); }
+    .pw-gauge .label { font-size: 11px; opacity: .65; }
+    .pw-gauge svg { width: 100%; max-height: 90px; display: block; }
+    #pwTrack, #pwFill { fill: none; stroke-width: 9; stroke-linecap: round; }
+    #pwTrack { stroke: var(--acc); opacity: .2; }
+    #pwFill { stroke: var(--acc); transition: stroke-dasharray .6s ease; }
+    #pwValue { fill: var(--fg); font-size: 17px; text-anchor: middle; font-variant-numeric: tabular-nums; }
+    #pwState, .pwScale { fill: var(--fg); font-size: 8.5px; opacity: .6; text-anchor: middle; }
+    .pw-kpis { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+    .pw-kpis .kpi .value { font-size: 17px; }
+    .pw-kpis .kpi .sub { font-size: 11px; opacity: .65; white-space: nowrap; }
+    .pw-kpis .kpi.p .value { color: var(--acc); }
+    .pw-kpis .kpi.t .value { color: var(--heat); }
+    .pw-kpis .kpi.pk .value { color: var(--hot); }
+    .legend .l-pw { background: var(--acc); }
+    .legend .l-pwt { height: 3px; vertical-align: 2px; background: var(--heat); }
+    #pwChart { flex: 1; width: 100%; min-height: 0; display: block; touch-action: pan-y; }
+    #pwChart text { fill: var(--fg); font-size: 10px; opacity: .6; }
+    #pwChart .grid { stroke: rgba(128, 128, 128, .22); stroke-width: 1; }
+    #pwChart .bar { fill: var(--acc); opacity: .85; }
+    #pwChart .bar.peak { fill: var(--hot); opacity: 1; }
+    #pwChart .temp { fill: none; stroke: var(--heat); stroke-width: 2; stroke-linejoin: round; }
+    #pwChart .cursor { stroke: var(--fg); stroke-width: 1; opacity: .4; }
+    #pwTip { position: absolute; top: 4px; padding: 4px 8px; border-radius: 6px; background: rgba(30, 30, 30, .85); color: #fff;
+             font-size: 11px; white-space: nowrap; pointer-events: none; display: none; }
+    #pwEmpty { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; font-size: 12px; opacity: .6; text-align: center; }
+    .pw-peaks-title { font-size: 11px; opacity: .65; margin: 4px 0; }
+    #pwPeaks { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; align-items: end; }
+    #pwPeaks .day { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 0; }
+    #pwPeaks .v { font-size: 10px; font-variant-numeric: tabular-nums; opacity: .8; white-space: nowrap; }
+    #pwPeaks .b { width: 100%; max-width: 34px; border-radius: 3px 3px 0 0; background: var(--hot); opacity: .35; }
+    #pwPeaks .d { font-size: 10px; opacity: .6; }
+    #pwPeaks .today .b { opacity: .9; }
+    #pwPeaks .today .d { opacity: 1; font-weight: 600; }
+    @media (max-width: 440px) { .pw-top { grid-template-columns: 118px 1fr; } }
+    @media (max-height: 420px) { .pw-peaks { display: none; } }
     #dEmpty { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; font-size: 12px; opacity: .6; text-align: center; }
     #schema text { fill: var(--fg); font-size: 9px; }
     #schema .small { font-size: 7.5px; opacity: .65; }
@@ -223,6 +261,7 @@
         <button id="tabSchema" class="on">Anlage</button>
         <button id="tabDaily">Verlauf</button>
         <button id="tabStats">Auswertung</button>
+        <button id="tabPower">Leistung</button>
         <span class="spacer"></span>
         <span id="rangeBtns" hidden><button data-days="14" class="on">14 Tage</button> <button data-days="30">30 Tage</button></span>
     </div>
@@ -367,6 +406,38 @@
         <div id="sDetail"></div>
     </div>
 
+    <div class="view" id="viewPower" hidden>
+        <div class="pw-top">
+            <div class="pw-gauge">
+                <div class="label">Leistung aktuell</div>
+                <svg viewBox="0 0 120 74">
+                    <path id="pwTrack" d="M12 62 A48 48 0 0 1 108 62" pathLength="100"/>
+                    <path id="pwFill" d="M12 62 A48 48 0 0 1 108 62" pathLength="100" stroke-dasharray="0 200"/>
+                    <text id="pwValue" x="60" y="52">–</text>
+                    <text id="pwState" x="60" y="66"></text>
+                    <text class="pwScale" x="12" y="73">0</text>
+                    <text class="pwScale" id="pwMax" x="108" y="73"></text>
+                </svg>
+            </div>
+            <div class="pw-kpis">
+                <div class="kpi p"><div class="label">Leistung Ø 15 min</div><div class="value" id="pwAvg">–</div></div>
+                <div class="kpi t"><div class="label">Außentemperatur</div><div class="value" id="pwTemp">–</div></div>
+                <div class="kpi"><div class="label">Heute</div><div class="value" id="pwEnergy">–</div><div class="sub" id="pwCost"></div></div>
+                <div class="kpi pk"><div class="label">Spitze heute</div><div class="value" id="pwPeak">–</div><div class="sub" id="pwPeakTime"></div></div>
+            </div>
+        </div>
+        <div class="legend"><span><i class="l-pw"></i>Leistung (kW, Ø 15 min)</span><span><i class="l-pwt"></i>Außentemperatur (°C)</span></div>
+        <div class="chart-wrap">
+            <svg id="pwChart"></svg>
+            <div id="pwTip"></div>
+            <div id="pwEmpty">Noch keine Daten – der erste Balken erscheint nach der nächsten vollen Viertelstunde.</div>
+        </div>
+        <div class="pw-peaks">
+            <div class="pw-peaks-title">Höchste 15-min-Leistung je Tag</div>
+            <div id="pwPeaks"></div>
+        </div>
+    </div>
+
     <table id="cmp">
         <thead><tr><th>Vergleich</th><th>Pumpe</th><th>Eigene</th><th class="src">Quelle</th><th>Abw.</th></tr></thead>
         <tbody></tbody>
@@ -425,6 +496,8 @@
     let daily = [], days = 14, dGeo = null;
     const num = (v, d) => v === null || v === undefined ? '–' : Number(v).toLocaleString('de-DE', { minimumFractionDigits: d, maximumFractionDigits: d });
     const niceCeil = (v) => { const p = Math.pow(10, Math.floor(Math.log10(v))); for (const m of [1, 1.2, 1.6, 2, 2.4, 3.2, 4, 6, 8, 10]) if (m * p >= v) return m * p; return 10 * p; }; // durch 4 teilbar -> glatte Achsenschritte
+    // Achsenwert: ganze Zahl ohne, sonst mit einer Nachkommastelle (z.B. 0,8 / 1,6 / 2,4)
+    const axisNum = (v) => num(v, Math.abs(v - Math.round(v)) < 0.001 ? 0 : 1);
     function svgEl(name, attrs, parent) {
         const e = document.createElementNS(NS, name);
         for (const k in attrs) e.setAttribute(k, attrs[k]);
@@ -457,7 +530,7 @@
         for (let i = 0; i <= 4; i++) {
             const y = T + i * (H - T - B) / 4;
             svgEl('line', { x1: L, x2: W - R, y1: y, y2: y, class: 'grid' }, svg);
-            svgEl('text', { x: L - 4, y: y + 3, 'text-anchor': 'end' }, svg).textContent = num(eMax * (4 - i) / 4, 0);
+            svgEl('text', { x: L - 4, y: y + 3, 'text-anchor': 'end' }, svg).textContent = axisNum(eMax * (4 - i) / 4);
             svgEl('text', { x: W - R + 4, y: y + 3 }, svg).textContent = num(tMax - i * (tMax - tMin) / 4, 0) + '°';
         }
         const bw = Math.max(1.5, slot * 0.36);
@@ -516,7 +589,10 @@
         $('viewSchema').hidden = name !== 'schema';
         $('viewDaily').hidden = name !== 'daily';
         $('viewStats').hidden = name !== 'stats';
+        $('viewPower').hidden = name !== 'power';
         $('tile').classList.toggle('stats-view', name === 'stats');
+        $('tile').classList.toggle('power-view', name === 'power');
+        $('tabPower').classList.toggle('on', name === 'power');
         $('tabSchema').classList.toggle('on', name === 'schema');
         $('tabDaily').classList.toggle('on', name === 'daily');
         $('tabStats').classList.toggle('on', name === 'stats');
@@ -524,10 +600,125 @@
         try { localStorage.setItem('hwpView', name); } catch (e) {}
         if (name === 'daily') drawDaily();
         if (name === 'stats') requestStats();
+        if (name === 'power') drawPower();
     }
     $('tabSchema').addEventListener('click', () => showView('schema'));
     $('tabDaily').addEventListener('click', () => showView('daily'));
     $('tabStats').addEventListener('click', () => showView('stats'));
+    $('tabPower').addEventListener('click', () => showView('power'));
+
+    // ---------- Leistung: aktuelle Leistung, 15-min-Mittel (24 h), Tagesspitzen ----------
+    let pw = null, pwGeo = null;
+    const hhmm = (ts) => new Date(ts * 1000).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+    const unitTxt = (v, d, u) => v === null || v === undefined ? '–' : num(v, d) + ' ' + u;
+    function drawPower() {
+        if (!pw || $('viewPower').hidden) return;
+        // Kennzahlen
+        $('pwAvg').textContent = unitTxt(pw.avg15, 2, 'kW');
+        $('pwTemp').textContent = unitTxt(pw.temp, 1, '°C');
+        $('pwEnergy').textContent = unitTxt(pw.energy, 1, 'kWh');
+        $('pwCost').textContent = pw.cost === null ? '' : num(pw.cost, 2) + ' €';
+        $('pwPeak').textContent = pw.peak ? unitTxt(pw.peak[0], 2, 'kW') : '–';
+        $('pwPeakTime').textContent = pw.peak ? 'Ø 15 min · ' + hhmm(pw.peak[1]) + ' Uhr' : '';
+        // Rundanzeige: Skala bis zur höchsten Leistung der letzten Tage
+        const max = niceCeil(Math.max(1, pw.current || 0, ...(pw.series || []).map(q => q[1]), ...(pw.peaks || []).map(q => q[1] || 0)));
+        const p = pw.current === null ? 0 : Math.min(100, pw.current / max * 100);
+        $('pwFill').setAttribute('stroke-dasharray', p + ' 200');
+        $('pwFill').style.opacity = p > 0 ? 1 : 0;
+        $('pwValue').textContent = unitTxt(pw.current, 2, 'kW');
+        $('pwState').textContent = pw.current === null ? '' : pw.current < 0.05 ? 'Stillstand' : 'in Betrieb';
+        $('pwMax').textContent = axisNum(max);
+        drawPowerChart();
+        drawPowerPeaks();
+    }
+
+    function drawPowerChart() {
+        const svg = $('pwChart');
+        const W = svg.clientWidth, H = svg.clientHeight;
+        svg.innerHTML = '';
+        if (W < 60 || H < 40) return;
+        svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+        const series = pw.series || [];
+        $('pwEmpty').style.display = series.length ? 'none' : 'flex';
+        const L = 34, R = 34, T = 6, B = 18;
+        const tEnd = Math.ceil(pw.now / 900) * 900, tStart = tEnd - 86400;
+        const x = (t) => L + (t - tStart) / 86400 * (W - L - R);
+        const pMax = niceCeil(Math.max(0.5, ...series.map(q => q[1])));
+        const temps = series.map(q => q[2]).filter(t => t !== null);
+        let tMin = temps.length ? Math.floor(Math.min(...temps) / 5) * 5 : -5;
+        let tMax = temps.length ? Math.ceil(Math.max(...temps) / 5) * 5 : 15;
+        if (tMax - tMin < 12) tMax = tMin + 12;
+        tMax = tMin + Math.ceil((tMax - tMin) / 4) * 4;
+        const yP = (v) => H - B - v / pMax * (H - T - B);
+        const yT = (v) => H - B - (v - tMin) / (tMax - tMin) * (H - T - B);
+        for (let i = 0; i <= 4; i++) {
+            const y = T + i * (H - T - B) / 4;
+            svgEl('line', { x1: L, x2: W - R, y1: y, y2: y, class: 'grid' }, svg);
+            svgEl('text', { x: L - 4, y: y + 3, 'text-anchor': 'end' }, svg).textContent = axisNum(pMax * (4 - i) / 4);
+            svgEl('text', { x: W - R + 4, y: y + 3 }, svg).textContent = num(tMax - i * (tMax - tMin) / 4, 0) + '°';
+        }
+        const step = (W - L - R) < 260 ? 6 : 3;
+        for (let t = Math.ceil(tStart / 3600) * 3600; t <= tEnd; t += 3600) {
+            if (new Date(t * 1000).getHours() % step) continue;
+            svgEl('text', { x: x(t), y: H - 4, 'text-anchor': 'middle' }, svg).textContent = hhmm(t).slice(0, 2) + ' h';
+        }
+        const bw = Math.max(1, (W - L - R) / 96 - 1);
+        const peakStart = pw.peak ? pw.peak[1] : null;
+        for (const [t, kw] of series) {
+            svgEl('rect', { x: x(t) + 0.5, y: yP(kw), width: bw, height: Math.max(0, H - B - yP(kw)), class: 'bar' + (t === peakStart ? ' peak' : '') }, svg);
+        }
+        let d = '', prev = null;
+        for (const [t, , temp] of series) {
+            if (temp === null) { prev = null; continue; }
+            d += (prev === null || t - prev > 1800 ? 'M' : 'L') + (x(t) + bw / 2).toFixed(1) + ' ' + yT(temp).toFixed(1) + ' ';
+            prev = t;
+        }
+        if (d) svgEl('path', { d, class: 'temp' }, svg);
+        pwGeo = { x, T, B, H, series, bw };
+    }
+
+    function drawPowerPeaks() {
+        const box = $('pwPeaks');
+        box.innerHTML = '';
+        const list = pw.peaks || [];
+        const max = Math.max(0.1, ...list.map(q => q[1] || 0));
+        const days = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
+        list.forEach(([date, kw, ts], i) => {
+            const day = document.createElement('div');
+            day.className = 'day' + (i === list.length - 1 ? ' today' : '');
+            day.title = kw === null ? date : `${date}: ${num(kw, 2)} kW um ${hhmm(ts)} Uhr`;
+            const h = kw === null ? 2 : Math.max(3, kw / max * 34);
+            day.innerHTML = `<span class="v">${kw === null ? '–' : num(kw, 1)}</span><span class="b" style="height:${h}px"></span>`
+                + `<span class="d">${i === list.length - 1 ? 'Heute' : days[new Date(date + 'T12:00').getDay()]}</span>`;
+            box.appendChild(day);
+        });
+    }
+
+    function showPowerTip(e) {
+        if (!pwGeo || !pwGeo.series.length) return;
+        const r = $('pwChart').getBoundingClientRect(), px = e.clientX - r.left;
+        let best = null;
+        for (const q of pwGeo.series) {
+            const dx = Math.abs(pwGeo.x(q[0]) + pwGeo.bw / 2 - px);
+            if (!best || dx < best.dx) best = { dx, q };
+        }
+        $('pwChart').querySelectorAll('.cursor').forEach(c => c.remove());
+        if (!best || best.dx > 20) return hidePowerTip();
+        const [t, kw, temp] = best.q, cx = pwGeo.x(t) + pwGeo.bw / 2;
+        svgEl('line', { x1: cx, x2: cx, y1: pwGeo.T, y2: pwGeo.H - pwGeo.B, class: 'cursor' }, $('pwChart'));
+        const tip = $('pwTip');
+        tip.textContent = `${hhmm(t)}–${hhmm(t + 900)}  ·  ${num(kw, 2)} kW  ·  ${temp === null ? '–' : num(temp, 1)} °C`;
+        tip.style.display = 'block';
+        tip.style.left = Math.min(Math.max(0, cx - tip.offsetWidth / 2), r.width - tip.offsetWidth) + 'px';
+    }
+    function hidePowerTip() {
+        $('pwTip').style.display = 'none';
+        $('pwChart').querySelectorAll('.cursor').forEach(c => c.remove());
+    }
+    $('pwChart').addEventListener('pointermove', showPowerTip);
+    $('pwChart').addEventListener('pointerdown', showPowerTip);
+    $('pwChart').addEventListener('pointerleave', hidePowerTip);
+    window.addEventListener('resize', () => drawPower());
 
     // ---------- Auswertung: Daten werden beim Öffnen/Blättern beim Modul angefordert ----------
     let sPeriod = 'day', sPage = 0, sData = null, sSel = null, sGeo = null;
@@ -583,7 +774,7 @@
         for (let i = 0; i <= 4; i++) {
             const y = T + i * (H - T - B) / 4;
             svgEl('line', { x1: L, x2: W - R, y1: y, y2: y, class: 'grid' }, svg);
-            svgEl('text', { x: L - 4, y: y + 3, 'text-anchor': 'end' }, svg).textContent = num(eMax * (4 - i) / 4, 0);
+            svgEl('text', { x: L - 4, y: y + 3, 'text-anchor': 'end' }, svg).textContent = axisNum(eMax * (4 - i) / 4);
             svgEl('text', { x: W - R + 4, y: y + 3 }, svg).textContent = num(tMax - i * (tMax - tMin) / 4, 0) + '°';
         }
         const bw = Math.max(3, Math.min(34, slot * 0.6));
@@ -730,6 +921,8 @@
             $('dfBox').classList.toggle('active', !!df.active);
         }
         daily = msg.daily || [];
+        pw = msg.power || null;
+        drawPower();
         if (!$('viewDaily').hidden) drawDaily();
         const err = $('errBox');
         err.classList.toggle('error', !!msg.error);
@@ -801,5 +994,5 @@
         // offene Auswertung höchstens einmal pro Minute aktualisieren (laufender Tag/Woche/Monat)
         if (!$('viewStats').hidden && Date.now() - sLastRequest > 60000) requestStats();
     }
-    try { const v = localStorage.getItem('hwpView'); if (v === 'daily' || v === 'stats') showView(v); } catch (e) {}
+    try { const v = localStorage.getItem('hwpView'); if (['daily', 'stats', 'power'].includes(v)) showView(v); } catch (e) {}
 </script>

@@ -168,6 +168,12 @@ Die Tageswerte werden zusätzlich als Variablen (Vortag) ins Archiv geschrieben.
 - Antippen eines Balkens: Detailkarte mit allen Werten, Anteilen in % und Vergleich zum Vortag / zur Vorwoche / zum Vormonat
 Die Daten werden erst beim Öffnen bzw. Blättern beim Modul angefordert (keine großen Datenmengen im Minutentakt).
 
+**Leistung (vierte Ansicht „Leistung“):** Rundanzeige der aktuellen Leistung (externer Zähler, sonst Hoval),
+Leistung Ø 15 min, Außentemperatur, Verbrauch und Kosten heute (Strompreis in der Instanz), Spitze heute;
+24-h-Diagramm der 15-min-Leistung (Tagesspitze rot) mit Außentemperatur und die höchste 15-min-Leistung je Tag der
+letzten 7 Tage. Die Viertelstunden laufen synchron zur Uhr (:00/:15/:30/:45), Ø kW = Energie der Viertelstunde × 4.
+Archiv: „Leistung Ø 15 min“ und „Spitze 15 min je Tag“.
+
 **Eigene Klartexte:** In der Instanz unter „Klartexte (Status, Betriebsarten, Störungen)“ kann je Datenpunkt
 und Wert ein eigener Text hinterlegt werden (z.B. Status Wärmeerzeuger · 1 · „Betriebsbereit“). Eigene Texte haben
 Vorrang vor den Hoval-Texten; der Button „Hoval-Standardtexte als Vorlage laden“ füllt die Tabelle mit den Texten

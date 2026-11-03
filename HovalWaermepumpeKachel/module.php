@@ -124,6 +124,7 @@ class HovalWaermepumpeKachel extends IPSModule
         $this->RegisterPropertyInteger('HovalEnergyUnit', 1);    // 0 = kWh, 1 = MWh (Hoval)
         $this->RegisterPropertyInteger('MeasuredPowerUnit', 0);  // 0 = W, 1 = kW
         $this->RegisterPropertyInteger('MeasuredEnergyUnit', 1); // 0 = Wh, 1 = kWh, 2 = MWh
+        $this->RegisterPropertyFloat('PricePerKWh', 0.25);       // Strompreis (Wärmepumpentarif) in €/kWh
         // Eigene Klartexte [{Key, Value, Text}] – haben Vorrang vor den Hoval-Texten
         $this->RegisterPropertyString('TextOverrides', '[]');
 
@@ -137,6 +138,14 @@ class HovalWaermepumpeKachel extends IPSModule
         $this->RegisterAttributeString('DailyHistory', '[]');
         // Aufteilung des Stroms nach Betriebsart: {last, p (kW), mode: heat|ww|defrost}
         $this->RegisterAttributeString('SplitState', '');
+        // 15-Minuten-Leistung: laufende Viertelstunde, abgeschlossene Viertelstunden [[Beginn, kW, °C]] (7 Tage),
+        // Tagesspitzen {Datum: [kW, Beginn]} (31 Tage)
+        $this->RegisterAttributeInteger('QStart', 0);
+        $this->RegisterAttributeFloat('QEnergy', 0);
+        $this->RegisterAttributeFloat('QTempSum', 0);
+        $this->RegisterAttributeInteger('QTempCount', 0);
+        $this->RegisterAttributeString('QHistory', '[]');
+        $this->RegisterAttributeString('QPeaks', '{}');
 
         $this->RegisterTimer('Tick', 0, 'HWP_Tick($_IPS[\'TARGET\']);');
 
@@ -214,6 +223,17 @@ class HovalWaermepumpeKachel extends IPSModule
         $this->EnableLogging('DefrostCountTotal');
         $this->EnableLogging('DefrostElecTotal');
 
+        // 15-Minuten-Leistung und Tagesspitzen
+        $this->CreateProfile('HWP.Euro', 2, ' €', 'Euro');
+        $this->RegisterVariableFloat('Power15', 'Leistung Ø 15 min', 'HWP.kW', $position++);
+        $this->RegisterVariableFloat('Peak15Today', 'Spitze 15 min heute', 'HWP.kW', $position++);
+        $this->RegisterVariableInteger('Peak15TodayTime', 'Spitze heute um', '~UnixTimestampTime', $position++);
+        $this->RegisterVariableFloat('Peak15Yesterday', 'Spitze 15 min gestern', 'HWP.kW', $position++);
+        $this->RegisterVariableFloat('Peak15Daily', 'Spitze 15 min je Tag', 'HWP.kW', $position++);
+        $this->RegisterVariableFloat('CostToday', 'Stromkosten heute', 'HWP.Euro', $position++);
+        $this->EnableLogging('Power15');
+        $this->EnableLogging('Peak15Daily');
+
         @$this->UnregisterVariable('COP');        // aus Version 1.6
         @$this->UnregisterVariable('Deviation');  // aus Version 1.6
 
@@ -221,7 +241,7 @@ class HovalWaermepumpeKachel extends IPSModule
         $this->MaintainMirrors();
 
         $this->SetStatus(102);
-        $this->SetTimerInterval('Tick', 60 * 1000);
+        $this->SetTimerInterval('Tick', $this->MillisecondsToNextMinute());
         $this->Tick();
     }
 
@@ -288,6 +308,7 @@ class HovalWaermepumpeKachel extends IPSModule
                         ['caption' => 'kWh', 'value' => 0], ['caption' => 'MWh (Hoval)', 'value' => 1]]];
                     break;
                 case 'Externer Zähler':
+                    $items[] = ['type' => 'NumberSpinner', 'name' => 'PricePerKWh', 'caption' => 'Strompreis (Wärmepumpentarif)', 'suffix' => '€/kWh', 'digits' => 4, 'minimum' => 0];
                     $items[] = ['type' => 'Select', 'name' => 'MeasuredPowerUnit', 'caption' => 'Einheit Leistung', 'options' => [
                         ['caption' => 'W', 'value' => 0], ['caption' => 'kW', 'value' => 1]]];
                     $items[] = ['type' => 'Select', 'name' => 'MeasuredEnergyUnit', 'caption' => 'Einheit Energie', 'options' => [
@@ -358,12 +379,20 @@ class HovalWaermepumpeKachel extends IPSModule
 
         $this->EvaluateDefrost($now);
         $this->IntegrateSplit($now);
+        $this->UpdateQuarter($now);
         $this->UpdateDayStats($now);
         foreach (array_keys(self::DATAPOINTS) as $key) {
             $this->UpdateMirror($key);
         }
         $this->UpdateCalculations();
         $this->UpdateVisualizationValue($this->GetFullUpdateMessage());
+        // nächster Lauf kurz nach dem Minutenwechsel, damit die Viertelstunden genau an :00/:15/:30/:45 enden
+        $this->SetTimerInterval('Tick', $this->MillisecondsToNextMinute());
+    }
+
+    private function MillisecondsToNextMinute(): int
+    {
+        return (60 - (time() % 60) + 1) * 1000;
     }
 
     /** Hoval-Standardtexte als Vorlage in die Klartext-Tabelle des Formulars laden (vorhandene Einträge bleiben) */
@@ -529,6 +558,12 @@ class HovalWaermepumpeKachel extends IPSModule
                     $this->SetValue($ident, $summary[$field]);
                 }
             }
+            $peaks = json_decode($this->ReadAttributeString('QPeaks'), true) ?: [];
+            $peak = $peaks[$day['date']][0] ?? 0.0;
+            $this->SetValue('Peak15Yesterday', $peak);
+            $this->SetValue('Peak15Daily', $peak);
+            $this->SetValue('Peak15Today', 0);
+            $this->SetValue('Peak15TodayTime', 0);
             foreach (['DefrostCountToday', 'DefrostElecToday', 'DefrostHeatToday'] as $ident) {
                 $this->SetValue($ident, 0);
             }
@@ -566,6 +601,9 @@ class HovalWaermepumpeKachel extends IPSModule
         $state = (json_decode($this->ReadAttributeString('SplitState'), true) ?: []) + ['last' => 0, 'p' => 0, 'mode' => 'heat'];
         $day = json_decode($this->ReadAttributeString('DayStats'), true);
         $dt = ($state['last'] > 0 && $now > $state['last'] && $now - $state['last'] <= 15 * 60) ? $now - $state['last'] : 0;
+        if ($dt > 0 && $state['p'] > 0) {
+            $this->WriteAttributeFloat('QEnergy', $this->ReadAttributeFloat('QEnergy') + $state['p'] * $dt / 3600);
+        }
         if ($day && $dt > 0 && $state['p'] > 0) {
             $kWh = $state['p'] * $dt / 3600;
             $day['eInt'] = ($day['eInt'] ?? 0) + $kWh;
@@ -583,6 +621,83 @@ class HovalWaermepumpeKachel extends IPSModule
         $this->WriteAttributeString('SplitState', json_encode([
             'last' => $now, 'p' => max(0, $this->MeasuredPowerKW() ?? $this->Value('ElecPower') ?? 0), 'mode' => $mode
         ]));
+    }
+
+    // ---------------------------------------------------------------- 15-Minuten-Leistung
+
+    /**
+     * Läuft jede Minute kurz nach dem Minutenwechsel: Außentemperatur sammeln und zu jeder vollen Viertelstunde
+     * die mittlere Leistung (Energie der Viertelstunde × 4) speichern – wie die 15-min-Leistung beim Netzbetreiber.
+     */
+    private function UpdateQuarter(int $now)
+    {
+        $boundary = intdiv($now, 900) * 900;
+        $start = $this->ReadAttributeInteger('QStart');
+        if ($start > 0 && $boundary > $start) {
+            $duration = $boundary - $start;
+            if ($duration <= 2 * 3600) { // längere Lücken (Symcon aus) nicht mitteln
+                $kW = round($this->ReadAttributeFloat('QEnergy') / ($duration / 3600), 3);
+                $count = $this->ReadAttributeInteger('QTempCount');
+                $temperature = $count > 0 ? round($this->ReadAttributeFloat('QTempSum') / $count, 1) : $this->Value('OutdoorTemp');
+
+                $history = json_decode($this->ReadAttributeString('QHistory'), true) ?: [];
+                $history[] = [$start, $kW, $temperature];
+                $history = array_values(array_filter($history, fn ($q) => $q[0] >= $boundary - 7 * 86400));
+                $this->WriteAttributeString('QHistory', json_encode($history));
+                $this->SetValue('Power15', $kW);
+
+                // Tagesspitze (die Viertelstunde zählt zu dem Tag, an dem sie begonnen hat)
+                $date = date('Y-m-d', $start);
+                $peaks = json_decode($this->ReadAttributeString('QPeaks'), true) ?: [];
+                if (!isset($peaks[$date]) || $kW > $peaks[$date][0]) {
+                    $peaks[$date] = [$kW, $start];
+                }
+                ksort($peaks);
+                $this->WriteAttributeString('QPeaks', json_encode(array_slice($peaks, -31, null, true)));
+                if ($date === date('Y-m-d', $now)) {
+                    $this->SetValue('Peak15Today', $peaks[$date][0]);
+                    $this->SetValue('Peak15TodayTime', $peaks[$date][1]);
+                }
+            }
+        }
+        if ($start === 0 || $boundary > $start) {
+            $this->WriteAttributeInteger('QStart', $boundary);
+            $this->WriteAttributeFloat('QEnergy', 0);
+            $this->WriteAttributeFloat('QTempSum', 0);
+            $this->WriteAttributeInteger('QTempCount', 0);
+        }
+        $temperature = $this->Value('OutdoorTemp');
+        if ($temperature !== null) {
+            $this->WriteAttributeFloat('QTempSum', $this->ReadAttributeFloat('QTempSum') + $temperature);
+            $this->WriteAttributeInteger('QTempCount', $this->ReadAttributeInteger('QTempCount') + 1);
+        }
+    }
+
+    /** Daten für die Ansicht "Leistung": aktuelle Leistung, Kennzahlen, 24-h-Verlauf, Spitzen der letzten 7 Tage */
+    private function GetPowerView(): array
+    {
+        $now = time();
+        $history = json_decode($this->ReadAttributeString('QHistory'), true) ?: [];
+        $peaks = json_decode($this->ReadAttributeString('QPeaks'), true) ?: [];
+        $peakList = [];
+        for ($i = 6; $i >= 0; $i--) {
+            $date = date('Y-m-d', strtotime("-$i days", $now));
+            $peakList[] = [$date, $peaks[$date][0] ?? null, $peaks[$date][1] ?? null];
+        }
+        $day = json_decode($this->ReadAttributeString('DayStats'), true);
+        $energyToday = $day ? $this->DaySummary($day)['e'] : null;
+        $current = $this->MeasuredPowerKW() ?? $this->Value('ElecPower');
+        return [
+            'now'     => $now,
+            'current' => $current === null ? null : round(max(0, $current), 3),
+            'avg15'   => count($history) > 0 ? end($history)[1] : null,
+            'temp'    => $this->Value('OutdoorTemp'),
+            'energy'  => $energyToday,
+            'cost'    => $energyToday === null ? null : round($energyToday * $this->ReadPropertyFloat('PricePerKWh'), 2),
+            'peak'    => $peaks[date('Y-m-d', $now)] ?? null,
+            'series'  => array_values(array_filter($history, fn ($q) => $q[0] >= $now - 86400)),
+            'peaks'   => $peakList
+        ];
     }
 
     // ---------------------------------------------------------------- Auswertung Tage / Wochen / Monate
@@ -953,6 +1068,14 @@ class HovalWaermepumpeKachel extends IPSModule
 
     private function UpdateCalculations()
     {
+        $day = json_decode($this->ReadAttributeString('DayStats'), true);
+        $energyToday = $day ? $this->DaySummary($day)['e'] : null;
+        if ($energyToday !== null && @$this->GetIDForIdent('CostToday')) {
+            $cost = round($energyToday * $this->ReadPropertyFloat('PricePerKWh'), 2);
+            if ($this->GetValue('CostToday') !== $cost) {
+                $this->SetValue('CostToday', $cost);
+            }
+        }
         $c = $this->Calculate();
         $values = [
             'COPOwn' => $c['copOwn'], 'DevCOP' => $c['devCOP'], 'JAZOwn' => $c['jazOwn'], 'DevJAZ' => $c['devJAZ'],
@@ -1021,7 +1144,8 @@ class HovalWaermepumpeKachel extends IPSModule
                 'total'  => $this->GetValue('DefrostCountTotal')
             ],
             // Tageswerte: abgeschlossene Tage + der laufende Tag (p = unvollständig)
-            'daily'   => $this->GetDailySeries()
+            'daily'   => $this->GetDailySeries(),
+            'power'   => $this->GetPowerView()
         ]);
     }
 
