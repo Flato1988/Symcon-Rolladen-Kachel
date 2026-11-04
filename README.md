@@ -179,6 +179,15 @@ Monat = je Tag Ø-Leistung und 15-min-Spitze (31 Tage).
 Leistung eingetragen (kein kWh-Zählerstand), summiert das Modul die gemessene Leistung selbst zu Energie auf; erst ohne
 externen Zähler wird der Hoval-Energiezähler (25613) verwendet.
 
+**Kältekreis (Reiter „Kältekreis“, erscheint sobald Kältekreis-Werte eingetragen sind; Gateway-Software ab V2.38):**
+Schema mit Ventilator/Verdampfer, Expansionsventil, Verdichter und Kondensator (animiert, solange der Verdichter läuft).
+Register (S32, 2 Register ab „high“, Funktion 3): 31902 Ansaugluft, 31904 Sauggas, 31906 Heißgas, 31892/31894 WP-Vor-/Rücklauf,
+31920 Drehzahl Ist (Verdichter), 31910 Drehzahl WQP (vermutlich Ventilator) – Faktor 0,1; **31912 Überhitzung, 31914 Niederdruck,
+31916 Hochdruck – Faktor 0,01** (laut Messwerten). Aus den Drücken werden über die Dampfdruckkurve des Kältemittels (R32, R410A,
+R290 wählbar) Verdampfungs- und Kondensationstemperatur berechnet, dazu Druckverhältnis, „Luft − Verdampfung“ (Vereisungsanzeige)
+und Kondensator-Grädigkeit. Verlauf der letzten 6 Stunden (Drücke / Temperaturen / Überhitzung mit Sollbereich 3–10 K),
+Abtauungen hinterlegt.
+
 **Steuerung (fünfter Reiter, erscheint nur wenn aktiviert) – schreibt in die Wärmepumpe:**
 Benötigt Symcon-Modbus-Geräte mit Funktion 6 (Write Single Register), Temperaturen mit Faktor 0,1:
 1478 Betriebswahl HK1, 1481 Normal-Raumtemperatur HK1, 1496 Betriebswahl WW, 1497 Normal-WW-Temperatur,

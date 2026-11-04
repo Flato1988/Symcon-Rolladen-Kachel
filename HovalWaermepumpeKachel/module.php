@@ -52,6 +52,17 @@ class HovalWaermepumpeKachel extends IPSModule
         'MeasuredEnergy'  => ['Elektrische Energie gemessen (externer Zähler)', null, 'menergy'],
         'WaterPressure'   => ['Wasserdruck', null, 'raw'],
         'PumpCP'          => ['Drehzahl Umwälzpumpe CP', 27495, 'pct'],
+        // Kältekreis (WFA200, ab Gateway-Software V2.38; Drücke und Überhitzung mit Faktor 0,01 einlesen)
+        'AirIntake'       => ['Ansauglufttemperatur', 31902, 'temp'],
+        'SuctionGas'      => ['Sauggastemperatur', 31904, 'temp'],
+        'HotGas'          => ['Heißgastemperatur', 31906, 'temp'],
+        'Superheat'       => ['Überhitzung', 31912, 'kelvin'],
+        'LowPressure'     => ['Niederdruck (relativ)', 31914, 'bar'],
+        'HighPressure'    => ['Hochdruck (relativ)', 31916, 'bar'],
+        'CompressorSpeed' => ['Drehzahl Verdichter (Drehzahl Ist)', 31920, 'pct'],
+        'FanSpeed'        => ['Drehzahl Ventilator (Drehzahl WQP)', 31910, 'pct'],
+        'HPFlowTemp'      => ['WP-Vorlauftemperatur (an der WP)', 31892, 'temp'],
+        'HPReturnTemp'    => ['WP-Rücklauftemperatur (an der WP)', 31894, 'temp'],
         'Humidity'        => ['Luftfeuchtigkeit außen', null, 'hum']
     ];
 
@@ -63,6 +74,8 @@ class HovalWaermepumpeKachel extends IPSModule
         'Heizkreis 1 (FBH)'              => ['HC1FlowTemp', 'HC1FlowSetpoint', 'HC1Status', 'HC1Mode', 'RoomSetpoint', 'HC1Pump'],
         'Warmwasser'                     => ['DHWSetpoint', 'StorageTop', 'StorageBottom', 'DHWStatus', 'DHWMode'],
         'Pufferspeicher'                 => ['BufferTemp', 'BufferTop', 'BufferBottom', 'BufferSetpoint', 'BufferStatus'],
+        'Kältekreis (Gateway ab V2.38)'  => ['AirIntake', 'SuctionGas', 'HotGas', 'Superheat', 'LowPressure', 'HighPressure',
+                                             'CompressorSpeed', 'FanSpeed', 'HPFlowTemp', 'HPReturnTemp'],
         'Sonstiges (nicht in Hoval-Liste)' => ['Humidity', 'WaterPressure']
     ];
 
@@ -132,6 +145,7 @@ class HovalWaermepumpeKachel extends IPSModule
         $this->RegisterPropertyInteger('MeasuredPowerUnit', 0);  // 0 = W, 1 = kW
         $this->RegisterPropertyInteger('MeasuredEnergyUnit', 1); // 0 = Wh, 1 = kWh, 2 = MWh
         $this->RegisterPropertyFloat('PricePerKWh', 0.25);       // Strompreis (Wärmepumpentarif) in €/kWh
+        $this->RegisterPropertyString('Refrigerant', 'R32');     // Kältemittel für Verdampfungs-/Kondensationstemperatur aus den Drücken
 
         // ---- Heizungssteuerung (schreibt in die Wärmepumpe, nur wenn aktiviert) ----
         $this->RegisterPropertyBoolean('ControlEnabled', false);
@@ -201,6 +215,8 @@ class HovalWaermepumpeKachel extends IPSModule
         // Leistungsbegrenzung: Hausenergie der laufenden Viertelstunde, letzter Messwert
         $this->RegisterAttributeFloat('QHouseEnergy', 0);
         $this->RegisterAttributeString('HouseState', '');
+        // Kältekreis: Minutenwerte der letzten 6 Stunden für den Verlauf
+        $this->RegisterAttributeString('RefHist', '[]');
 
         $this->RegisterTimer('Tick', 0, 'HWP_Tick($_IPS[\'TARGET\']);');
 
@@ -355,6 +371,9 @@ class HovalWaermepumpeKachel extends IPSModule
                 $period = in_array($request['p'] ?? '', ['day', 'week', 'month'], true) ? $request['p'] : 'day';
                 $this->UpdateVisualizationValue(json_encode(['stats' => $this->GetStats($period, max(0, (int) ($request['o'] ?? 0)))]));
                 break;
+            case 'Refri': // Kachel fordert den Kältekreis-Verlauf an
+                $this->UpdateVisualizationValue(json_encode(['refriHist' => json_decode($this->ReadAttributeString('RefHist'), true) ?: []]));
+                break;
             case 'Ctl': // Bedienung aus dem Reiter "Steuerung"
                 $result = $this->HandleControlAction(json_decode((string) $Value, true) ?: []);
                 $this->ControlTick(time());
@@ -386,6 +405,12 @@ class HovalWaermepumpeKachel extends IPSModule
                 case 'Energiezähler (Hoval)':
                     $items[] = ['type' => 'Select', 'name' => 'HovalEnergyUnit', 'caption' => 'Einheit der Hoval-Zähler', 'options' => [
                         ['caption' => 'kWh', 'value' => 0], ['caption' => 'MWh (Hoval)', 'value' => 1]]];
+                    break;
+                case 'Kältekreis (Gateway ab V2.38)':
+                    $items[] = ['type' => 'Select', 'name' => 'Refrigerant', 'caption' => 'Kältemittel (Typenschild)', 'options' => [
+                        ['caption' => 'R32', 'value' => 'R32'], ['caption' => 'R410A', 'value' => 'R410A'], ['caption' => 'R290 (Propan)', 'value' => 'R290']]];
+                    $items[] = ['type' => 'Label', 'caption' => 'Alle Werte S32 (2 Register, Startadresse „high“), Funktion 3. Temperaturen und Drehzahlen Faktor 0,1; '
+                        . 'Niederdruck, Hochdruck und Überhitzung Faktor 0,01 (laut Messwerten, abweichend von der Hoval-Liste).'];
                     break;
                 case 'Externer Zähler':
                     $items[] = ['type' => 'NumberSpinner', 'name' => 'PricePerKWh', 'caption' => 'Strompreis (Wärmepumpentarif)', 'suffix' => '€/kWh', 'digits' => 4, 'minimum' => 0];
@@ -536,6 +561,7 @@ class HovalWaermepumpeKachel extends IPSModule
         $this->IntegrateHouse($now);
         $this->UpdateQuarter($now);
         $this->ControlTick($now);
+        $this->RecordRefrigerant($now);
         $this->UpdateDayStats($now);
         foreach (array_keys(self::DATAPOINTS) as $key) {
             $this->UpdateMirror($key);
@@ -1113,6 +1139,10 @@ class HovalWaermepumpeKachel extends IPSModule
                 return $this->Number($value, 0) . ' %';
             case 'kw':
                 return $this->Number($value, 2) . ' kW';
+            case 'bar':
+                return $this->Number($value, 2) . ' bar';
+            case 'kelvin':
+                return $this->Number($value, 1) . ' K';
             case 'num':
                 return $this->Number($value, 1);
             case 'flow':
@@ -1389,7 +1419,8 @@ class HovalWaermepumpeKachel extends IPSModule
             // Tageswerte: abgeschlossene Tage + der laufende Tag (p = unvollständig)
             'daily'   => $this->GetDailySeries(),
             'power'   => $this->GetPowerView(),
-            'control' => $this->GetControlView()
+            'control' => $this->GetControlView(),
+            'refri'   => $this->GetRefrigerantView()
         ]);
     }
 
@@ -1401,6 +1432,82 @@ class HovalWaermepumpeKachel extends IPSModule
             $history[] = $this->DaySummary($day) + ['p' => true];
         }
         return $history;
+    }
+
+    // ---------------------------------------------------------------- Kältekreis
+
+    // Dampfdruckkurven (Näherung): Temperatur °C => absoluter Druck bar
+    private const SATURATION = [
+        'R32'   => [-40 => 1.77, -30 => 2.73, -20 => 4.05, -10 => 5.82, 0 => 8.13, 10 => 11.07, 20 => 14.74, 30 => 19.27, 40 => 24.78, 50 => 31.41, 60 => 39.27, 70 => 48.5],
+        'R410A' => [-40 => 1.75, -30 => 2.70, -20 => 4.00, -10 => 5.73, 0 => 7.98, 10 => 10.85, 20 => 14.44, 30 => 18.85, 40 => 24.17, 50 => 30.55, 60 => 38.2, 70 => 47.4],
+        'R290'  => [-40 => 1.11, -30 => 1.68, -20 => 2.44, -10 => 3.45, 0 => 4.74, 10 => 6.36, 20 => 8.36, 30 => 10.79, 40 => 13.69, 50 => 17.13, 60 => 21.16, 70 => 25.84]
+    ];
+
+    /** Sättigungstemperatur zu einem Relativdruck (bar) – logarithmisch zwischen den Stützpunkten interpoliert */
+    private function SaturationTemp(?float $relativeBar): ?float
+    {
+        if ($relativeBar === null) {
+            return null;
+        }
+        $table = self::SATURATION[$this->ReadPropertyString('Refrigerant')] ?? self::SATURATION['R32'];
+        $p = log(max(0.1, $relativeBar + 1.013));
+        $points = [];
+        foreach ($table as $t => $bar) {
+            $points[] = [$t, log($bar)];
+        }
+        for ($i = 1; $i < count($points); $i++) {
+            if ($p <= $points[$i][1] || $i === count($points) - 1) {
+                [$t0, $p0] = $points[$i - 1];
+                [$t1, $p1] = $points[$i];
+                return round($t0 + ($p - $p0) / ($p1 - $p0) * ($t1 - $t0), 1);
+            }
+        }
+        return null;
+    }
+
+    /** Aktuelle Kältekreiswerte und daraus berechnete Kennwerte */
+    private function GetRefrigerantView(): ?array
+    {
+        $keys = ['AirIntake', 'SuctionGas', 'HotGas', 'Superheat', 'LowPressure', 'HighPressure', 'CompressorSpeed', 'FanSpeed', 'HPFlowTemp', 'HPReturnTemp'];
+        $v = [];
+        foreach ($keys as $key) {
+            $v[$key] = $this->Value($key);
+        }
+        if (count(array_filter($v, fn ($x) => $x !== null)) === 0) {
+            return null;
+        }
+        $evap = $this->SaturationTemp($v['LowPressure']);
+        $cond = $this->SaturationTemp($v['HighPressure']);
+        $flow = $v['HPFlowTemp'] ?? $this->Value('FlowTemp');
+        $r = fn ($x, $d = 1) => $x === null ? null : round($x, $d);
+        return [
+            'v'         => array_map(fn ($x) => $r($x, 2), $v),
+            'evap'      => $evap,
+            'cond'      => $cond,
+            // Überhitzung: gemessen, sonst Sauggas − Verdampfungstemperatur
+            'sh'        => $r($v['Superheat'] ?? (($v['SuctionGas'] !== null && $evap !== null) ? $v['SuctionGas'] - $evap : null)),
+            'ratio'     => ($v['LowPressure'] !== null && $v['HighPressure'] !== null) ? round(($v['HighPressure'] + 1.013) / ($v['LowPressure'] + 1.013), 2) : null,
+            'airDelta'  => ($v['AirIntake'] !== null && $evap !== null) ? round($v['AirIntake'] - $evap, 1) : null,
+            'condDelta' => ($cond !== null && $flow !== null) ? round($cond - $flow, 1) : null,
+            'running'   => ($v['CompressorSpeed'] ?? 0) > 0,
+            'defrost'   => @$this->GetIDForIdent('DefrostActive') ? $this->GetValue('DefrostActive') : false,
+            'refrigerant' => $this->ReadPropertyString('Refrigerant')
+        ];
+    }
+
+    /** Minutenwerte für den Verlauf: [Zeit, ND, HD, Überhitzung, Heißgas, Sauggas, Luft, Verdampfung, Verdichter %, Ventilator %, Abtauung] */
+    private function RecordRefrigerant(int $now)
+    {
+        $view = $this->GetRefrigerantView();
+        if ($view === null) {
+            return;
+        }
+        $v = $view['v'];
+        $history = json_decode($this->ReadAttributeString('RefHist'), true) ?: [];
+        $history[] = [$now, $v['LowPressure'], $v['HighPressure'], $view['sh'], $v['HotGas'], $v['SuctionGas'], $v['AirIntake'],
+                      $view['evap'], $v['CompressorSpeed'], $v['FanSpeed'], $view['defrost'] ? 1 : 0];
+        $history = array_values(array_filter($history, fn ($h) => $h[0] >= $now - 6 * 3600));
+        $this->WriteAttributeString('RefHist', json_encode($history));
     }
 
     // ---------------------------------------------------------------- Heizungssteuerung
@@ -1876,6 +1983,8 @@ class HovalWaermepumpeKachel extends IPSModule
         $this->CreateProfile('HWP.W', 0, ' W', 'Electricity');
         $this->CreateProfile('HWP.Hours', 0, ' h', 'Clock', VARIABLETYPE_INTEGER);
         $this->CreateProfile('HWP.Count', 0, '', 'Repeat', VARIABLETYPE_INTEGER);
+        $this->CreateProfile('HWP.Bar', 2, ' bar', 'Gauge');
+        $this->CreateProfile('HWP.K', 1, ' K', 'Temperature');
         $overrides = $this->GetTextOverrides();
 
         $position = 10;
@@ -1915,6 +2024,14 @@ class HovalWaermepumpeKachel extends IPSModule
                         break;
                     case 'kw':
                         $this->RegisterVariableFloat($ident, $caption, 'HWP.kW', $position);
+                        $logging = true;
+                        break;
+                    case 'bar':
+                        $this->RegisterVariableFloat($ident, $caption, 'HWP.Bar', $position);
+                        $logging = true;
+                        break;
+                    case 'kelvin':
+                        $this->RegisterVariableFloat($ident, $caption, 'HWP.K', $position);
                         $logging = true;
                         break;
                     case 'num':

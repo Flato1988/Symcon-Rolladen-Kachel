@@ -101,7 +101,53 @@
     /* ---------- Auswertung Tage / Wochen / Monate ---------- */
     #tile.stats-view #cmp, #tile.power-view #cmp, #tile.ctl-view #cmp { display: none !important; }
 
-    [hidden] { display: none !important; } /* ausgeblendete Elemente bleiben aus, auch wenn ihre Klasse ein display setzt */
+    [hidden] { display: none !important; }
+
+    /* ---------- Kältekreis ---------- */
+    #tile.refri-view #cmp { display: none !important; }
+    #viewRefri { gap: 6px; }
+    #rSchema { width: 100%; flex: 1.2; min-height: 0; display: block; }
+    #rSchema text { fill: var(--fg); font-size: 8.5px; }
+    #rSchema .t { font-size: 9.5px; font-weight: 600; }
+    #rSchema .s { font-size: 7.5px; opacity: .65; }
+    #rSchema .c { text-anchor: middle; }
+    #rSchema .box { fill: var(--box); stroke: var(--stroke); stroke-width: 1; }
+    #rSchema .fin { stroke: var(--cold); stroke-width: 1.2; opacity: .6; fill: none; }
+    #rSchema .fin.hot { stroke: var(--hot); }
+    #rSchema .rp { fill: none; stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; }
+    #rSchema .lp { stroke: var(--cold); }
+    #rSchema .lp2 { stroke: #7fb0f5; }
+    #rSchema .hp { stroke: var(--hot); }
+    #rSchema .liq { stroke: #f2994a; }
+    #rSchema .water { fill: none; stroke-width: 3; stroke-linecap: round; }
+    #rSchema .rp.flow { stroke: #fff; stroke-width: 1.6; stroke-dasharray: .01 9; opacity: 0; }
+    @keyframes rflow { to { stroke-dashoffset: -18; } }
+    #rSchema.run .rp.flow { opacity: .85; animation: rflow .9s linear infinite; }
+    #rSchema .comp { fill: #fff; stroke: var(--fg); stroke-width: 1.2; stroke-opacity: .6; }
+    #rotor, #rFan { transform-box: fill-box; transform-origin: center; }
+    #rSchema.run #rotor { animation: spin 1s linear infinite; }
+    #rSchema.fan #rFan { animation: spin 1.4s linear infinite; }
+    #rSchema .blade2 { fill: var(--fg); opacity: .5; }
+    #rSchema.fan .blade2 { fill: var(--acc); opacity: .9; }
+    #rSchema .ev { fill: #fff; stroke: var(--fg); stroke-width: 1; stroke-opacity: .6; }
+    #rSchema .dfb { fill: var(--cold); }
+    .r-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(105px, 1fr)); gap: 6px; }
+    .r-kpis .kpi .value { font-size: 14px; }
+    .r-kpis .kpi .sub { font-size: 10px; opacity: .6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .r-kpis .kpi.ok .value { color: var(--acc); }
+    .r-kpis .kpi.warn .value { color: #f2994a; }
+    .r-kpis .kpi.bad .value { color: var(--hot); }
+    #rChart { flex: 1; width: 100%; min-height: 0; display: block; touch-action: pan-y; }
+    #rChart text { fill: var(--fg); font-size: 10px; opacity: .6; }
+    #rChart .grid { stroke: rgba(128, 128, 128, .22); stroke-width: 1; }
+    #rChart .df { fill: var(--cold); opacity: .12; }
+    #rChart .band { fill: var(--acc); opacity: .1; }
+    #rChart .ln { fill: none; stroke-width: 1.8; stroke-linejoin: round; }
+    #rChart .cursor { stroke: var(--fg); stroke-width: 1; opacity: .4; }
+    #rTip { position: absolute; top: 4px; padding: 4px 8px; border-radius: 6px; background: rgba(30, 30, 30, .88); color: #fff;
+            font-size: 11px; line-height: 1.45; white-space: nowrap; pointer-events: none; display: none; }
+    #rEmpty { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; font-size: 12px; opacity: .6; text-align: center; }
+    .legend i.dash { height: 0; border-top: 2px dashed currentColor; border-radius: 0; vertical-align: 3px; } /* ausgeblendete Elemente bleiben aus, auch wenn ihre Klasse ein display setzt */
 
     /* ---------- Steuerung ---------- */
     #viewCtl { overflow-y: auto; }
@@ -305,6 +351,7 @@
         <button id="tabDaily">Verlauf</button>
         <button id="tabStats">Auswertung</button>
         <button id="tabPower">Leistung</button>
+        <button id="tabRefri" hidden>Kältekreis</button>
         <button id="tabCtl" hidden>Steuerung</button>
         <span class="spacer"></span>
         <span id="rangeBtns" hidden><button data-days="14" class="on">14 Tage</button> <button data-days="30">30 Tage</button></span>
@@ -488,6 +535,79 @@
         <div class="pw-peaks">
             <div class="pw-peaks-title">Höchste 15-min-Leistung je Tag</div>
             <div id="pwPeaks"></div>
+        </div>
+    </div>
+
+    <div class="view" id="viewRefri" hidden>
+        <div class="r-kpis">
+            <div class="kpi" id="rkSh"><div class="label">Überhitzung</div><div class="value">–</div><div class="sub">Expansionsventil · ca. 3–10 K</div></div>
+            <div class="kpi" id="rkRatio"><div class="label">Druckverhältnis</div><div class="value">–</div><div class="sub">HD ÷ ND (absolut)</div></div>
+            <div class="kpi" id="rkAir"><div class="label">Luft − Verdampfung</div><div class="value">–</div><div class="sub">steigt bei Vereisung</div></div>
+            <div class="kpi" id="rkCond"><div class="label">Kondensator</div><div class="value">–</div><div class="sub">Kondensation − Vorlauf</div></div>
+            <div class="kpi" id="rkComp"><div class="label">Verdichter</div><div class="value">–</div><div class="sub" id="rkFan"></div></div>
+        </div>
+        <svg id="rSchema" viewBox="0 0 440 212" preserveAspectRatio="xMidYMid meet">
+            <!-- Ventilator + Verdampfer -->
+            <circle class="box" cx="32" cy="100" r="24"/>
+            <g id="rFan">
+                <circle cx="32" cy="100" r="22" fill="none" stroke="none"/>
+                <path class="blade2" d="M32 100 C29 89 31 83 37 81 C40 88 38 95 32 100 Z"/>
+                <path class="blade2" d="M32 100 C29 89 31 83 37 81 C40 88 38 95 32 100 Z" transform="rotate(120 32 100)"/>
+                <path class="blade2" d="M32 100 C29 89 31 83 37 81 C40 88 38 95 32 100 Z" transform="rotate(240 32 100)"/>
+            </g>
+            <text class="s c" x="32" y="138">Luft</text>
+            <text class="c" x="32" y="149" id="rAir">–</text>
+            <text class="s c" x="32" y="160" id="rFanTxt"></text>
+            <rect class="box" x="66" y="40" width="54" height="120" rx="6"/>
+            <path class="fin" d="M72 52 H114 M72 64 H114 M72 76 H114 M72 88 H114 M72 100 H114 M72 112 H114 M72 124 H114 M72 136 H114 M72 148 H114"/>
+            <text class="t c" x="93" y="34">Verdampfer</text>
+            <text class="c" x="93" y="103" id="rEvap" style="font-weight:600">–</text>
+            <g id="rDefrost" hidden><rect class="dfb" x="70" y="114" width="46" height="13" rx="6"/><text class="s c" x="93" y="123" style="fill:#fff;opacity:1">❄ Abtauung</text></g>
+
+            <!-- Kondensator mit Wasserseite -->
+            <rect class="box" x="320" y="40" width="54" height="120" rx="6"/>
+            <path class="fin hot" d="M326 52 H368 M326 64 H368 M326 76 H368 M326 88 H368 M326 100 H368 M326 112 H368 M326 124 H368 M326 136 H368 M326 148 H368"/>
+            <text class="t c" x="347" y="34">Kondensator</text>
+            <text class="c" x="347" y="103" id="rCond" style="font-weight:600">–</text>
+            <path class="water hp" d="M374 60 H430"/><text class="s" x="384" y="54">Vorlauf</text><text x="384" y="74" id="rVl">–</text>
+            <path class="water lp" d="M430 140 H374"/><text class="s" x="384" y="134">Rücklauf</text><text x="384" y="154" id="rRl">–</text>
+
+            <!-- Kältemittelleitungen: Flüssigkeit -> Expansionsventil -> Verdampfer -> Sauggas -> Verdichter -> Heißgas -> Kondensator -->
+            <path class="rp liq" d="M320 60 H262 V30 H232"/><path class="rp flow" d="M320 60 H262 V30 H232"/>
+            <path class="rp lp" d="M208 30 H150 V60 H120"/><path class="rp flow" d="M208 30 H150 V60 H120"/>
+            <path class="rp lp2" d="M120 140 H150 V172 H202"/><path class="rp flow" d="M120 140 H150 V172 H202"/>
+            <path class="rp hp" d="M238 172 H290 V140 H320"/><path class="rp flow" d="M238 172 H290 V140 H320"/>
+
+            <!-- Expansionsventil -->
+            <path class="ev" d="M208 22 L208 38 L220 30 Z"/><path class="ev" d="M232 22 L232 38 L220 30 Z"/>
+            <text class="s c" x="220" y="14">Expansionsventil</text>
+            <text class="c" x="220" y="52" id="rSh">–</text>
+
+            <!-- Verdichter -->
+            <circle class="comp" cx="220" cy="172" r="18"/>
+            <g id="rotor">
+                <circle cx="220" cy="172" r="12" fill="none" stroke="none"/>
+                <path d="M220 160 A12 12 0 0 1 232 172" fill="none" stroke="var(--hot)" stroke-width="2.4" stroke-linecap="round"/>
+                <path d="M220 184 A12 12 0 0 1 208 172" fill="none" stroke="var(--cold)" stroke-width="2.4" stroke-linecap="round"/>
+            </g>
+            <text class="t c" x="220" y="204">Verdichter <tspan id="rComp" style="font-weight:400"></tspan></text>
+
+            <!-- Drücke und Gastemperaturen -->
+            <text class="s" x="156" y="160">Sauggas</text>
+            <text x="156" y="152" id="rSuc2">–</text>
+            <text class="s" x="246" y="160">Heißgas</text>
+            <text x="246" y="152" id="rHot">–</text>
+            <text class="s" x="156" y="92">Niederdruck</text><text x="156" y="102" id="rLp" style="font-weight:600">–</text>
+            <text class="s" x="246" y="92">Hochdruck</text><text x="246" y="102" id="rHp" style="font-weight:600">–</text>
+        </svg>
+        <div class="stats-bar">
+            <span class="seg" id="rRange"><button data-r="p" class="on">Drücke</button><button data-r="t">Temperaturen</button><button data-r="sh">Überhitzung</button></span>
+            <span class="legend" id="rLegend" style="margin:0"></span>
+        </div>
+        <div class="chart-wrap">
+            <svg id="rChart"></svg>
+            <div id="rTip"></div>
+            <div id="rEmpty">Der Verlauf füllt sich ab jetzt minütlich (letzte 6 Stunden).</div>
         </div>
     </div>
 
@@ -692,6 +812,9 @@
         $('viewStats').hidden = name !== 'stats';
         $('viewPower').hidden = name !== 'power';
         $('viewCtl').hidden = name !== 'ctl';
+        $('viewRefri').hidden = name !== 'refri';
+        $('tile').classList.toggle('refri-view', name === 'refri');
+        $('tabRefri').classList.toggle('on', name === 'refri');
         $('tile').classList.toggle('ctl-view', name === 'ctl');
         $('tabCtl').classList.toggle('on', name === 'ctl');
         $('tile').classList.toggle('stats-view', name === 'stats');
@@ -706,12 +829,138 @@
         if (name === 'stats') requestStats();
         if (name === 'power') drawPower();
         if (name === 'ctl') drawCtl();
+        if (name === 'refri') { drawRefri(); requestRefri(); }
     }
     $('tabSchema').addEventListener('click', () => showView('schema'));
     $('tabDaily').addEventListener('click', () => showView('daily'));
     $('tabStats').addEventListener('click', () => showView('stats'));
     $('tabPower').addEventListener('click', () => showView('power'));
     $('tabCtl').addEventListener('click', () => showView('ctl'));
+    $('tabRefri').addEventListener('click', () => showView('refri'));
+
+    // ---------- Kältekreis: Schema mit aktuellen Werten, Verlauf der letzten 6 Stunden ----------
+    let gotData = false; // erst nach der ersten Nachricht vom Modul wissen wir, welche Reiter es gibt
+    let refri = null, refriHist = [], rRange = 'p', rLast = 0, rGeo = null;
+    try { rRange = localStorage.getItem('hwpRRange') || 'p'; } catch (e) {}
+    function requestRefri() { rLast = Date.now(); requestAction('Refri', ''); }
+    document.querySelectorAll('#rRange button').forEach(b => b.addEventListener('click', () => {
+        rRange = b.dataset.r;
+        try { localStorage.setItem('hwpRRange', rRange); } catch (e) {}
+        drawRefriChart();
+    }));
+    const vTxt = (v, d, u) => v === null || v === undefined ? '–' : num(v, d) + u;
+
+    function drawRefri() {
+        $('tabRefri').hidden = !refri;
+        if (!refri && gotData && !$('viewRefri').hidden) showView('schema'); // keine Kältekreis-Werte eingetragen
+        if (!refri || $('viewRefri').hidden) return;
+        const v = refri.v;
+        // Kennwerte mit Bewertung
+        const kpi = (id, text, cls) => { const k = $(id); k.querySelector('.value').textContent = text; k.classList.remove('ok', 'warn', 'bad'); if (cls) k.classList.add(cls); };
+        const sh = refri.sh;
+        kpi('rkSh', vTxt(sh, 1, ' K'), !refri.running || sh === null ? '' : sh >= 3 && sh <= 10 ? 'ok' : sh >= 1.5 && sh <= 14 ? 'warn' : 'bad');
+        kpi('rkRatio', vTxt(refri.ratio, 2, ''), '');
+        kpi('rkAir', vTxt(refri.airDelta, 1, ' K'), !refri.running || refri.airDelta === null ? '' : refri.airDelta <= 10 ? 'ok' : refri.airDelta <= 14 ? 'warn' : 'bad');
+        kpi('rkCond', vTxt(refri.condDelta, 1, ' K'), '');
+        kpi('rkComp', vTxt(v.CompressorSpeed, 0, ' %'), '');
+        $('rkFan').textContent = v.FanSpeed === null ? '' : 'Ventilator ' + vTxt(v.FanSpeed, 0, ' %');
+        // Schema
+        $('rAir').textContent = vTxt(v.AirIntake, 1, ' °C');
+        $('rFanTxt').textContent = v.FanSpeed === null ? '' : vTxt(v.FanSpeed, 0, ' %');
+        $('rEvap').textContent = vTxt(refri.evap, 1, ' °C');
+        $('rCond').textContent = vTxt(refri.cond, 1, ' °C');
+        $('rVl').textContent = vTxt(v.HPFlowTemp ?? n('FlowTemp'), 1, ' °C');
+        $('rRl').textContent = vTxt(v.HPReturnTemp ?? n('ReturnTemp'), 1, ' °C');
+        $('rSh').textContent = sh === null ? '' : 'Überhitzung ' + vTxt(sh, 1, ' K');
+        $('rComp').textContent = v.CompressorSpeed === null ? '' : vTxt(v.CompressorSpeed, 0, ' %');
+        $('rSuc2').textContent = vTxt(v.SuctionGas, 1, ' °C');
+        $('rHot').textContent = vTxt(v.HotGas, 1, ' °C');
+        $('rLp').textContent = v.LowPressure === null ? '–' : vTxt(v.LowPressure, 2, ' bar');
+        $('rHp').textContent = v.HighPressure === null ? '–' : vTxt(v.HighPressure, 2, ' bar');
+        $('rDefrost').toggleAttribute('hidden', !refri.defrost);
+        $('rSchema').classList.toggle('run', !!refri.running);
+        $('rSchema').classList.toggle('fan', (v.FanSpeed || 0) > 0);
+        drawRefriChart();
+        if (Date.now() - rLast > 60000) requestRefri(); // Verlauf höchstens einmal pro Minute nachladen
+    }
+
+    // Reihen je Auswahl: [Index im Minutenwert, Bezeichnung, Farbe, gestrichelt]
+    const R_SERIES = {
+        p:  { unit: ' bar', d: 1, lines: [[2, 'Hochdruck', 'var(--hot)'], [1, 'Niederdruck', 'var(--cold)']] },
+        t:  { unit: ' °C', d: 0, lines: [[4, 'Heißgas', 'var(--hot)'], [5, 'Sauggas', '#7fb0f5'], [6, 'Ansaugluft', 'var(--acc)'], [7, 'Verdampfung', 'var(--cold)', true]] },
+        sh: { unit: ' K', d: 0, lines: [[3, 'Überhitzung', '#9b6bd6']], band: [3, 10] }
+    };
+    function drawRefriChart() {
+        const svg = $('rChart');
+        const W = svg.clientWidth, H = svg.clientHeight;
+        svg.innerHTML = '';
+        document.querySelectorAll('#rRange button').forEach(b => b.classList.toggle('on', b.dataset.r === rRange));
+        const cfg = R_SERIES[rRange];
+        $('rLegend').innerHTML = cfg.lines.map(([, label, color, dash]) => `<span style="color:${color}"><i class="${dash ? 'dash' : ''}" style="background:${dash ? 'transparent' : color}"></i><span style="color:var(--fg)">${label}</span></span>`).join('')
+            + '<span><i style="background:var(--cold);opacity:.25"></i>Abtauung</span>';
+        if (W < 60 || H < 40) return;
+        svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+        const data = refriHist;
+        $('rEmpty').style.display = data.length > 1 ? 'none' : 'flex';
+        if (data.length < 2) return;
+        const L = 34, R = 10, T = 6, B = 18;
+        const t1 = data[data.length - 1][0], t0 = t1 - 6 * 3600;
+        const x = (t) => L + (t - t0) / (t1 - t0) * (W - L - R);
+        const vals = data.flatMap(d => cfg.lines.map(([i]) => d[i])).filter(v => v !== null && v !== undefined);
+        if (cfg.band) vals.push(...cfg.band);
+        let lo = Math.min(...vals), hi = Math.max(...vals);
+        const pad = Math.max(1, (hi - lo) * 0.1); lo = Math.floor(lo - pad); hi = Math.ceil(hi + pad);
+        const step = Math.max(1, Math.ceil((hi - lo) / 4)); lo = Math.floor(lo / step) * step; hi = lo + 4 * step; // glatte Achsenschritte
+        const y = (v) => H - B - (v - lo) / (hi - lo) * (H - T - B);
+        // Abtauungen hinterlegen
+        let dfStart = null;
+        data.forEach((d, k) => {
+            if (d[10] && dfStart === null) dfStart = d[0];
+            if ((!d[10] || k === data.length - 1) && dfStart !== null) {
+                svgEl('rect', { x: x(dfStart), y: T, width: Math.max(2, x(d[0]) - x(dfStart)), height: H - T - B, class: 'df' }, svg);
+                dfStart = null;
+            }
+        });
+        if (cfg.band) svgEl('rect', { x: L, y: y(cfg.band[1]), width: W - L - R, height: y(cfg.band[0]) - y(cfg.band[1]), class: 'band' }, svg);
+        for (let i = 0; i <= 4; i++) {
+            const yy = T + i * (H - T - B) / 4;
+            svgEl('line', { x1: L, x2: W - R, y1: yy, y2: yy, class: 'grid' }, svg);
+            svgEl('text', { x: L - 4, y: yy + 3, 'text-anchor': 'end' }, svg).textContent = num(hi - i * (hi - lo) / 4, cfg.d);
+        }
+        for (let t = Math.ceil(t0 / 3600) * 3600; t <= t1; t += 3600) {
+            svgEl('text', { x: x(t), y: H - 4, 'text-anchor': 'middle' }, svg).textContent = hhmm(t);
+        }
+        for (const [i, , color, dash] of cfg.lines) {
+            let d = '', prev = null;
+            for (const row of data) {
+                if (row[i] === null || row[i] === undefined) { prev = null; continue; }
+                d += (prev === null || row[0] - prev > 300 ? 'M' : 'L') + x(row[0]).toFixed(1) + ' ' + y(row[i]).toFixed(1) + ' ';
+                prev = row[0];
+            }
+            if (d) svgEl('path', { d, class: 'ln', style: `stroke:${color}` + (dash ? ';stroke-dasharray:4 3' : '') }, svg);
+        }
+        rGeo = { x, T, B, H, data, cfg };
+    }
+    function showRefriTip(e) {
+        if (!rGeo) return;
+        const r = $('rChart').getBoundingClientRect(), px = e.clientX - r.left;
+        let best = null;
+        for (const d of rGeo.data) { const dx = Math.abs(rGeo.x(d[0]) - px); if (!best || dx < best.dx) best = { dx, d }; }
+        $('rChart').querySelectorAll('.cursor').forEach(c => c.remove());
+        if (!best || best.dx > 12) return hideRefriTip();
+        const d = best.d, cx = rGeo.x(d[0]);
+        svgEl('line', { x1: cx, x2: cx, y1: rGeo.T, y2: rGeo.H - rGeo.B, class: 'cursor' }, $('rChart'));
+        const tip = $('rTip');
+        tip.innerHTML = `<b>${hhmm(d[0])}</b>${d[10] ? ' · ❄ Abtauung' : ''}<br>` + rGeo.cfg.lines.map(([i, label]) => `${label}: ${vTxt(d[i], 1, rGeo.cfg.unit)}`).join('<br>')
+            + `<br>Verdichter ${vTxt(d[8], 0, ' %')}` + (d[9] !== null ? ` · Ventilator ${vTxt(d[9], 0, ' %')}` : '');
+        tip.style.display = 'block';
+        tip.style.left = Math.min(Math.max(0, cx - tip.offsetWidth / 2), r.width - tip.offsetWidth) + 'px';
+    }
+    function hideRefriTip() { $('rTip').style.display = 'none'; $('rChart').querySelectorAll('.cursor').forEach(c => c.remove()); }
+    $('rChart').addEventListener('pointermove', showRefriTip);
+    $('rChart').addEventListener('pointerdown', showRefriTip);
+    $('rChart').addEventListener('pointerleave', hideRefriTip);
+    window.addEventListener('resize', () => { if (!$('viewRefri').hidden) drawRefriChart(); });
 
     // ---------- Steuerung: Heizung, Warmwasser, Raumanforderung, Leistungsbegrenzung ----------
     let ctl = null, boostH = 2, boostT = null;
@@ -731,7 +980,7 @@
 
     function drawCtl() {
         $('tabCtl').hidden = !ctl;
-        if (!ctl && !$('viewCtl').hidden) showView('schema'); // Steuerung in der Instanz deaktiviert
+        if (!ctl && gotData && !$('viewCtl').hidden) showView('schema'); // Steuerung in der Instanz deaktiviert
         if (!ctl || $('viewCtl').hidden) return;
         $('cHeat').hidden = $('cDhw').hidden = !ctl.ctl;
         $('cRooms').hidden = !ctl.rooms;
@@ -1171,6 +1420,11 @@
     // Wird von IP-Symcon aufgerufen (Startwert + jede Änderung eines Datenpunkts)
     function handleMessage(data) {
         const msg = typeof data === 'string' ? JSON.parse(data) : data;
+        if (msg.refriHist) { // Antwort auf die Anforderung des Kältekreis-Verlaufs
+            refriHist = msg.refriHist;
+            drawRefriChart();
+            return;
+        }
         if (msg.ctlResult) { // Rückmeldung auf eine Bedienung
             toast(msg.ctlResult.msg, !msg.ctlResult.ok);
             return;
@@ -1180,6 +1434,7 @@
             return;
         }
         values = msg.values || {};
+        gotData = true;
 
         document.querySelectorAll('.kpi[data-key]').forEach(k => {
             k.hidden = !has(k.dataset.key);
@@ -1204,6 +1459,8 @@
         pw = msg.power || null;
         ctl = msg.control || null;
         drawCtl();
+        refri = msg.refri || null;
+        drawRefri();
         drawPower();
         if (!$('viewDaily').hidden) drawDaily();
         const err = $('errBox');
@@ -1276,5 +1533,5 @@
         // offene Auswertung höchstens einmal pro Minute aktualisieren (laufender Tag/Woche/Monat)
         if (!$('viewStats').hidden && Date.now() - sLastRequest > 60000) requestStats();
     }
-    try { const v = localStorage.getItem('hwpView'); if (['daily', 'stats', 'power', 'ctl'].includes(v)) showView(v); } catch (e) {}
+    try { const v = localStorage.getItem('hwpView'); if (['daily', 'stats', 'power', 'ctl', 'refri'].includes(v)) showView(v); } catch (e) {}
 </script>
