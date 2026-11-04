@@ -99,7 +99,46 @@
         font-size: 11px; line-height: 1.45; white-space: nowrap; pointer-events: none; display: none;
     }
     /* ---------- Auswertung Tage / Wochen / Monate ---------- */
-    #tile.stats-view #cmp, #tile.power-view #cmp { display: none !important; }
+    #tile.stats-view #cmp, #tile.power-view #cmp, #tile.ctl-view #cmp { display: none !important; }
+
+    [hidden] { display: none !important; } /* ausgeblendete Elemente bleiben aus, auch wenn ihre Klasse ein display setzt */
+
+    /* ---------- Steuerung ---------- */
+    #viewCtl { overflow-y: auto; }
+    .ctl-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 10px; align-content: start; }
+    .card { border-radius: 10px; background: var(--box); padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+    .card h3 { margin: 0; font-size: 13px; font-weight: 600; display: flex; justify-content: space-between; align-items: baseline; }
+    .card h3 small { font-weight: 400; font-size: 11px; opacity: .6; }
+    .card .row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12px; }
+    .card .state { font-size: 15px; }
+    .card .state b { font-weight: 600; }
+    .card .hint { font-size: 11px; opacity: .6; }
+    .card .seg button[disabled] { cursor: default; }
+    .card .seg button[disabled]:not(.on) { opacity: .45; }
+    .btn { border: 1px solid rgba(128, 128, 128, .35); background: transparent; color: inherit; font: inherit; font-size: 12px;
+           padding: 4px 12px; border-radius: 14px; cursor: pointer; }
+    .btn.primary { background: var(--acc); border-color: var(--acc); color: #fff; }
+    .btn.warn { border-color: var(--hot); color: var(--hot); }
+    .step { display: inline-flex; align-items: center; gap: 6px; }
+    .step .btn { width: 28px; padding: 4px 0; }
+    .step span { min-width: 64px; text-align: center; font-size: 15px; font-variant-numeric: tabular-nums; }
+    .badge { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 11px; background: rgba(128, 128, 128, .15); }
+    .badge.on { background: var(--hot); color: #fff; }
+    .badge.ok { background: var(--acc); color: #fff; }
+    .rooms { display: grid; grid-template-columns: 1fr auto auto auto; gap: 3px 12px; font-size: 12px; font-variant-numeric: tabular-nums; }
+    .rooms .h { opacity: .55; font-size: 10.5px; }
+    .lim-bar { position: relative; height: 16px; border-radius: 8px; background: rgba(128, 128, 128, .18); overflow: hidden; }
+    .lim-bar .used { position: absolute; left: 0; top: 0; bottom: 0; background: var(--acc); }
+    .lim-bar .fc { position: absolute; top: 0; bottom: 0; background: var(--acc); opacity: .35; }
+    .lim-bar.over .used, .lim-bar.over .fc { background: var(--hot); }
+    .lim-vals { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; font-size: 11px; }
+    .lim-vals b { display: block; font-size: 14px; font-weight: 500; }
+    .pwbox { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+    .pwbox input { font: inherit; font-size: 12px; padding: 3px 6px; border-radius: 6px; border: 1px solid rgba(128, 128, 128, .4);
+                   background: transparent; color: inherit; width: 110px; }
+    #ctlToast { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); padding: 6px 14px; border-radius: 16px;
+                background: rgba(30, 30, 30, .88); color: #fff; font-size: 12px; display: none; z-index: 5; }
+    #ctlToast.err { background: var(--hot); }
     .stats-bar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
     .seg { display: inline-flex; border: 1px solid rgba(128, 128, 128, .3); border-radius: 12px; overflow: hidden; }
     .seg button { border: 0; background: transparent; color: inherit; font: inherit; font-size: 11px; padding: 3px 10px; cursor: pointer; }
@@ -266,6 +305,7 @@
         <button id="tabDaily">Verlauf</button>
         <button id="tabStats">Auswertung</button>
         <button id="tabPower">Leistung</button>
+        <button id="tabCtl" hidden>Steuerung</button>
         <span class="spacer"></span>
         <span id="rangeBtns" hidden><button data-days="14" class="on">14 Tage</button> <button data-days="30">30 Tage</button></span>
     </div>
@@ -451,6 +491,54 @@
         </div>
     </div>
 
+    <div class="view" id="viewCtl" hidden>
+        <div class="ctl-grid">
+            <div class="card" id="cHeat">
+                <h3>Heizung <small id="cHeatHoval"></small></h3>
+                <div class="row"><span class="seg" id="cMode">
+                    <button data-v="auto">Automatik</button><button data-v="frost">Frostschutz</button><button data-v="const">Dauer</button>
+                </span></div>
+                <div class="row" id="cConstRow"><span class="step"><button class="btn" data-d="-0.5">−</button><span id="cConst">–</span><button class="btn" data-d="0.5">+</button></span><span class="hint">Raum-Soll im Dauerbetrieb</span></div>
+                <div class="row"><span class="seg" id="cSeason">
+                    <button data-v="winter">Winter</button><button data-v="transition">Übergang</button><button data-v="summer">Sommer</button>
+                </span><span class="hint" id="cSeasonHint"></span></div>
+                <div class="state" id="cHeatState">–</div>
+            </div>
+            <div class="card" id="cDhw">
+                <h3>Warmwasser <small id="cDhwHoval"></small></h3>
+                <div class="state" id="cDhwState">–</div>
+                <div class="row" id="cBoostRun" hidden><span id="cBoostText"></span><button class="btn warn" id="cBoostStop">Beenden</button></div>
+                <div id="cBoostSet">
+                    <div class="row"><span class="hint">Aufheizen für</span><span class="seg" id="cBoostH">
+                        <button data-h="1">1 h</button><button data-h="2" class="on">2 h</button><button data-h="3">3 h</button><button data-h="4">4 h</button><button data-h="6">6 h</button>
+                    </span></div>
+                    <div class="row"><span class="hint">auf</span><span class="step"><button class="btn" data-d="-1">−</button><span id="cBoostT">–</span><button class="btn" data-d="1">+</button></span>
+                        <button class="btn primary" id="cBoostGo">Aufheizen</button></div>
+                </div>
+                <div class="row"><span class="hint" id="cMax">max. –</span><button class="btn" id="cMaxEdit">🔒 ändern</button></div>
+                <div class="pwbox" id="cMaxBox" hidden>
+                    <input type="password" id="cMaxPw" placeholder="Passwort" autocomplete="off">
+                    <input type="number" id="cMaxVal" min="30" max="70" step="0.5" placeholder="°C">
+                    <button class="btn primary" id="cMaxOk">Speichern</button><button class="btn" id="cMaxCancel">Abbrechen</button>
+                </div>
+            </div>
+            <div class="card" id="cRooms">
+                <h3>Raumanforderung <span class="badge" id="cDemand">–</span></h3>
+                <div class="rooms" id="cRoomList"></div>
+            </div>
+            <div class="card" id="cLimit">
+                <h3>Leistungsbegrenzung <small id="cLimEnd"></small></h3>
+                <div class="lim-bar" id="cLimBar"><div class="used" id="cLimUsed"></div><div class="fc" id="cLimFc"></div></div>
+                <div class="row hint" id="cLimText"></div>
+                <div class="lim-vals">
+                    <div>Haus<b id="cLimHouse">–</b></div><div>Wärmepumpe<b id="cLimHp">–</b></div><div>WP erlaubt<b id="cLimAllowed">–</b></div>
+                    <div>Letzte ¼ h gesamt<b id="cLimLast">–</b></div><div>Spitze heute<b id="cLimPeak">–</b></div><div>Grenze<b id="cLimMax">–</b></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div id="ctlToast"></div>
+
     <table id="cmp">
         <thead><tr><th>Vergleich</th><th>Pumpe</th><th>Eigene</th><th class="src">Quelle</th><th>Abw.</th></tr></thead>
         <tbody></tbody>
@@ -603,6 +691,9 @@
         $('viewDaily').hidden = name !== 'daily';
         $('viewStats').hidden = name !== 'stats';
         $('viewPower').hidden = name !== 'power';
+        $('viewCtl').hidden = name !== 'ctl';
+        $('tile').classList.toggle('ctl-view', name === 'ctl');
+        $('tabCtl').classList.toggle('on', name === 'ctl');
         $('tile').classList.toggle('stats-view', name === 'stats');
         $('tile').classList.toggle('power-view', name === 'power');
         $('tabPower').classList.toggle('on', name === 'power');
@@ -614,11 +705,119 @@
         if (name === 'daily') drawDaily();
         if (name === 'stats') requestStats();
         if (name === 'power') drawPower();
+        if (name === 'ctl') drawCtl();
     }
     $('tabSchema').addEventListener('click', () => showView('schema'));
     $('tabDaily').addEventListener('click', () => showView('daily'));
     $('tabStats').addEventListener('click', () => showView('stats'));
     $('tabPower').addEventListener('click', () => showView('power'));
+    $('tabCtl').addEventListener('click', () => showView('ctl'));
+
+    // ---------- Steuerung: Heizung, Warmwasser, Raumanforderung, Leistungsbegrenzung ----------
+    let ctl = null, boostH = 2, boostT = null;
+    const ctlSend = (data) => requestAction('Ctl', JSON.stringify(data));
+    const tTxt = (v) => v === null || v === undefined ? '–' : num(v, 1) + ' °C';
+    const kwTxt = (v) => v === null || v === undefined ? '–' : num(v, 2) + ' kW';
+    const until = (ts) => ts ? (new Date(ts * 1000).toDateString() === new Date().toDateString() ? '' : WDs[new Date(ts * 1000).getDay()] + ' ') + hhmm(ts) : '';
+    const WDs = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
+    function toast(text, err) {
+        const t = $('ctlToast');
+        t.textContent = text;
+        t.classList.toggle('err', !!err);
+        t.style.display = 'block';
+        clearTimeout(toast.timer);
+        toast.timer = setTimeout(() => { t.style.display = 'none'; }, 3500);
+    }
+
+    function drawCtl() {
+        $('tabCtl').hidden = !ctl;
+        if (!ctl && !$('viewCtl').hidden) showView('schema'); // Steuerung in der Instanz deaktiviert
+        if (!ctl || $('viewCtl').hidden) return;
+        $('cHeat').hidden = $('cDhw').hidden = !ctl.ctl;
+        $('cRooms').hidden = !ctl.rooms;
+        $('cLimit').hidden = !ctl.limit;
+
+        // Heizung
+        const h = ctl.heat;
+        document.querySelectorAll('#cMode button').forEach(b => b.classList.toggle('on', b.dataset.v === h.mode));
+        $('cConstRow').hidden = h.mode !== 'const';
+        $('cConst').textContent = tTxt(h.constTemp);
+        document.querySelectorAll('#cSeason button').forEach(b => { b.classList.toggle('on', b.dataset.v === h.season); b.disabled = h.seasonAuto; });
+        $('cSeasonHint').textContent = h.seasonAuto ? 'automatisch' + (h.tAvg !== null ? ` · Ø 24 h ${num(h.tAvg, 1)} °C` : '') : 'manuell';
+        let st;
+        if (h.mode === 'frost') st = '<b>Frostschutz</b> – Heizkreis im Standby';
+        else if (h.mode === 'const') st = `<b>Dauerbetrieb</b> ${tTxt(h.constTemp)}`;
+        else if (h.prog.kind === 'off') st = '<b>Heizung aus</b> (Sommer)' + (h.prog.until ? ` bis ${until(h.prog.until)}` : '');
+        else st = `<b>${h.prog.kind === 'comfort' ? 'Komfort' : 'Absenkung'}</b> ${tTxt(h.prog.temp)}` + (h.prog.until ? ` bis ${until(h.prog.until)}` : '');
+        if (ctl.rooms && !ctl.demand && h.mode !== 'frost') st += ' · <span class="hint">keine Raumanforderung → Standby</span>';
+        $('cHeatState').innerHTML = st;
+        $('cHeatHoval').textContent = h.hc1 ? `Hoval: ${h.hc1}${h.roomSet ? ' · ' + h.roomSet : ''}` : '';
+
+        // Warmwasser
+        const d = ctl.dhw;
+        if (boostT === null || boostT > d.max) boostT = d.max;
+        $('cBoostT').textContent = tTxt(boostT);
+        document.querySelectorAll('#cBoostH button').forEach(b => b.classList.toggle('on', Number(b.dataset.h) === boostH));
+        $('cMax').textContent = `max. ${tTxt(d.max)}`;
+        $('cBoostRun').hidden = !d.boost;
+        $('cBoostSet').hidden = !!d.boost;
+        if (d.boost) $('cBoostText').innerHTML = `<b>Aufheizen</b> auf ${tTxt(d.boost.temp)} bis ${until(d.boost.until)}`;
+        let ws;
+        if (d.boost) ws = `<b>Aufheizen</b> ${tTxt(d.boost.temp)}`;
+        else if (!d.prog) ws = '<b>Hoval-Programm</b> <span class="hint">(keine eigenen Ladezeiten)</span>';
+        else if (d.prog.kind === 'on') ws = `<b>Laden</b> ${tTxt(d.prog.temp)}` + (d.prog.until ? ` bis ${until(d.prog.until)}` : '');
+        else ws = '<b>Standby</b>' + (d.prog.until ? ` bis ${until(d.prog.until)}` : '');
+        $('cDhwState').innerHTML = ws + (d.top !== null ? ` <span class="hint">· oben ${tTxt(d.top)}</span>` : '');
+        $('cDhwHoval').textContent = d.status ? `Hoval: ${d.status}${d.set !== null ? ' · Soll ' + tTxt(d.set) : ''}` : '';
+
+        // Raumanforderung
+        $('cDemand').textContent = ctl.demand ? 'Anforderung' : 'keine Anforderung';
+        $('cDemand').className = 'badge' + (ctl.demand ? ' on' : ' ok');
+        $('cRoomList').innerHTML = '<span class="h">Raum</span><span class="h">Ist</span><span class="h">Soll</span><span class="h"></span>'
+            + (ctl.roomList || []).map(r => `<span>${r.name}</span><span>${tTxt(r.ist)}</span><span>${tTxt(r.soll)}</span><span>${r.demand ? '🔥' : '✓'}</span>`).join('');
+
+        // Leistungsbegrenzung
+        const l = ctl.pw;
+        if (l) {
+            const scale = Math.max(l.max, l.forecast) * 1.1;
+            $('cLimUsed').style.width = Math.min(100, (l.used / 0.25) / scale * 100) + '%';
+            $('cLimFc').style.left = Math.min(100, (l.used / 0.25) / scale * 100) + '%';
+            $('cLimFc').style.width = Math.max(0, Math.min(100, (l.forecast - l.used / 0.25) / scale * 100)) + '%';
+            $('cLimBar').classList.toggle('over', l.forecast > l.max);
+            $('cLimBar').style.backgroundImage = `linear-gradient(90deg, transparent calc(${l.max / scale * 100}% - 1px), var(--hot) calc(${l.max / scale * 100}% - 1px), var(--hot) calc(${l.max / scale * 100}% + 1px), transparent calc(${l.max / scale * 100}% + 1px))`;
+            $('cLimText').textContent = `Prognose laufende ¼ h: ${kwTxt(l.forecast)} (Grenze ${kwTxt(l.max)})`;
+            $('cLimEnd').textContent = 'Viertelstunde bis ' + hhmm(l.end);
+            $('cLimHouse').textContent = kwTxt(l.house);
+            $('cLimHp').textContent = kwTxt(l.hp);
+            $('cLimAllowed').textContent = kwTxt(l.allowed);
+            $('cLimMax').textContent = kwTxt(l.max);
+        } else {
+            $('cLimText').textContent = 'Keine Hausleistung verfügbar.';
+        }
+        $('cLimLast').textContent = kwTxt(ctl.total15);
+        $('cLimPeak').textContent = kwTxt(ctl.totalPeak);
+    }
+
+    // Bedienung
+    document.querySelectorAll('#cMode button').forEach(b => b.addEventListener('click', () => ctlSend({ a: 'mode', v: b.dataset.v })));
+    document.querySelectorAll('#cConstRow .btn').forEach(b => b.addEventListener('click', () => {
+        ctlSend({ a: 'const', v: (ctl ? ctl.heat.constTemp : 21) + Number(b.dataset.d) });
+    }));
+    document.querySelectorAll('#cSeason button').forEach(b => b.addEventListener('click', () => ctlSend({ a: 'season', v: b.dataset.v })));
+    document.querySelectorAll('#cBoostH button').forEach(b => b.addEventListener('click', () => { boostH = Number(b.dataset.h); drawCtl(); }));
+    document.querySelectorAll('#cBoostSet .step .btn').forEach(b => b.addEventListener('click', () => {
+        boostT = Math.max(30, Math.min(ctl ? ctl.dhw.max : 55, (boostT || 50) + Number(b.dataset.d)));
+        drawCtl();
+    }));
+    $('cBoostGo').addEventListener('click', () => ctlSend({ a: 'boost', h: boostH, t: boostT }));
+    $('cBoostStop').addEventListener('click', () => ctlSend({ a: 'boostStop' }));
+    $('cMaxEdit').addEventListener('click', () => { $('cMaxBox').hidden = false; $('cMaxVal').value = ctl ? ctl.dhw.max : ''; $('cMaxPw').focus(); });
+    $('cMaxCancel').addEventListener('click', () => { $('cMaxBox').hidden = true; $('cMaxPw').value = ''; });
+    $('cMaxOk').addEventListener('click', () => {
+        ctlSend({ a: 'maxTemp', pw: $('cMaxPw').value, v: Number($('cMaxVal').value) });
+        $('cMaxPw').value = '';
+        $('cMaxBox').hidden = true;
+    });
 
     // ---------- Leistung: aktuelle Leistung, 15-min-Mittel (24 h), Tagesspitzen ----------
     let pw = null, pwGeo = null;
@@ -971,6 +1170,10 @@
     // Wird von IP-Symcon aufgerufen (Startwert + jede Änderung eines Datenpunkts)
     function handleMessage(data) {
         const msg = typeof data === 'string' ? JSON.parse(data) : data;
+        if (msg.ctlResult) { // Rückmeldung auf eine Bedienung
+            toast(msg.ctlResult.msg, !msg.ctlResult.ok);
+            return;
+        }
         if (msg.stats) { // Antwort auf die Anforderung der Auswertung
             renderStats(msg.stats);
             return;
@@ -998,6 +1201,8 @@
         }
         daily = msg.daily || [];
         pw = msg.power || null;
+        ctl = msg.control || null;
+        drawCtl();
         drawPower();
         if (!$('viewDaily').hidden) drawDaily();
         const err = $('errBox');
@@ -1006,7 +1211,7 @@
         $('tFlow').textContent = f('FlowTemp');
         $('tReturn').textContent = f('ReturnTemp');
         $('tFlowRate').textContent = has('FlowRate') ? f('FlowRate') : '';
-        $('tPump').textContent = '';
+        $('tPump').textContent = has('PumpCP') ? 'Pumpe ' + f('PumpCP') : '';
         $('tTop').textContent = f('StorageTop');
         $('tBottom').textContent = f('StorageBottom');
         $('tDhw').textContent = has('DHWSetpoint') ? 'Soll ' + f('DHWSetpoint') : '';
@@ -1062,7 +1267,7 @@
         $('fbhSegs').classList.toggle('inactive', !fbhActive);
 
         // Betrieb erkennen: Pumpe/Volumenstrom -> Strömung, Leistung -> Lüfter
-        const pumping = (n('FlowRate') || 0) > 0 || n('HC1Pump') === 1;
+        const pumping = (n('FlowRate') || 0) > 0 || (n('PumpCP') || 0) > 0 || n('HC1Pump') === 1;
         $('schema').classList.toggle('running', pumping);
         $('schema').classList.toggle('heating', !!msg.heating);
         $('schema').classList.toggle('defrosting', defrosting);
@@ -1070,5 +1275,5 @@
         // offene Auswertung höchstens einmal pro Minute aktualisieren (laufender Tag/Woche/Monat)
         if (!$('viewStats').hidden && Date.now() - sLastRequest > 60000) requestStats();
     }
-    try { const v = localStorage.getItem('hwpView'); if (['daily', 'stats', 'power'].includes(v)) showView(v); } catch (e) {}
+    try { const v = localStorage.getItem('hwpView'); if (['daily', 'stats', 'power', 'ctl'].includes(v)) showView(v); } catch (e) {}
 </script>

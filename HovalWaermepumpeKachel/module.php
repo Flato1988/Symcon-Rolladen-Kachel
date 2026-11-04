@@ -51,12 +51,13 @@ class HovalWaermepumpeKachel extends IPSModule
         'MeasuredPower'   => ['Elektrische Leistung gemessen (externer Zähler)', null, 'mpower'],
         'MeasuredEnergy'  => ['Elektrische Energie gemessen (externer Zähler)', null, 'menergy'],
         'WaterPressure'   => ['Wasserdruck', null, 'raw'],
+        'PumpCP'          => ['Drehzahl Umwälzpumpe CP', 27495, 'pct'],
         'Humidity'        => ['Luftfeuchtigkeit außen', null, 'hum']
     ];
 
     private const GROUPS = [
         'Wärmeerzeuger'                  => ['OutdoorTemp', 'OperatingMode', 'WEZStatus', 'WFAStatus', 'RunState', 'ErrorCode', 'WEZSetpoint',
-                                             'FlowTemp', 'ReturnTemp', 'WEZPower', 'FlowRate', 'ThermPower', 'ElecPower', 'COPPump', 'JAZPump', 'Hours', 'Cycles'],
+                                             'FlowTemp', 'ReturnTemp', 'WEZPower', 'FlowRate', 'PumpCP', 'ThermPower', 'ElecPower', 'COPPump', 'JAZPump', 'Hours', 'Cycles'],
         'Energiezähler (Hoval)'          => ['ElecEnergy', 'ThermEnergyHeat', 'ThermEnergyDHW'],
         'Externer Zähler'                => ['MeasuredPower', 'MeasuredEnergy'],
         'Heizkreis 1 (FBH)'              => ['HC1FlowTemp', 'HC1FlowSetpoint', 'HC1Status', 'HC1Mode', 'RoomSetpoint', 'HC1Pump'],
@@ -75,7 +76,13 @@ class HovalWaermepumpeKachel extends IPSModule
                      29 => 'Minimale Einzeit', 32 => 'Nachlauf', 33 => 'Verzögerung Folge WEZ', 34 => 'Betrieb Übertemperatur',
                      42 => 'Handbetrieb Heizen', 43 => 'Handbetrieb Warmwasser', 44 => 'Handbetrieb Kühlen'],
         'wfa'    => [0 => 'WP aus', 1 => 'Heizen mit WP', 2 => 'Aktivkühlen', 3 => 'Sperre', 4 => 'Warmwasser mit WP',
-                     5 => 'WP-Frostschutz', 6 => 'WP-Temperatur zu tief'],
+                     5 => 'WP-Frostschutz', 6 => 'WP-Temperatur zu tief', 7 => 'WP-Vorlauf zu hoch', 8 => 'Abtauen',
+                     9 => 'Passivkühlen', 11 => 'HD-Störung', 12 => 'Niederdruckstörung', 16 => 'Wiedereinschaltverzögerung',
+                     17 => 'EW-/Energieerzeuger-Sperre', 18 => 'Vorlaufzeit Primär', 19 => 'Nachlaufzeit Primär', 44 => 'MOP',
+                     49 => 'Erfolglose Abtauung', 51 => 'Vorlaufzeit Kondenserpumpe', 55 => 'Störung Inverter / Modbus',
+                     72 => 'Grundwasser Frostschutz', 73 => 'Durchfluss WQ/GW-Kreis', 77 => 'Begrenzung Verdichter',
+                     96 => 'Elektrische Leistungsbegrenzung', 97 => 'Kompressoröl vorheizen', 98 => 'Kaltstart',
+                     99 => 'Maschine nicht konfiguriert'],
         'error'  => [255 => 'kein Fehler',
                      // Warnungen (W..)
                      74 => 'W11', 76 => 'W13', 80 => 'W17', 81 => 'W18', 82 => 'W19', 83 => 'W20', 84 => 'W21', 85 => 'W22',
@@ -125,6 +132,42 @@ class HovalWaermepumpeKachel extends IPSModule
         $this->RegisterPropertyInteger('MeasuredPowerUnit', 0);  // 0 = W, 1 = kW
         $this->RegisterPropertyInteger('MeasuredEnergyUnit', 1); // 0 = Wh, 1 = kWh, 2 = MWh
         $this->RegisterPropertyFloat('PricePerKWh', 0.25);       // Strompreis (Wärmepumpentarif) in €/kWh
+
+        // ---- Heizungssteuerung (schreibt in die Wärmepumpe, nur wenn aktiviert) ----
+        $this->RegisterPropertyBoolean('ControlEnabled', false);
+        $this->RegisterPropertyString('ControlPassword', '');    // für die Änderung der max. Warmwassertemperatur
+        $this->RegisterPropertyInteger('WriteHC1Mode', 0);       // 1478 Betriebswahl Heizkreis 1 (schreiben)
+        $this->RegisterPropertyInteger('WriteHC1Room', 0);       // 1481 Normal-Raumtemperatur Heizkreis 1 (schreiben)
+        $this->RegisterPropertyInteger('WriteDHWMode', 0);       // 1496 Betriebswahl Warmwasser (schreiben)
+        $this->RegisterPropertyInteger('WriteDHWTemp', 0);       // 1497 Normal-Warmwassertemperatur (schreiben)
+        $this->RegisterPropertyInteger('SeasonMode', 1);         // 0 = manuell (Kachel), 1 = nach Außentemperatur (Ø 24 h)
+        $this->RegisterPropertyFloat('SeasonWinterBelow', 10);   // Ø 24 h darunter: Winter
+        $this->RegisterPropertyFloat('SeasonSummerAbove', 16);   // Ø 24 h darüber: Sommer (Heizung aus)
+        $this->RegisterPropertyFloat('EcoWinter', 19);           // Absenktemperatur außerhalb der Komfortzeiten
+        $this->RegisterPropertyFloat('EcoTransition', 18.5);
+        $this->RegisterPropertyString('HeatPrograms', json_encode([
+            ['Season' => 'winter', 'Days' => 'mo-fr', 'From' => '05:30', 'To' => '22:00', 'Temp' => 21.0],
+            ['Season' => 'winter', 'Days' => 'sa-so', 'From' => '07:00', 'To' => '22:30', 'Temp' => 21.0],
+            ['Season' => 'transition', 'Days' => 'mo-so', 'From' => '06:00', 'To' => '21:00', 'Temp' => 20.5]
+        ]));
+        $this->RegisterPropertyString('DHWPrograms', '[]');      // leer = Warmwasser bleibt bei Hoval (außer Aufheiz-Taste)
+
+        // ---- Raumanforderung ----
+        $this->RegisterPropertyBoolean('RoomDemandEnabled', false);
+        $this->RegisterPropertyString('Rooms', '[]');            // [{Name, IstID, SollID, Offset}]
+        $this->RegisterPropertyFloat('RoomHysteresis', 0.3);
+        $this->RegisterPropertyInteger('RoomMinMinutes', 20);    // Mindestzeit zwischen zwei Wechseln (gegen Takten)
+
+        // ---- Leistungsbegrenzung (15-min-Spitze) ----
+        $this->RegisterPropertyBoolean('PowerLimitEnabled', false);
+        $this->RegisterPropertyInteger('HousePowerID', 0);       // Leistung Haus (ohne WP oder gesamt)
+        $this->RegisterPropertyInteger('HousePowerUnit', 0);     // 0 = W, 1 = kW
+        $this->RegisterPropertyBoolean('HouseIncludesHP', false);// true: Hauszähler misst inkl. Wärmepumpe
+        $this->RegisterPropertyFloat('MaxPeak15', 10);           // erlaubte 15-min-Spitze gesamt in kW
+        $this->RegisterPropertyFloat('PowerMargin', 0.3);        // Sicherheitsabstand in kW
+        $this->RegisterPropertyFloat('MinHPPower', 0);           // Mindestleistung, die der WP immer erlaubt bleibt
+        $this->RegisterPropertyInteger('WriteSGPower', 0);       // 27536 Verfügbare el. Leistung gedämpft (schreiben)
+        $this->RegisterPropertyInteger('WriteSGTrigger', 0);     // 27546 Auslöser Smart Grid Funktion (schreiben)
         // Eigene Klartexte [{Key, Value, Text}] – haben Vorrang vor den Hoval-Texten
         $this->RegisterPropertyString('TextOverrides', '[]');
 
@@ -148,6 +191,14 @@ class HovalWaermepumpeKachel extends IPSModule
         $this->RegisterAttributeString('QPeaks', '{}');
         // aus der gemessenen Leistung aufsummierte Energie (ersetzt einen fehlenden kWh-Zählerstand des externen Zählers)
         $this->RegisterAttributeFloat('MeasEnergyInt', 0);
+        // Steuerung: Bedienzustand, letzte Schreibvorgänge, max. Warmwassertemperatur, gleitende Außentemperatur
+        $this->RegisterAttributeString('CtlState', '');
+        $this->RegisterAttributeString('CtlWrites', '{}');
+        $this->RegisterAttributeFloat('DHWMax', 55);
+        $this->RegisterAttributeFloat('TempAvg', -999);
+        // Leistungsbegrenzung: Hausenergie der laufenden Viertelstunde, letzter Messwert
+        $this->RegisterAttributeFloat('QHouseEnergy', 0);
+        $this->RegisterAttributeString('HouseState', '');
 
         $this->RegisterTimer('Tick', 0, 'HWP_Tick($_IPS[\'TARGET\']);');
 
@@ -236,6 +287,24 @@ class HovalWaermepumpeKachel extends IPSModule
         $this->EnableLogging('Power15');
         $this->EnableLogging('Peak15Daily');
 
+        // Steuerung / Raumanforderung / Leistungsbegrenzung
+        $this->MaintainVariable('HeatDemand', 'Heizungsanforderung (Räume)', VARIABLETYPE_BOOLEAN, '~Switch', $position++, $this->ReadPropertyBoolean('RoomDemandEnabled'));
+        $limit = $this->ReadPropertyBoolean('PowerLimitEnabled');
+        $this->MaintainVariable('AllowedHPPower', 'Erlaubte WP-Leistung', VARIABLETYPE_FLOAT, 'HWP.kW', $position++, $limit);
+        $this->MaintainVariable('HousePower', 'Leistung Haus ohne WP', VARIABLETYPE_FLOAT, 'HWP.kW', $position++, $limit);
+        $this->MaintainVariable('Total15', 'Gesamt Ø 15 min (Haus + WP)', VARIABLETYPE_FLOAT, 'HWP.kW', $position++, $limit);
+        $this->MaintainVariable('Total15PeakToday', 'Spitze 15 min gesamt heute', VARIABLETYPE_FLOAT, 'HWP.kW', $position++, $limit);
+        if ($limit) {
+            foreach (['AllowedHPPower', 'Total15', 'Total15PeakToday'] as $ident) {
+                $this->EnableLogging($ident);
+            }
+        }
+        $houseID = $this->ReadPropertyInteger('HousePowerID');
+        if ($limit && $houseID > 0 && IPS_VariableExists($houseID)) {
+            $this->RegisterReference($houseID);
+            $this->RegisterMessage($houseID, VM_UPDATE);
+        }
+
         @$this->UnregisterVariable('COP');        // aus Version 1.6
         @$this->UnregisterVariable('Deviation');  // aus Version 1.6
 
@@ -262,6 +331,7 @@ class HovalWaermepumpeKachel extends IPSModule
                 }
                 // Strom bis jetzt der bisherigen Betriebsart zuordnen (Leistung/Ventil/Status können sich geändert haben)
                 $this->IntegrateSplit(time());
+                $this->IntegrateHouse(time());
                 // Abtauung möglichst sofort erkennen (nicht erst beim nächsten Minutentakt)
                 foreach (['WEZStatus', 'FlowTemp', 'ReturnTemp', 'FlowRate'] as $key) {
                     if ($SenderID === $this->GetVariableID($key)) {
@@ -282,6 +352,12 @@ class HovalWaermepumpeKachel extends IPSModule
                 $request = json_decode((string) $Value, true) ?: [];
                 $period = in_array($request['p'] ?? '', ['day', 'week', 'month'], true) ? $request['p'] : 'day';
                 $this->UpdateVisualizationValue(json_encode(['stats' => $this->GetStats($period, max(0, (int) ($request['o'] ?? 0)))]));
+                break;
+            case 'Ctl': // Bedienung aus dem Reiter "Steuerung"
+                $result = $this->HandleControlAction(json_decode((string) $Value, true) ?: []);
+                $this->ControlTick(time());
+                $this->UpdateVisualizationValue(json_encode(['ctlResult' => $result]));
+                $this->UpdateVisualizationValue($this->GetFullUpdateMessage());
                 break;
             default:
                 throw new Exception('Invalid Ident: ' . $Ident);
@@ -319,6 +395,75 @@ class HovalWaermepumpeKachel extends IPSModule
             }
             $elements[] = ['type' => 'ExpansionPanel', 'caption' => $group, 'items' => $items];
         }
+
+        // ---- Heizungssteuerung, Raumanforderung, Leistungsbegrenzung ----
+        $seasonOptions = [['caption' => 'Winter', 'value' => 'winter'], ['caption' => 'Übergang', 'value' => 'transition'], ['caption' => 'Sommer', 'value' => 'summer']];
+        $dayOptions = [];
+        foreach (self::DAY_SETS as $value => [$caption]) {
+            $dayOptions[] = ['caption' => $caption, 'value' => $value];
+        }
+        $timeColumn = fn ($name, $caption, $default) => ['caption' => $caption, 'name' => $name, 'width' => '90px', 'add' => $default,
+            'edit' => ['type' => 'ValidationTextBox', 'validate' => '^([01][0-9]|2[0-3]):[0-5][0-9]$']];
+        $write = fn ($name, $caption) => ['type' => 'SelectVariable', 'name' => $name, 'caption' => $caption];
+        $elements[] = ['type' => 'ExpansionPanel', 'caption' => 'Heizungssteuerung (schreibt in die Wärmepumpe)', 'items' => [
+            ['type' => 'CheckBox', 'name' => 'ControlEnabled', 'caption' => 'Heizungssteuerung über Symcon aktivieren'],
+            ['type' => 'Label', 'caption' => 'Die Schreib-Variablen sind Modbus-Geräte mit Funktion 6 (Write Single Register), Faktor 0,1 bei Temperaturen. '
+                . 'Beim Deaktivieren werden Heizkreis und Warmwasser wieder auf Hoval „Woche 1“ gestellt.'],
+            $write('WriteHC1Mode', 'Betriebswahl Heizkreis 1 schreiben (1478)'),
+            $write('WriteHC1Room', 'Normal-Raumtemperatur Heizkreis 1 schreiben (1481)'),
+            $write('WriteDHWMode', 'Betriebswahl Warmwasser schreiben (1496)'),
+            $write('WriteDHWTemp', 'Normal-Warmwassertemperatur schreiben (1497)'),
+            ['type' => 'PasswordTextBox', 'name' => 'ControlPassword', 'caption' => 'Passwort für die max. Warmwassertemperatur (in der Kachel)'],
+            ['type' => 'Select', 'name' => 'SeasonMode', 'caption' => 'Saison (Winter / Übergang / Sommer)', 'options' => [
+                ['caption' => 'manuell in der Kachel wählen', 'value' => 0], ['caption' => 'automatisch nach Außentemperatur (Ø 24 h)', 'value' => 1]]],
+            ['type' => 'RowLayout', 'items' => [
+                ['type' => 'NumberSpinner', 'name' => 'SeasonWinterBelow', 'caption' => 'Winter unter', 'digits' => 1, 'suffix' => '°C'],
+                ['type' => 'NumberSpinner', 'name' => 'SeasonSummerAbove', 'caption' => 'Sommer über', 'digits' => 1, 'suffix' => '°C']]],
+            ['type' => 'RowLayout', 'items' => [
+                ['type' => 'NumberSpinner', 'name' => 'EcoWinter', 'caption' => 'Absenkung Winter', 'digits' => 1, 'suffix' => '°C'],
+                ['type' => 'NumberSpinner', 'name' => 'EcoTransition', 'caption' => 'Absenkung Übergang', 'digits' => 1, 'suffix' => '°C']]],
+            ['type' => 'List', 'name' => 'HeatPrograms', 'caption' => 'Heizen: Komfortzeiten je Saison (außerhalb: Absenkung, im Sommer: aus/Frostschutz)',
+             'rowCount' => 8, 'add' => true, 'delete' => true, 'columns' => [
+                ['caption' => 'Saison', 'name' => 'Season', 'width' => '130px', 'add' => 'winter', 'edit' => ['type' => 'Select', 'options' => $seasonOptions]],
+                ['caption' => 'Tage', 'name' => 'Days', 'width' => '130px', 'add' => 'mo-fr', 'edit' => ['type' => 'Select', 'options' => $dayOptions]],
+                $timeColumn('From', 'von', '06:00'), $timeColumn('To', 'bis', '22:00'),
+                ['caption' => 'Raum-Soll °C', 'name' => 'Temp', 'width' => 'auto', 'add' => 21.0, 'edit' => ['type' => 'NumberSpinner', 'digits' => 1]]]],
+            ['type' => 'List', 'name' => 'DHWPrograms', 'caption' => 'Warmwasser: Ladezeiten (außerhalb: Standby). Leer = Warmwasser bleibt bei Hoval.',
+             'rowCount' => 5, 'add' => true, 'delete' => true, 'columns' => [
+                ['caption' => 'Tage', 'name' => 'Days', 'width' => '130px', 'add' => 'mo-so', 'edit' => ['type' => 'Select', 'options' => $dayOptions]],
+                $timeColumn('From', 'von', '05:00'), $timeColumn('To', 'bis', '07:00'),
+                ['caption' => 'Temperatur °C', 'name' => 'Temp', 'width' => 'auto', 'add' => 50.0, 'edit' => ['type' => 'NumberSpinner', 'digits' => 1]]]]
+        ]];
+        $elements[] = ['type' => 'ExpansionPanel', 'caption' => 'Raumanforderung', 'items' => [
+            ['type' => 'CheckBox', 'name' => 'RoomDemandEnabled', 'caption' => 'Raumanforderung aktivieren'],
+            ['type' => 'Label', 'caption' => 'Ist kein Raum zu kalt, wird Heizkreis 1 auf Standby (Frostschutz) gestellt; sobald ein Raum unter Soll − Hysterese fällt, wird wieder geheizt. '
+                . 'Soll: eigene Soll-Variable des Raums, sonst die aktuelle Programmtemperatur (+ Offset).'],
+            ['type' => 'List', 'name' => 'Rooms', 'caption' => 'Räume', 'rowCount' => 8, 'add' => true, 'delete' => true, 'columns' => [
+                ['caption' => 'Name', 'name' => 'Name', 'width' => '180px', 'add' => 'Raum', 'edit' => ['type' => 'ValidationTextBox']],
+                ['caption' => 'Raumtemperatur Ist', 'name' => 'IstID', 'width' => '260px', 'add' => 0, 'edit' => ['type' => 'SelectVariable']],
+                ['caption' => 'Soll (optional)', 'name' => 'SollID', 'width' => '260px', 'add' => 0, 'edit' => ['type' => 'SelectVariable']],
+                ['caption' => 'Offset K', 'name' => 'Offset', 'width' => 'auto', 'add' => 0, 'edit' => ['type' => 'NumberSpinner', 'digits' => 1]]]],
+            ['type' => 'RowLayout', 'items' => [
+                ['type' => 'NumberSpinner', 'name' => 'RoomHysteresis', 'caption' => 'Hysterese', 'digits' => 1, 'suffix' => 'K'],
+                ['type' => 'NumberSpinner', 'name' => 'RoomMinMinutes', 'caption' => 'Mindestzeit zwischen Wechseln', 'suffix' => 'min']]],
+            ['type' => 'Label', 'caption' => 'Ohne aktivierte Heizungssteuerung schaltet die Raumanforderung Heizkreis 1 zwischen Hoval „Woche 1“ und Standby.']
+        ]];
+        $elements[] = ['type' => 'ExpansionPanel', 'caption' => 'Leistungsbegrenzung (15-min-Spitze)', 'items' => [
+            ['type' => 'CheckBox', 'name' => 'PowerLimitEnabled', 'caption' => 'Leistungsbegrenzung aktivieren'],
+            ['type' => 'Label', 'caption' => 'Über die laufende Viertelstunde wird mitgerechnet: Der WP wird über „Verfügbare el. Leistung gedämpft“ (27536) nur so viel erlaubt, '
+                . 'dass Haus + WP die eingestellte 15-min-Spitze nicht überschreiten. Die WP-Leistung kommt vom externen Zähler (sonst Hoval).'],
+            ['type' => 'SelectVariable', 'name' => 'HousePowerID', 'caption' => 'Leistung Haus'],
+            ['type' => 'RowLayout', 'items' => [
+                ['type' => 'Select', 'name' => 'HousePowerUnit', 'caption' => 'Einheit', 'options' => [['caption' => 'W', 'value' => 0], ['caption' => 'kW', 'value' => 1]]],
+                ['type' => 'CheckBox', 'name' => 'HouseIncludesHP', 'caption' => 'Hauszähler misst inkl. Wärmepumpe']]],
+            ['type' => 'RowLayout', 'items' => [
+                ['type' => 'NumberSpinner', 'name' => 'MaxPeak15', 'caption' => 'max. 15-min-Spitze gesamt', 'digits' => 1, 'suffix' => 'kW'],
+                ['type' => 'NumberSpinner', 'name' => 'PowerMargin', 'caption' => 'Sicherheitsabstand', 'digits' => 1, 'suffix' => 'kW'],
+                ['type' => 'NumberSpinner', 'name' => 'MinHPPower', 'caption' => 'WP mindestens', 'digits' => 1, 'suffix' => 'kW']]],
+            $write('WriteSGPower', 'Verfügbare el. Leistung gedämpft schreiben (27536, kW)'),
+            $write('WriteSGTrigger', 'Auslöser Smart Grid Funktion schreiben (27546)'),
+            ['type' => 'Label', 'caption' => 'Bei aktiver Begrenzung wird 27546 = 3 („Verfügbare Leistung gedämpft“) gesetzt, beim Deaktivieren wieder 0.']
+        ]];
 
         // Offsets für alle Temperaturfühler
         $offsets = [['type' => 'Label', 'caption' => 'Korrektur in Kelvin, wird zum Messwert addiert (z.B. -0,5 wenn der Fühler 0,5 K zu hoch misst).']];
@@ -381,7 +526,9 @@ class HovalWaermepumpeKachel extends IPSModule
 
         $this->EvaluateDefrost($now);
         $this->IntegrateSplit($now);
+        $this->IntegrateHouse($now);
         $this->UpdateQuarter($now);
+        $this->ControlTick($now);
         $this->UpdateDayStats($now);
         foreach (array_keys(self::DATAPOINTS) as $key) {
             $this->UpdateMirror($key);
@@ -464,7 +611,8 @@ class HovalWaermepumpeKachel extends IPSModule
         // nur falls der Status nicht eingetragen ist: Ersatz über die Spreizung (VL mind. 0,5 K unter RL, Ende bei VL ≥ RL)
         $wez = $this->Value('WEZStatus');
         if ($wez !== null) {
-            $active = (int) round($wez) === 8;
+            // 18722 = 8 "Abtauvorgang" bzw. Status (WFA, 18723) = 8 "Abtauen"
+            $active = (int) round($wez) === 8 || (int) round($this->Value('WFAStatus') ?? -1) === 8;
         } else {
             $vl = $this->Value('FlowTemp');
             $rl = $this->Value('ReturnTemp');
@@ -582,6 +730,9 @@ class HovalWaermepumpeKachel extends IPSModule
             $this->SetValue('Peak15Daily', $peak);
             $this->SetValue('Peak15Today', 0);
             $this->SetValue('Peak15TodayTime', 0);
+            if (@$this->GetIDForIdent('Total15PeakToday')) {
+                $this->SetValue('Total15PeakToday', 0);
+            }
             foreach (['DefrostCountToday', 'DefrostElecToday', 'DefrostHeatToday'] as $ident) {
                 $this->SetValue($ident, 0);
             }
@@ -674,6 +825,13 @@ class HovalWaermepumpeKachel extends IPSModule
                 $history = array_values(array_filter($history, fn ($q) => $q[0] >= $boundary - 7 * 86400));
                 $this->WriteAttributeString('QHistory', json_encode($history));
                 $this->SetValue('Power15', $kW);
+                if ($this->ReadPropertyBoolean('PowerLimitEnabled') && @$this->GetIDForIdent('Total15')) {
+                    $total = round(($this->ReadAttributeFloat('QEnergy') + $this->ReadAttributeFloat('QHouseEnergy')) / ($duration / 3600), 3);
+                    $this->SetValue('Total15', $total);
+                    if (date('Y-m-d', $start) === date('Y-m-d', $now) && $total > $this->GetValue('Total15PeakToday')) {
+                        $this->SetValue('Total15PeakToday', $total);
+                    }
+                }
 
                 // Tagesspitze (die Viertelstunde zählt zu dem Tag, an dem sie begonnen hat)
                 $date = date('Y-m-d', $start);
@@ -692,6 +850,7 @@ class HovalWaermepumpeKachel extends IPSModule
         if ($start === 0 || $boundary > $start) {
             $this->WriteAttributeInteger('QStart', $boundary);
             $this->WriteAttributeFloat('QEnergy', 0);
+            $this->WriteAttributeFloat('QHouseEnergy', 0);
             $this->WriteAttributeFloat('QTempSum', 0);
             $this->WriteAttributeInteger('QTempCount', 0);
         }
@@ -1222,7 +1381,8 @@ class HovalWaermepumpeKachel extends IPSModule
             ],
             // Tageswerte: abgeschlossene Tage + der laufende Tag (p = unvollständig)
             'daily'   => $this->GetDailySeries(),
-            'power'   => $this->GetPowerView()
+            'power'   => $this->GetPowerView(),
+            'control' => $this->GetControlView()
         ]);
     }
 
@@ -1234,6 +1394,429 @@ class HovalWaermepumpeKachel extends IPSModule
             $history[] = $this->DaySummary($day) + ['p' => true];
         }
         return $history;
+    }
+
+    // ---------------------------------------------------------------- Heizungssteuerung
+
+    // Tagesauswahl für Zeitprogramme: Schlüssel => [Bezeichnung, Wochentage 1 = Mo … 7 = So]
+    private const DAY_SETS = [
+        'mo-so' => ['Mo–So', [1, 2, 3, 4, 5, 6, 7]], 'mo-fr' => ['Mo–Fr', [1, 2, 3, 4, 5]], 'sa-so' => ['Sa–So', [6, 7]],
+        'mo' => ['Montag', [1]], 'di' => ['Dienstag', [2]], 'mi' => ['Mittwoch', [3]], 'do' => ['Donnerstag', [4]],
+        'fr' => ['Freitag', [5]], 'sa' => ['Samstag', [6]], 'so' => ['Sonntag', [7]]
+    ];
+    private const SEASONS = ['winter' => 'Winter', 'transition' => 'Übergang', 'summer' => 'Sommer'];
+
+    /** Zeitprogramme einmal je Durchlauf einlesen (werden bei der Suche nach dem nächsten Wechsel oft gebraucht) */
+    private $programCache = [];
+    private function Programs(string $property): array
+    {
+        if (!isset($this->programCache[$property])) {
+            $this->programCache[$property] = json_decode($this->ReadPropertyString($property), true) ?: [];
+        }
+        return $this->programCache[$property];
+    }
+
+    private function GetCtlState(): array
+    {
+        return (json_decode($this->ReadAttributeString('CtlState'), true) ?: []) + [
+            'mode' => 'auto', 'constTemp' => 21.0, 'season' => 'winter', 'seasonAuto' => 'winter',
+            'boost' => null, 'demand' => true, 'demandSince' => 0, 'rooms' => [], 'ctlActive' => false, 'limitActive' => false
+        ];
+    }
+
+    private function SetCtlState(array $state)
+    {
+        $this->WriteAttributeString('CtlState', json_encode($state));
+    }
+
+    private static function Minutes(string $hhmm): int
+    {
+        [$h, $m] = array_map('intval', explode(':', $hhmm . ':0'));
+        return $h * 60 + $m;
+    }
+
+    /** Liegt der Zeitpunkt in einem Zeitfenster (auch über Mitternacht, dann zählt der Starttag)? */
+    private static function InWindow(array $row, int $ts): bool
+    {
+        $days = self::DAY_SETS[$row['Days'] ?? 'mo-so'][1] ?? [1, 2, 3, 4, 5, 6, 7];
+        $from = self::Minutes((string) ($row['From'] ?? '00:00'));
+        $to = self::Minutes((string) ($row['To'] ?? '00:00'));
+        $minute = (int) date('G', $ts) * 60 + (int) date('i', $ts);
+        $dow = (int) date('N', $ts);
+        $yesterday = $dow === 1 ? 7 : $dow - 1;
+        if ($from < $to) {
+            return in_array($dow, $days, true) && $minute >= $from && $minute < $to;
+        }
+        return (in_array($dow, $days, true) && $minute >= $from) || (in_array($yesterday, $days, true) && $minute < $to);
+    }
+
+    /** Aktuelle Saison: manuell oder nach gleitendem 24-h-Mittel der Außentemperatur (mit 1 K Hysterese) */
+    private function CurrentSeason(array &$state): string
+    {
+        if ($this->ReadPropertyInteger('SeasonMode') === 0) {
+            return $state['season'];
+        }
+        $avg = $this->ReadAttributeFloat('TempAvg');
+        if ($avg <= -900) {
+            return $state['seasonAuto'];
+        }
+        $winter = $this->ReadPropertyFloat('SeasonWinterBelow');
+        $summer = $this->ReadPropertyFloat('SeasonSummerAbove');
+        $current = $state['seasonAuto'];
+        if ($avg < $winter || ($current === 'winter' && $avg < $winter + 1)) {
+            $season = 'winter';
+        } elseif ($avg > $summer || ($current === 'summer' && $avg > $summer - 1)) {
+            $season = 'summer';
+        } else {
+            $season = 'transition';
+        }
+        $state['seasonAuto'] = $season;
+        return $season;
+    }
+
+    /** Heizprogramm zu einem Zeitpunkt: ['kind' => comfort|eco|off, 'temp' => °C|null] */
+    private function HeatProgramAt(string $season, int $ts): array
+    {
+        foreach ($this->Programs('HeatPrograms') as $row) {
+            if (($row['Season'] ?? '') === $season && self::InWindow($row, $ts)) {
+                return ['kind' => 'comfort', 'temp' => round((float) $row['Temp'], 1)];
+            }
+        }
+        if ($season === 'summer') {
+            return ['kind' => 'off', 'temp' => null];
+        }
+        return ['kind' => 'eco', 'temp' => $this->ReadPropertyFloat($season === 'winter' ? 'EcoWinter' : 'EcoTransition')];
+    }
+
+    /** Warmwasserprogramm zu einem Zeitpunkt: null = keine Programme (Hoval regelt), sonst ['kind' => on|off, 'temp'] */
+    private function DHWProgramAt(int $ts): ?array
+    {
+        $rows = $this->Programs('DHWPrograms');
+        if (count($rows) === 0) {
+            return null;
+        }
+        foreach ($rows as $row) {
+            if (self::InWindow($row, $ts)) {
+                return ['kind' => 'on', 'temp' => min((float) $row['Temp'], $this->ReadAttributeFloat('DHWMax'))];
+            }
+        }
+        return ['kind' => 'off', 'temp' => null];
+    }
+
+    /** Nächster Wechsel eines Programms (Suche in 15-min-Schritten, max. 2 Tage) */
+    private function NextChange(callable $at, int $now): ?int
+    {
+        $current = $at($now);
+        for ($ts = intdiv($now, 900) * 900 + 900; $ts <= $now + 2 * 86400; $ts += 900) {
+            if ($at($ts) != $current) {
+                return $ts;
+            }
+        }
+        return null;
+    }
+
+    /** Wert in eine Schreib-Variable schreiben – nur bei Änderung oder zur Auffrischung (Standard: alle 30 min) */
+    private function WriteTo(string $property, float $value, float $tolerance = 0.01, int $refresh = 1800): void
+    {
+        $id = $this->ReadPropertyInteger($property);
+        if ($id <= 0 || !IPS_VariableExists($id)) {
+            return;
+        }
+        $writes = json_decode($this->ReadAttributeString('CtlWrites'), true) ?: [];
+        $last = $writes[$property] ?? null;
+        if ($last !== null && abs($last[0] - $value) < $tolerance && time() - $last[1] < $refresh) {
+            return;
+        }
+        $ok = @RequestAction($id, $value);
+        $this->SendDebug('Schreiben', $property . ' = ' . $value . ($ok === false ? ' (fehlgeschlagen)' : ''), 0);
+        if ($ok === false) {
+            $this->LogMessage('Schreiben fehlgeschlagen: ' . $property . ' = ' . $value . ' (Variable ' . $id . ')', KL_WARNING);
+        }
+        $writes[$property] = [$value, time()];
+        $this->WriteAttributeString('CtlWrites', json_encode($writes));
+    }
+
+    /** Raumanforderung: true, sobald ein Raum unter Soll − Hysterese liegt (mit Mindestzeit zwischen Wechseln) */
+    private function EvaluateRooms(array &$state, ?float $programTemp, int $now): bool
+    {
+        $hyst = $this->ReadPropertyFloat('RoomHysteresis');
+        $any = false;
+        $rooms = [];
+        foreach (json_decode($this->ReadPropertyString('Rooms'), true) ?: [] as $row) {
+            $istID = (int) ($row['IstID'] ?? 0);
+            if ($istID <= 0 || !IPS_VariableExists($istID)) {
+                continue;
+            }
+            $name = (string) ($row['Name'] ?? ('Raum ' . $istID));
+            $sollID = (int) ($row['SollID'] ?? 0);
+            $soll = ($sollID > 0 && IPS_VariableExists($sollID)) ? (float) GetValue($sollID) : $programTemp;
+            $ist = (float) GetValue($istID);
+            $was = $state['rooms'][$name] ?? false;
+            $demand = false;
+            if ($soll !== null) {
+                $soll += (float) ($row['Offset'] ?? 0);
+                $demand = $was ? $ist < $soll + $hyst : $ist < $soll - $hyst;
+            }
+            $state['rooms'][$name] = $demand;
+            $rooms[] = ['name' => $name, 'ist' => round($ist, 1), 'soll' => $soll === null ? null : round($soll, 1), 'demand' => $demand];
+            $any = $any || $demand;
+        }
+        $state['roomList'] = $rooms;
+        // Mindestzeit zwischen Wechseln
+        if ($any !== $state['demand'] && $now - $state['demandSince'] >= $this->ReadPropertyInteger('RoomMinMinutes') * 60) {
+            $state['demand'] = $any;
+            $state['demandSince'] = $now;
+        }
+        return $state['demand'];
+    }
+
+    /** Läuft jede Minute und nach jeder Bedienung: Programme auswerten und in die Wärmepumpe schreiben */
+    private function ControlTick(int $now)
+    {
+        $control = $this->ReadPropertyBoolean('ControlEnabled');
+        $rooms = $this->ReadPropertyBoolean('RoomDemandEnabled');
+        $state = $this->GetCtlState();
+
+        // gleitendes 24-h-Mittel der Außentemperatur (für die automatische Saison)
+        $outdoor = $this->Value('OutdoorTemp');
+        if ($outdoor !== null) {
+            $avg = $this->ReadAttributeFloat('TempAvg');
+            $this->WriteAttributeFloat('TempAvg', $avg <= -900 ? $outdoor : $avg + ($outdoor - $avg) / 1440);
+        }
+
+        $season = $this->CurrentSeason($state);
+        $program = $this->HeatProgramAt($season, $now);
+        $target = $state['mode'] === 'const' ? (float) $state['constTemp'] : $program['temp'];
+
+        $demand = true;
+        if ($rooms) {
+            $demand = $this->EvaluateRooms($state, $target, $now);
+            if (@$this->GetIDForIdent('HeatDemand') && $this->GetValue('HeatDemand') !== $demand) {
+                $this->SetValue('HeatDemand', $demand);
+            }
+        }
+
+        if ($control) {
+            // ---- Heizkreis 1 ----
+            if ($state['mode'] === 'frost' || ($state['mode'] === 'auto' && $program['kind'] === 'off') || !$demand) {
+                $this->WriteTo('WriteHC1Mode', 0);                    // Standby = Frostschutz
+            } else {
+                $this->WriteTo('WriteHC1Room', max(10, min(30, $target)));
+                $this->WriteTo('WriteHC1Mode', 4);                    // Konstant mit Normal-Raumtemperatur
+            }
+            // ---- Warmwasser ----
+            $boost = $state['boost'];
+            if ($boost && $boost['until'] <= $now) {
+                $state['boost'] = $boost = null;
+                $state['dhwReturn'] = true;                          // nach dem Aufheizen an Programm/Hoval zurückgeben
+            }
+            $dhw = $this->DHWProgramAt($now);
+            if ($boost) {
+                $this->WriteTo('WriteDHWTemp', min($boost['temp'], $this->ReadAttributeFloat('DHWMax')));
+                $this->WriteTo('WriteDHWMode', 4);                    // Dauernd Normalbetrieb
+            } elseif ($dhw !== null) {
+                if ($dhw['kind'] === 'on') {
+                    $this->WriteTo('WriteDHWTemp', $dhw['temp']);
+                    $this->WriteTo('WriteDHWMode', 4);
+                } else {
+                    $this->WriteTo('WriteDHWMode', 0);                // Standby außerhalb der Ladezeiten
+                }
+            } elseif (!empty($state['dhwReturn'])) {
+                $this->WriteTo('WriteDHWMode', 1);                    // keine Programme: zurück an Hoval Woche 1
+            }
+            $state['dhwReturn'] = false;
+            $state['ctlActive'] = true;
+        } elseif ($rooms) {
+            // nur Raumanforderung: zwischen Hoval-Programm und Standby umschalten
+            $this->WriteTo('WriteHC1Mode', $demand ? 1 : 0);
+        } elseif ($state['ctlActive']) {
+            // Steuerung wurde deaktiviert: an Hoval zurückgeben
+            $this->WriteTo('WriteHC1Mode', 1, 0.01, 0);
+            $this->WriteTo('WriteDHWMode', 1, 0.01, 0);
+            $state['ctlActive'] = false;
+        }
+
+        $this->PowerLimitTick($state, $now);
+        $this->SetCtlState($state);
+    }
+
+    /** Bedienung aus der Kachel; liefert ['ok' => bool, 'msg' => Text] */
+    private function HandleControlAction(array $action): array
+    {
+        if (!$this->ReadPropertyBoolean('ControlEnabled')) {
+            return ['ok' => false, 'msg' => 'Heizungssteuerung ist in der Instanz nicht aktiviert.'];
+        }
+        $state = $this->GetCtlState();
+        $msg = '';
+        switch ($action['a'] ?? '') {
+            case 'mode':
+                if (in_array($action['v'] ?? '', ['auto', 'frost', 'const'], true)) {
+                    $state['mode'] = $action['v'];
+                    $msg = ['auto' => 'Automatik (Zeitprogramm)', 'frost' => 'Frostschutz', 'const' => 'Dauerbetrieb'][$state['mode']];
+                }
+                break;
+            case 'const':
+                $state['constTemp'] = round(max(10, min(30, (float) ($action['v'] ?? 21))) * 2) / 2;
+                $state['mode'] = 'const';
+                $msg = 'Dauerbetrieb ' . number_format($state['constTemp'], 1, ',', '') . ' °C';
+                break;
+            case 'season':
+                if (isset(self::SEASONS[$action['v'] ?? ''])) {
+                    $state['season'] = $action['v'];
+                    $msg = 'Saison: ' . self::SEASONS[$state['season']];
+                }
+                break;
+            case 'boost':
+                $max = $this->ReadAttributeFloat('DHWMax');
+                $hours = max(0.5, min(12, (float) ($action['h'] ?? 2)));
+                $temp = round(max(30, min($max, (float) ($action['t'] ?? $max))) * 2) / 2;
+                $state['boost'] = ['until' => time() + (int) round($hours * 3600), 'temp' => $temp];
+                $msg = 'Warmwasser ' . number_format($hours, 1, ',', '') . ' h auf ' . number_format($temp, 1, ',', '') . ' °C';
+                break;
+            case 'boostStop':
+                $state['boost'] = null;
+                $state['dhwReturn'] = true;
+                $msg = 'Aufheizen beendet';
+                break;
+            case 'maxTemp':
+                $password = $this->ReadPropertyString('ControlPassword');
+                if ($password === '') {
+                    return ['ok' => false, 'msg' => 'In der Instanz ist kein Passwort hinterlegt.'];
+                }
+                if (!hash_equals($password, (string) ($action['pw'] ?? ''))) {
+                    return ['ok' => false, 'msg' => 'Passwort falsch.'];
+                }
+                $value = round(max(30, min(70, (float) ($action['v'] ?? 55))) * 2) / 2;
+                $this->WriteAttributeFloat('DHWMax', $value);
+                $msg = 'Max. Warmwassertemperatur: ' . number_format($value, 1, ',', '') . ' °C';
+                break;
+            default:
+                return ['ok' => false, 'msg' => 'Unbekannte Aktion'];
+        }
+        $this->SetCtlState($state);
+        return ['ok' => true, 'msg' => $msg];
+    }
+
+    // ---------------------------------------------------------------- Leistungsbegrenzung
+
+    /** Hausleistung in kW ohne Wärmepumpe */
+    private function HouseRestKW(): ?float
+    {
+        $id = $this->ReadPropertyInteger('HousePowerID');
+        if ($id <= 0 || !IPS_VariableExists($id)) {
+            return null;
+        }
+        $kW = (float) GetValue($id) / ($this->ReadPropertyInteger('HousePowerUnit') === 0 ? 1000 : 1);
+        if ($this->ReadPropertyBoolean('HouseIncludesHP')) {
+            $kW -= $this->MeasuredPowerKW() ?? $this->Value('ElecPower') ?? 0;
+        }
+        return max(0, $kW);
+    }
+
+    /** Hausenergie der laufenden Viertelstunde aufsummieren (Leistung × Zeit) */
+    private function IntegrateHouse(int $now)
+    {
+        if (!$this->ReadPropertyBoolean('PowerLimitEnabled')) {
+            return;
+        }
+        $state = json_decode($this->ReadAttributeString('HouseState'), true) ?: ['last' => 0, 'p' => 0];
+        $dt = ($state['last'] > 0 && $now > $state['last'] && $now - $state['last'] <= 15 * 60) ? $now - $state['last'] : 0;
+        if ($dt > 0) {
+            $this->WriteAttributeFloat('QHouseEnergy', $this->ReadAttributeFloat('QHouseEnergy') + $state['p'] * $dt / 3600);
+        }
+        $this->WriteAttributeString('HouseState', json_encode(['last' => $now, 'p' => $this->HouseRestKW() ?? 0]));
+    }
+
+    /**
+     * 15-min-Spitze begrenzen: Budget der Viertelstunde = max. Spitze × 0,25 h. Was davon noch übrig ist, darf auf die
+     * Restzeit verteilt werden; davon geht die aktuelle Hausleistung ab – der Rest ist der WP erlaubt.
+     */
+    private function LimitCalculation(int $now): ?array
+    {
+        $house = $this->HouseRestKW();
+        if ($house === null) {
+            return null;
+        }
+        $start = $this->ReadAttributeInteger('QStart') ?: intdiv($now, 900) * 900;
+        $max = $this->ReadPropertyFloat('MaxPeak15') - $this->ReadPropertyFloat('PowerMargin');
+        $used = $this->ReadAttributeFloat('QEnergy') + $this->ReadAttributeFloat('QHouseEnergy');
+        $remaining = max(60, $start + 900 - $now);
+        $budget = $max * 0.25 - $used;
+        $allowed = $budget / ($remaining / 3600) - $house;
+        $allowed = round(max($this->ReadPropertyFloat('MinHPPower'), min($max, $allowed)), 2);
+        $hp = max(0, $this->MeasuredPowerKW() ?? $this->Value('ElecPower') ?? 0);
+        // Prognose der Viertelstunde, wenn Haus und WP so weiterlaufen
+        $forecast = ($used + ($house + $hp) * ($start + 900 - $now) / 3600) / 0.25;
+        return ['house' => round($house, 2), 'hp' => round($hp, 2), 'allowed' => $allowed, 'forecast' => round($forecast, 2),
+                'used' => round($used, 3), 'end' => $start + 900, 'max' => $this->ReadPropertyFloat('MaxPeak15')];
+    }
+
+    private function PowerLimitTick(array &$state, int $now)
+    {
+        if (!$this->ReadPropertyBoolean('PowerLimitEnabled')) {
+            if ($state['limitActive']) {
+                $this->WriteTo('WriteSGTrigger', 0, 0.01, 0);  // Smart Grid Auslöser aus
+                $state['limitActive'] = false;
+            }
+            return;
+        }
+        $calc = $this->LimitCalculation($now);
+        if ($calc === null) {
+            return;
+        }
+        $this->WriteTo('WriteSGTrigger', 3);                    // 3 = Verfügbare Leistung gedämpft
+        $this->WriteTo('WriteSGPower', $calc['allowed'], 0.1, 300);
+        $state['limitActive'] = true;
+        foreach (['AllowedHPPower' => 'allowed', 'HousePower' => 'house'] as $ident => $field) {
+            if (@$this->GetIDForIdent($ident)) {
+                $this->SetValue($ident, $calc[$field]);
+            }
+        }
+    }
+
+    /** Daten für den Reiter "Steuerung" */
+    private function GetControlView(): ?array
+    {
+        $control = $this->ReadPropertyBoolean('ControlEnabled');
+        $rooms = $this->ReadPropertyBoolean('RoomDemandEnabled');
+        $limit = $this->ReadPropertyBoolean('PowerLimitEnabled');
+        if (!$control && !$rooms && !$limit) {
+            return null;
+        }
+        $now = time();
+        $state = $this->GetCtlState();
+        $season = $this->ReadPropertyInteger('SeasonMode') === 0 ? $state['season'] : $state['seasonAuto'];
+        $program = $this->HeatProgramAt($season, $now);
+        $dhw = $this->DHWProgramAt($now);
+        $avg = $this->ReadAttributeFloat('TempAvg');
+        return [
+            'ctl'    => $control,
+            'rooms'  => $rooms,
+            'limit'  => $limit,
+            'heat'   => [
+                'mode'       => $state['mode'],
+                'constTemp'  => $state['constTemp'],
+                'season'     => $season,
+                'seasonAuto' => $this->ReadPropertyInteger('SeasonMode') === 1,
+                'tAvg'       => $avg <= -900 ? null : round($avg, 1),
+                'prog'       => $program + ['until' => $this->NextChange(fn ($ts) => $this->HeatProgramAt($season, $ts), $now)],
+                'hc1'        => $this->Value('HC1Mode') !== null ? $this->Format('HC1Mode') : null,
+                'roomSet'    => $this->Value('RoomSetpoint') !== null ? $this->Format('RoomSetpoint') : null
+            ],
+            'dhw'    => [
+                'boost'   => $state['boost'],
+                'max'     => $this->ReadAttributeFloat('DHWMax'),
+                'prog'    => $dhw === null ? null : $dhw + ['until' => $this->NextChange(fn ($ts) => $this->DHWProgramAt($ts), $now)],
+                'status'  => $this->Value('DHWStatus') !== null ? $this->Format('DHWStatus') : null,
+                'top'     => $this->Value('StorageTop'),
+                'set'     => $this->Value('DHWSetpoint')
+            ],
+            'demand'   => $state['demand'],
+            'roomList' => $state['roomList'] ?? [],
+            'pw'       => $limit ? $this->LimitCalculation($now) : null,
+            'total15'  => $limit && @$this->GetIDForIdent('Total15') ? $this->GetValue('Total15') : null,
+            'totalPeak' => $limit && @$this->GetIDForIdent('Total15PeakToday') ? $this->GetValue('Total15PeakToday') : null
+        ];
     }
 
     // ---------------------------------------------------------------- Verwaltung
