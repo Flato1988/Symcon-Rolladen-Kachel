@@ -785,7 +785,8 @@
             $('cLimFc').style.width = Math.max(0, Math.min(100, (l.forecast - l.used / 0.25) / scale * 100)) + '%';
             $('cLimBar').classList.toggle('over', l.forecast > l.max);
             $('cLimBar').style.backgroundImage = `linear-gradient(90deg, transparent calc(${l.max / scale * 100}% - 1px), var(--hot) calc(${l.max / scale * 100}% - 1px), var(--hot) calc(${l.max / scale * 100}% + 1px), transparent calc(${l.max / scale * 100}% + 1px))`;
-            $('cLimText').textContent = `Prognose laufende ¼ h: ${kwTxt(l.forecast)} (Grenze ${kwTxt(l.max)})`;
+            $('cLimText').innerHTML = `Prognose laufende ¼ h: ${kwTxt(l.forecast)} (Grenze ${kwTxt(l.max)}) · `
+                + (ctl.sgOn ? '<span class="badge on">WP begrenzt</span>' : '<span class="badge ok">keine Begrenzung nötig</span>');
             $('cLimEnd').textContent = 'Viertelstunde bis ' + hhmm(l.end);
             $('cLimHouse').textContent = kwTxt(l.house);
             $('cLimHp').textContent = kwTxt(l.hp);

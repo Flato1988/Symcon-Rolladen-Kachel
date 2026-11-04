@@ -182,7 +182,7 @@ externen Zähler wird der Hoval-Energiezähler (25613) verwendet.
 **Steuerung (fünfter Reiter, erscheint nur wenn aktiviert) – schreibt in die Wärmepumpe:**
 Benötigt Symcon-Modbus-Geräte mit Funktion 6 (Write Single Register), Temperaturen mit Faktor 0,1:
 1478 Betriebswahl HK1, 1481 Normal-Raumtemperatur HK1, 1496 Betriebswahl WW, 1497 Normal-WW-Temperatur,
-27536 Verfügbare el. Leistung gedämpft, 27546 Auslöser Smart Grid. Geschrieben wird nur bei Änderung (Auffrischung alle 30 min).
+27536 Verfügbare el. Leistung gedämpft, 27546 Auslöser Smart Grid, 27545 Smart Grid über Systembus. Geschrieben wird nur bei Änderung (Auffrischung alle 30 min).
 
 - **Heizungssteuerung:** Automatik (Zeitprogramm), Frostschutz (1478 = Standby) oder Dauerbetrieb mit Raum-Soll.
   Zeitprogramme mit Komfortzeiten je Saison **Winter / Übergang / Sommer** (außerhalb: Absenktemperatur, Sommer: Heizung aus).
@@ -194,10 +194,13 @@ Benötigt Symcon-Modbus-Geräte mit Funktion 6 (Write Single Register), Temperat
   (+ Offset). Kein Raum zu kalt → HK1 Standby; mit Hysterese und Mindestzeit zwischen Wechseln.
 - **Leistungsbegrenzung (separat aktivierbar):** Haus- und WP-Leistung werden über die laufende Viertelstunde aufsummiert.
   Der WP wird über 27536 nur so viel erlaubt, dass Haus + WP die eingestellte 15-min-Spitze nicht überschreiten
-  (Budget = Grenze × ¼ h, verteilt auf die Restzeit, abzüglich aktueller Hausleistung). 27546 wird dafür auf 3 gesetzt.
+  (Budget = Grenze × ¼ h, verteilt auf die Restzeit, abzüglich aktueller Hausleistung). Ablauf laut Hoval-Anwendungsfall 6:
+  27546 = 2 (Systembus), 27545 = 1 (Vorzugsbetrieb) → 27536 wirksam; 27545 = 0 → Normalbetrieb. Der Vorzugsbetrieb wird nur
+  gesetzt, solange die erlaubte Leistung unter der WP-Maximalleistung liegt; nie weniger als die eingestellte Mindestleistung.
+  Voraussetzung: Grundeinstellung durch den Hoval-Service, Smart-Grid-Offsets (27528, 27509, 28839) auf 0.
 
 Beim Deaktivieren der Steuerung werden HK1 und Warmwasser wieder auf Hoval „Woche 1“ gestellt, die Leistungsbegrenzung
-setzt 27546 wieder auf 0.
+setzt 27545 wieder auf 0 (Normalbetrieb).
 
 **Eigene Klartexte:** In der Instanz unter „Klartexte (Status, Betriebsarten, Störungen)“ kann je Datenpunkt
 und Wert ein eigener Text hinterlegt werden (z.B. Status Wärmeerzeuger · 1 · „Betriebsbereit“). Eigene Texte haben

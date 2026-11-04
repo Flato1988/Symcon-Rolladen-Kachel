@@ -165,9 +165,11 @@ class HovalWaermepumpeKachel extends IPSModule
         $this->RegisterPropertyBoolean('HouseIncludesHP', false);// true: Hauszähler misst inkl. Wärmepumpe
         $this->RegisterPropertyFloat('MaxPeak15', 10);           // erlaubte 15-min-Spitze gesamt in kW
         $this->RegisterPropertyFloat('PowerMargin', 0.3);        // Sicherheitsabstand in kW
-        $this->RegisterPropertyFloat('MinHPPower', 0);           // Mindestleistung, die der WP immer erlaubt bleibt
+        $this->RegisterPropertyFloat('MinHPPower', 1.0);         // Mindestleistung, damit die WP ihre Minimalleistung halten kann
+        $this->RegisterPropertyFloat('HPMaxPower', 4.0);         // max. el. Leistung der WP: darunter wird begrenzt
         $this->RegisterPropertyInteger('WriteSGPower', 0);       // 27536 Verfügbare el. Leistung gedämpft (schreiben)
-        $this->RegisterPropertyInteger('WriteSGTrigger', 0);     // 27546 Auslöser Smart Grid Funktion (schreiben)
+        $this->RegisterPropertyInteger('WriteSGTrigger', 0);     // 27546 Auslöser Smart Grid Funktion (schreiben, 2 = Systembus)
+        $this->RegisterPropertyInteger('WriteSGMode', 0);        // 27545 Smart Grid über Systembus (schreiben, 1 = Vorzugsbetrieb)
         // Eigene Klartexte [{Key, Value, Text}] – haben Vorrang vor den Hoval-Texten
         $this->RegisterPropertyString('TextOverrides', '[]');
 
@@ -452,6 +454,10 @@ class HovalWaermepumpeKachel extends IPSModule
             ['type' => 'CheckBox', 'name' => 'PowerLimitEnabled', 'caption' => 'Leistungsbegrenzung aktivieren'],
             ['type' => 'Label', 'caption' => 'Über die laufende Viertelstunde wird mitgerechnet: Der WP wird über „Verfügbare el. Leistung gedämpft“ (27536) nur so viel erlaubt, '
                 . 'dass Haus + WP die eingestellte 15-min-Spitze nicht überschreiten. Die WP-Leistung kommt vom externen Zähler (sonst Hoval).'],
+            ['type' => 'Label', 'caption' => 'Ablauf laut Hoval (Anwendungsfall 6): 27546 = 2 (Systembus), dann 27545 = 1 (Vorzugsbetrieb) → 27536 wirksam; 27545 = 0 → Normalbetrieb. '
+                . 'Der Vorzugsbetrieb wird nur gesetzt, solange die erlaubte Leistung unter der WP-Maximalleistung liegt.'],
+            ['type' => 'Label', 'caption' => '⚠ Voraussetzungen: Grundeinstellung durch den Hoval-Service; Smart-Grid-Offsets 27528 (Raum HK1), 27509 (Warmwasser) und 28839 (Puffer) '
+                . 'auf 0, sonst heizt die WP im Vorzugsbetrieb zusätzlich hoch.'],
             ['type' => 'SelectVariable', 'name' => 'HousePowerID', 'caption' => 'Leistung Haus'],
             ['type' => 'RowLayout', 'items' => [
                 ['type' => 'Select', 'name' => 'HousePowerUnit', 'caption' => 'Einheit', 'options' => [['caption' => 'W', 'value' => 0], ['caption' => 'kW', 'value' => 1]]],
@@ -459,10 +465,11 @@ class HovalWaermepumpeKachel extends IPSModule
             ['type' => 'RowLayout', 'items' => [
                 ['type' => 'NumberSpinner', 'name' => 'MaxPeak15', 'caption' => 'max. 15-min-Spitze gesamt', 'digits' => 1, 'suffix' => 'kW'],
                 ['type' => 'NumberSpinner', 'name' => 'PowerMargin', 'caption' => 'Sicherheitsabstand', 'digits' => 1, 'suffix' => 'kW'],
-                ['type' => 'NumberSpinner', 'name' => 'MinHPPower', 'caption' => 'WP mindestens', 'digits' => 1, 'suffix' => 'kW']]],
+                ['type' => 'NumberSpinner', 'name' => 'MinHPPower', 'caption' => 'WP mindestens', 'digits' => 1, 'suffix' => 'kW'],
+                ['type' => 'NumberSpinner', 'name' => 'HPMaxPower', 'caption' => 'WP max. elektrisch', 'digits' => 1, 'suffix' => 'kW']]],
             $write('WriteSGPower', 'Verfügbare el. Leistung gedämpft schreiben (27536, kW)'),
             $write('WriteSGTrigger', 'Auslöser Smart Grid Funktion schreiben (27546)'),
-            ['type' => 'Label', 'caption' => 'Bei aktiver Begrenzung wird 27546 = 3 („Verfügbare Leistung gedämpft“) gesetzt, beim Deaktivieren wieder 0.']
+            $write('WriteSGMode', 'Smart Grid über Systembus schreiben (27545)')
         ]];
 
         // Offsets für alle Temperaturfühler
@@ -1751,12 +1758,19 @@ class HovalWaermepumpeKachel extends IPSModule
                 'used' => round($used, 3), 'end' => $start + 900, 'max' => $this->ReadPropertyFloat('MaxPeak15')];
     }
 
+    /**
+     * Leistungsbegrenzung nach Hoval Anwendungsfall 6: 27546 = 2 (Systembus) aktiviert 27545; 27545 = 1 (Vorzugsbetrieb)
+     * macht 27536 wirksam, 27545 = 0 (Normalbetrieb) hebt die Begrenzung auf. Der Vorzugsbetrieb wird nur gesetzt, solange
+     * die erlaubte Leistung unter der Maximalleistung der WP liegt (Ende mit 0,3 kW Hysterese) – so bleiben eventuelle
+     * Smart-Grid-Offsets ohne Begrenzungsbedarf wirkungslos.
+     */
     private function PowerLimitTick(array &$state, int $now)
     {
         if (!$this->ReadPropertyBoolean('PowerLimitEnabled')) {
             if ($state['limitActive']) {
-                $this->WriteTo('WriteSGTrigger', 0, 0.01, 0);  // Smart Grid Auslöser aus
+                $this->WriteTo('WriteSGMode', 0, 0.01, 0);     // Normalbetrieb: 27536 unwirksam
                 $state['limitActive'] = false;
+                $state['sgOn'] = false;
             }
             return;
         }
@@ -1764,8 +1778,17 @@ class HovalWaermepumpeKachel extends IPSModule
         if ($calc === null) {
             return;
         }
-        $this->WriteTo('WriteSGTrigger', 3);                    // 3 = Verfügbare Leistung gedämpft
-        $this->WriteTo('WriteSGPower', $calc['allowed'], 0.1, 300);
+        $hpMax = $this->ReadPropertyFloat('HPMaxPower');
+        $on = !empty($state['sgOn']) ? $calc['allowed'] < $hpMax + 0.3 : $calc['allowed'] < $hpMax;
+        $this->WriteTo('WriteSGTrigger', 2);                    // 2 = Systembus (aktiviert 27545)
+        if ($on) {
+            $this->WriteTo('WriteSGPower', $calc['allowed'], 0.1, 300);
+            $this->WriteTo('WriteSGMode', 1);                   // Vorzugsbetrieb: 27536 wirksam
+        } else {
+            $this->WriteTo('WriteSGMode', 0);                   // keine Begrenzung nötig: Normalbetrieb
+            $this->WriteTo('WriteSGPower', $hpMax, 0.1, 1800);
+        }
+        $state['sgOn'] = $on;
         $state['limitActive'] = true;
         foreach (['AllowedHPPower' => 'allowed', 'HousePower' => 'house'] as $ident => $field) {
             if (@$this->GetIDForIdent($ident)) {
@@ -1814,6 +1837,7 @@ class HovalWaermepumpeKachel extends IPSModule
             'demand'   => $state['demand'],
             'roomList' => $state['roomList'] ?? [],
             'pw'       => $limit ? $this->LimitCalculation($now) : null,
+            'sgOn'     => !empty($state['sgOn']),
             'total15'  => $limit && @$this->GetIDForIdent('Total15') ? $this->GetValue('Total15') : null,
             'totalPeak' => $limit && @$this->GetIDForIdent('Total15PeakToday') ? $this->GetValue('Total15PeakToday') : null
         ];
