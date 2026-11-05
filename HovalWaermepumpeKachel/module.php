@@ -230,6 +230,9 @@ class HovalWaermepumpeKachel extends IPSModule
         $this->RegisterAttributeString('RefHist', '[]');
         // Überwachung: letzter Gesamtstatus (ok | warn | alarm | learn | off) für die Anzeige am Reiter
         $this->RegisterAttributeString('MonState', 'learn');
+        // zuletzt gewählte Ansicht der Kachel {v: Reiter, c: Steuerung-Unterseite, s: Auswertungsbereich, r: Leistungszeitraum} –
+        // bleibt erhalten, wenn die App die Kachel neu lädt (dort gibt es keinen Browser-Speicher)
+        $this->RegisterAttributeString('ViewState', '{}');
 
         $this->RegisterTimer('Tick', 0, 'HWP_Tick($_IPS[\'TARGET\']);');
 
@@ -390,6 +393,16 @@ class HovalWaermepumpeKachel extends IPSModule
                     $this->UpdateMonitor(false);
                 }
                 $this->UpdateVisualizationValue(json_encode(['monitor' => $this->EvaluateMonitor()]));
+                break;
+            case 'View': // Kachel merkt sich die gewählte Ansicht (kein Neuzeichnen nötig)
+                $state = json_decode((string) $Value, true);
+                if (is_array($state)) {
+                    $clean = array_map(fn ($v) => substr(preg_replace('/[^a-z]/', '', (string) $v), 0, 12), array_intersect_key($state, array_flip(['v', 'c', 's', 'r'])));
+                    $this->WriteAttributeString('ViewState', json_encode($clean));
+                }
+                break;
+            case 'ResetCmp': // Vergleichszeitraum (Energie, JAZ) aus der Kachel neu starten
+                $this->ResetComparison();
                 break;
             case 'Refri': // Kachel fordert den Kältekreis-Verlauf an
                 $this->UpdateVisualizationValue(json_encode(['refriHist' => json_decode($this->ReadAttributeString('RefHist'), true) ?: []]));
@@ -1778,7 +1791,9 @@ class HovalWaermepumpeKachel extends IPSModule
             'power'   => $this->GetPowerView(),
             'control' => $this->GetControlView(),
             'refri'   => $this->GetRefrigerantView(),
-            'monState' => $this->ReadAttributeString('MonState')
+            'monState' => $this->ReadAttributeString('MonState'),
+            'view'     => json_decode($this->ReadAttributeString('ViewState'), true) ?: new stdClass(),
+            'since'    => date('d.m.Y H:i', $c['since'])
         ]);
     }
 

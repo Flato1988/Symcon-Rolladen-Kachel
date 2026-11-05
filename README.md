@@ -245,6 +245,12 @@ Auffälligkeiten stehen in den Variablen „Überwachung: Auffälligkeit“ (~Al
 
 **Anlage:** Spreizung (Vorlauf − Rücklauf) und elektrische Leistung (gemessen, sonst Hoval) im Schema.
 
+**Vergleich zurücksetzen:** unter der Vergleichstabelle (Anlage) „↺ Zähler zurücksetzen“ – startet den Vergleich von
+el. Energie (Hoval und gemessen) und JAZ ab jetzt neu (mit Rückfrage), wie der Button in der Instanz.
+
+**Ansicht merken:** Reiter, Steuerungs-Unterseite, Auswertungsbereich und Leistungszeitraum werden im Modul gespeichert,
+damit die Kachel nach einem Neuladen (z.B. in der iOS-App) auf derselben Ansicht steht.
+
 **Kältekreis-Bewertung:** Überhitzung (3–10 K), Druckverhältnis (bis 6), Luft − Verdampfung (bis 10 K),
 Kondensator (bis 6 K) und Heißgas (bis 95 °C) werden bei laufendem Verdichter **grün** (Norm), orange (auffällig)
 oder rot hinterlegt.

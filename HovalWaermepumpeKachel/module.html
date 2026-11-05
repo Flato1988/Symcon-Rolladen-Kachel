@@ -28,10 +28,10 @@
     button, .sw, .sum .it, summary { touch-action: manipulation; }
     #tile {
         box-sizing: border-box;
-        /* genau so hoch wie die Kachel (100vh), nie höher: die Seite selbst hat dadurch nichts zu scrollen;
+        /* genau so hoch wie die Kachel (html/body 100 %, kein vh – iOS rechnet vh anders), nie höher: die Seite selbst hat nichts zu scrollen;
            gescrollt wird nur der Inhaltsbereich unter den Reitern (#body) */
-        height: 100vh;
-        max-height: 100vh;
+        height: 100%;
+        max-height: 100%;
         width: 100%;
         overflow: hidden;
         position: relative;
@@ -57,6 +57,10 @@
     #cmp td.src { font-size: 10px; opacity: .55; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px; }
     #cmp td.dev { font-weight: 600; }
     #cmp .ok { color: var(--acc); }
+    #cmp tfoot td { border-top: 1px solid rgba(128, 128, 128, .15); padding: 5px 8px 2px; text-align: left; white-space: normal; }
+    .cmp-foot { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; font-size: 11px; }
+    .cmp-foot #cmpSince { opacity: .6; flex: 1; }
+    .cmp-foot .btn { font-size: 11px; padding: 2px 10px; }
     #cmp .warn { color: #f2994a; }
     #cmp .bad { color: var(--hot); }
     @media (max-width: 520px) {
@@ -854,6 +858,10 @@
     <table id="cmp">
         <thead><tr><th>Vergleich</th><th>Pumpe</th><th>Eigene</th><th class="src">Quelle</th><th>Abw.</th></tr></thead>
         <tbody></tbody>
+        <tfoot><tr><td colspan="5"><div class="cmp-foot"><span id="cmpSince"></span>
+            <button class="btn" id="cmpReset" title="Energie- und JAZ-Vergleich (Hoval-Zähler und gemessene el. Energie) ab jetzt neu beginnen">↺ Zähler zurücksetzen</button>
+            <span id="cmpConfirm" hidden>Wirklich neu beginnen? <button class="btn warn" id="cmpYes">Ja, zurücksetzen</button> <button class="btn" id="cmpNo">Abbrechen</button></span>
+        </div></td></tr></tfoot>
     </table>
     </div>
     <div id="ctlToast"></div>
@@ -1000,7 +1008,16 @@
     $('daily').addEventListener('pointerleave', hideDailyTip);
 
     // Umschalter Anlage / Verlauf (Auswahl wird im Browser gemerkt)
+    // gewählte Ansicht im Modul merken: die iOS-App lädt die Kachel bei Bedienung teils neu und hat keinen Browser-Speicher
+    let curView = 'schema', viewRestoring = false, pendingView = null;
+    function saveView() {
+        if (viewRestoring || typeof requestAction !== 'function') return;
+        clearTimeout(saveView.t);
+        saveView.t = setTimeout(() => requestAction('View', JSON.stringify({ v: curView, c: ctlPage, s: sMode, r: pwRange })), 300);
+    }
     function showView(name) {
+        curView = name;
+        saveView();
         $('viewSchema').hidden = name !== 'schema';
         $('viewDaily').hidden = name !== 'daily';
         $('viewStats').hidden = name !== 'stats';
@@ -1031,6 +1048,11 @@
     $('tabPower').addEventListener('click', () => showView('power'));
     $('tabCtl').addEventListener('click', () => showView('ctl'));
     $('tabRefri').addEventListener('click', () => showView('refri'));
+
+    // Vergleichszeitraum zurücksetzen (zweistufig, ohne Browser-Dialog – der funktioniert in den Apps nicht zuverlässig)
+    $('cmpReset').addEventListener('click', () => { $('cmpReset').hidden = true; $('cmpConfirm').hidden = false; });
+    $('cmpNo').addEventListener('click', () => { $('cmpReset').hidden = false; $('cmpConfirm').hidden = true; });
+    $('cmpYes').addEventListener('click', () => { requestAction('ResetCmp', ''); $('cmpReset').hidden = false; $('cmpConfirm').hidden = true; });
 
     // ---------- Kältekreis: Schema mit aktuellen Werten, Verlauf der letzten 6 Stunden ----------
     let gotData = false; // erst nach der ersten Nachricht vom Modul wissen wir, welche Reiter es gibt
@@ -1351,6 +1373,7 @@
     let ctlPage = 'main';
     try { ctlPage = localStorage.getItem('hwpCtlPage') || 'main'; } catch (e) {}
     function showCtlPage(p) {
+        setTimeout(saveView, 0);
         ctlPage = p;
         try { localStorage.setItem('hwpCtlPage', p); } catch (e) {}
         $('body').scrollTop = 0;
@@ -1528,6 +1551,7 @@
     try { pwRange = localStorage.getItem('hwpPwRange') || 'day'; } catch (e) {}
     document.querySelectorAll('#pwRange button').forEach(b => b.addEventListener('click', () => {
         pwRange = b.dataset.r;
+        saveView();
         try { localStorage.setItem('hwpPwRange', pwRange); } catch (e) {}
         drawPower();
     }));
@@ -1802,6 +1826,7 @@
     let sMode = 'energy', costData = null, monData = null;
     try { sMode = localStorage.getItem('hwpSMode') || 'energy'; } catch (e) {}
     function showStatsMode(m) {
+        setTimeout(saveView, 0);
         sMode = m;
         try { localStorage.setItem('hwpSMode', m); } catch (e) {}
         document.querySelectorAll('#sMode button').forEach(b => b.classList.toggle('on', b.dataset.m === m));
@@ -1997,6 +2022,14 @@
             return;
         }
         values = msg.values || {};
+        if (!gotData && msg.view && msg.view.v) {
+            // erste Nachricht: zuletzt gewählte Ansicht aus dem Modul wiederherstellen
+            const vs = msg.view;
+            if (vs.c) ctlPage = vs.c;
+            if (vs.s) sMode = vs.s;
+            if (vs.r) pwRange = vs.r;
+            if (['schema', 'daily', 'stats', 'power', 'ctl', 'refri'].includes(vs.v)) pendingView = vs.v;
+        }
         gotData = true;
         drawMonState(msg.monState);
 
@@ -2080,6 +2113,7 @@
             tbody.appendChild(tr);
         }
         $('cmp').style.display = (msg.rows || []).length ? '' : 'none';
+        $('cmpSince').textContent = msg.since ? 'Vergleich seit ' + msg.since : '';
 
         // Y-Ventil: aktiven Zweig hervorheben, den anderen ausgrauen
         const valve = msg.valve; // "ww" oder "heat"
@@ -2104,6 +2138,11 @@
         syncGlints();
         // offene Auswertung höchstens einmal pro Minute aktualisieren (laufender Tag/Woche/Monat)
         if (!$('viewStats').hidden && sMode === 'energy' && Date.now() - sLastRequest > 60000) requestStats();
+        if (pendingView) {
+            const v = pendingView;
+            pendingView = null;
+            if ((v !== 'refri' || refri) && (v !== 'ctl' || ctl)) { viewRestoring = true; showView(v); viewRestoring = false; }
+        }
     }
     try { const v = localStorage.getItem('hwpView'); if (['daily', 'stats', 'power', 'ctl', 'refri'].includes(v)) showView(v); } catch (e) {}
 </script>
