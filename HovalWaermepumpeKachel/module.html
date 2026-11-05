@@ -25,8 +25,10 @@
     }
     #tile {
         box-sizing: border-box;
-        /* 100vh = Höhe der Kachel, auch wenn Symcon keine Höhe an html/body vorgibt */
-        height: 100vh;
+        /* fest an die Kachel gebunden: die Seite selbst kann nicht scrollen (iOS ignoriert overflow: hidden im iFrame);
+           gescrollt wird nur der Inhaltsbereich unter den Reitern */
+        position: fixed;
+        inset: 0;
         /* oben Platz für den Titel und das Vergrößern-Symbol, die Symcon selbst zeichnet */
         padding: 58px 14px 10px;
         display: flex;
@@ -64,11 +66,13 @@
     .kpi[hidden] { display: none; }
 
     /* ---------- Anlagenschema ---------- */
-    #schema { flex: 1; min-height: 0; width: 100%; display: block; }
+    #schema { flex: 1 1 0; min-height: 190px; width: 100%; display: block; }
     .kpi.defrost.active .value { color: var(--cold); }
 
     /* ---------- Umschalter Anlage / Verlauf ---------- */
-    .view { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+    #body { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; display: flex; flex-direction: column; gap: 8px;
+            -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+    .view { flex: 1 0 auto; min-height: 0; display: flex; flex-direction: column; }
     .view[hidden] { display: none; }
     .tabs { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; row-gap: 4px; }
     .tabs button {
@@ -84,7 +88,7 @@
     .legend .l-elec { background: var(--elec); }
     .legend .l-heat { background: var(--heat); }
     .legend .l-temp { height: 3px; vertical-align: 2px; background: var(--cold); }
-    .chart-wrap { position: relative; flex: 1; min-height: 0; display: flex; }
+    .chart-wrap { position: relative; flex: 1 1 0; min-height: 150px; display: flex; }
     #daily { flex: 1; width: 100%; min-height: 0; display: block; touch-action: pan-y; }
     #daily text { fill: var(--fg); font-size: 10px; opacity: .6; }
     #daily .grid { stroke: rgba(128, 128, 128, .22); stroke-width: 1; }
@@ -106,7 +110,7 @@
     /* ---------- Kältekreis ---------- */
     #tile.refri-view #cmp { display: none !important; }
     #viewRefri { gap: 6px; }
-    #rSchema { width: 100%; flex: 1.2; min-height: 0; display: block; }
+    #rSchema { width: 100%; flex: 1.2; min-height: 170px; display: block; }
     #rSchema text { fill: var(--fg); font-size: 8.5px; }
     #rSchema .t { font-size: 9.5px; font-weight: 600; }
     #rSchema .s { font-size: 7.5px; opacity: .65; }
@@ -149,7 +153,9 @@
     #rChart text { fill: var(--fg); font-size: 10px; opacity: .6; }
     #rChart .grid { stroke: rgba(128, 128, 128, .22); stroke-width: 1; }
     #rChart .df { fill: var(--cold); opacity: .12; }
-    #rChart .off { fill: rgba(128, 128, 128, .12); }
+    #rChart .off { fill: rgba(128, 128, 128, .16); }
+    #rChart .gap { fill: rgba(128, 128, 128, .28); }
+    #rChart .ln.faint { opacity: .3; }
     #rChart .band { fill: var(--acc); opacity: .1; }
     #rChart .ln { fill: none; stroke-width: 1.8; stroke-linejoin: round; }
     #rChart .cursor { stroke: var(--fg); stroke-width: 1; opacity: .4; }
@@ -159,7 +165,7 @@
     .legend i.dash { height: 0; border-top: 2px dashed currentColor; border-radius: 0; vertical-align: 3px; } /* ausgeblendete Elemente bleiben aus, auch wenn ihre Klasse ein display setzt */
 
     /* ---------- Steuerung ---------- */
-    #viewCtl { overflow-y: auto; }
+    #viewCtl { flex: 0 0 auto; }
     .ctl-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 10px; align-content: start; }
     .card { border-radius: 10px; background: var(--box); padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
     .card h3 { margin: 0; font-size: 13px; font-weight: 600; display: flex; justify-content: space-between; align-items: baseline; }
@@ -199,12 +205,23 @@
     .func { display: grid; grid-template-columns: auto 1fr auto; gap: 7px 10px; align-items: center; font-size: 12.5px; }
     .func .hint { text-align: right; }
     .rooms.sel { grid-template-columns: auto 1fr auto auto auto; }
-    .rooms .off { opacity: .4; text-decoration: line-through; }
-    .rooms .off.n { text-decoration: none; }
+    .rooms .off { opacity: .38; }
     .avg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; font-size: 11px; }
     .avg b { display: block; font-size: 14px; font-weight: 500; font-variant-numeric: tabular-nums; }
     .avg b.ok { color: #30a46c; } .avg b.warn { color: #f2994a; } .avg b.bad { color: var(--hot); }
     #cSet { grid-column: 1 / -1; }
+    .subnav { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
+    .subnav button { border: 1px solid rgba(128, 128, 128, .3); background: var(--box); color: inherit; font: inherit; font-size: 11.5px;
+                     padding: 4px 11px; border-radius: 12px; cursor: pointer; }
+    .subnav button.on { background: var(--acc); color: #fff; border-color: var(--acc); }
+    .sum { display: flex; flex-direction: column; }
+    .sum .it { display: grid; grid-template-columns: 22px 1fr auto; gap: 8px; align-items: center; padding: 7px 2px; cursor: pointer;
+               border-top: 1px solid rgba(128, 128, 128, .15); font-size: 12.5px; }
+    .sum .it:first-child { border-top: 0; }
+    .sum .it .t { display: flex; flex-direction: column; min-width: 0; }
+    .sum .it .t small { font-size: 11px; opacity: .65; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .sum .it .go { opacity: .4; font-size: 16px; }
+    .sum .it.off { opacity: .45; }
     #cSet details { border-top: 1px solid rgba(128, 128, 128, .2); padding-top: 6px; }
     #cSet summary { cursor: pointer; font-size: 12.5px; font-weight: 600; padding: 2px 0; }
     .fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px 12px; margin: 6px 0 4px; }
@@ -252,6 +269,44 @@
     #stats .hline { fill: none; stroke: #8b9aa6; stroke-width: 1.5; stroke-dasharray: 4 3; }
     #stats text.df { font-size: 9px; opacity: .85; fill: var(--cold); }
     #sEmpty { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; font-size: 12px; opacity: .6; text-align: center; }
+    .smode { display: flex; flex-direction: column; gap: 6px; flex: 1 0 auto; }
+    #viewStats .subnav { margin-bottom: 2px; }
+    #sMonDot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; vertical-align: 1px; margin-left: 2px; }
+    #sMonDot.warn { background: #f2994a; } #sMonDot.alarm { background: var(--hot); } #sMonDot.ok { background: #30a46c; }
+    .tabs button .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-left: 4px; vertical-align: 1px; }
+    .tabs button .dot.warn { background: #f2994a; } .tabs button .dot.alarm { background: var(--hot); }
+    .cost-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 6px; }
+    .cost-cards .kpi .value { color: var(--acc); font-size: 16px; }
+    .cost-cards .kpi .sub { font-size: 10.5px; opacity: .65; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #viewStats .hint { font-size: 11px; opacity: .65; }
+    .sec-title { font-size: 12px; font-weight: 600; margin-top: 4px; }
+    .sec-title .hint { font-weight: 400; opacity: .6; font-size: 11px; }
+    #costChart { flex: 1; width: 100%; min-height: 0; display: block; }
+    #costChart text { fill: var(--fg); font-size: 10px; opacity: .65; }
+    #costChart text.v { opacity: .9; font-size: 9.5px; }
+    #costChart .grid { stroke: rgba(128, 128, 128, .22); stroke-width: 1; }
+    #costChart .bar { fill: var(--acc); opacity: .85; }
+    #costChart .bar.cold { fill: var(--cold); }
+    .empty { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; font-size: 12px; opacity: .6; text-align: center; padding: 0 12px; }
+    .tbl { width: 100%; border-collapse: collapse; font-size: 11.5px; font-variant-numeric: tabular-nums; }
+    .tbl th { font-weight: 400; opacity: .6; font-size: 10.5px; text-align: right; padding: 2px 6px; white-space: nowrap; }
+    .tbl td { text-align: right; padding: 3px 6px; border-top: 1px solid rgba(128, 128, 128, .15); white-space: nowrap; }
+    .tbl th:first-child, .tbl td:first-child { text-align: left; }
+    .mon-head { display: flex; align-items: center; gap: 10px; font-size: 13px; }
+    .mon-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 6px; }
+    .mon-item { border-radius: 8px; background: var(--box); padding: 7px 10px; display: flex; flex-direction: column; gap: 3px; font-size: 12px;
+                border-left: 4px solid rgba(128, 128, 128, .35); }
+    .mon-item.ok { border-left-color: #30a46c; }
+    .mon-item.warn { border-left-color: #f2994a; background: rgba(242, 153, 74, .1); }
+    .mon-item.alarm { border-left-color: var(--hot); background: rgba(229, 72, 77, .1); }
+    .mon-item .top { display: flex; justify-content: space-between; gap: 8px; }
+    .mon-item .st { font-size: 11px; white-space: nowrap; }
+    .mon-item .st.ok { color: #30a46c; } .mon-item .st.warn { color: #f2994a; } .mon-item .st.alarm { color: var(--hot); }
+    .mon-item .vals { font-variant-numeric: tabular-nums; opacity: .85; }
+    .mon-item .prog { height: 4px; border-radius: 2px; background: rgba(128, 128, 128, .2); overflow: hidden; }
+    .mon-item .prog i { display: block; height: 100%; background: var(--acc); }
+    .mon-item .hint { font-size: 11px; opacity: .7; }
+    .badge.warn { background: #f2994a; color: #fff; } .badge.alarm { background: var(--hot); color: #fff; }
     #sDetail { border-radius: 8px; background: var(--box); padding: 6px 10px 8px; }
     #sDetail .head { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; margin-bottom: 4px; }
     #sDetail .head span:last-child { opacity: .6; font-size: 11px; text-align: right; }
@@ -299,6 +354,11 @@
     #pwPeaks .v { font-size: 10px; font-variant-numeric: tabular-nums; opacity: .8; white-space: nowrap; }
     #pwPeaks .b { width: 100%; max-width: 34px; border-radius: 3px 3px 0 0; background: var(--hot); opacity: .35; }
     #pwPeaks .d { font-size: 10px; opacity: .6; }
+    #pwPeaks .day { cursor: pointer; }
+    #pwPeaks .sel .b { outline: 2px solid var(--fg); outline-offset: 1px; }
+    #pwDayNav { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; }
+    #pwDLabel { min-width: 92px; text-align: center; font-variant-numeric: tabular-nums; }
+    .pw-peaks-title .hint { opacity: .7; }
     #pwPeaks .today .b { opacity: .9; }
     #pwPeaks .today .d { opacity: 1; font-weight: 600; }
     @media (max-width: 440px) { .pw-top { grid-template-columns: 118px 1fr; } }
@@ -389,7 +449,7 @@
     <div class="tabs">
         <button id="tabSchema" class="on">Anlage</button>
         <button id="tabDaily">Verlauf</button>
-        <button id="tabStats">Auswertung</button>
+        <button id="tabStats">Auswertung<span class="dot"></span></button>
         <button id="tabPower">Leistung</button>
         <button id="tabRefri" hidden>Kältekreis</button>
         <button id="tabCtl" hidden>Steuerung</button>
@@ -397,6 +457,7 @@
         <span id="rangeBtns" hidden><button data-days="14" class="on">14 Tage</button> <button data-days="30">30 Tage</button></span>
     </div>
 
+    <div id="body">
     <div class="view" id="viewSchema">
     <svg id="schema" viewBox="0 0 440 232" preserveAspectRatio="xMidYMid meet">
         <!-- Wärmepumpe -->
@@ -417,6 +478,8 @@
         <text x="102" y="165" text-anchor="end" id="tWezIst">–</text>
         <text class="small" x="14" y="180">Betriebsstd.</text>
         <text x="102" y="180" text-anchor="end" id="tWezPower">–</text>
+        <text class="small" x="14" y="195" id="tElecLabel">Leistung el.</text>
+        <text x="102" y="195" text-anchor="end" id="tElec">–</text>
 
         <!-- Vorlauf bis zum Y-Ventil -->
         <path class="pipe-bg hot" d="M110 60 H148"/>
@@ -497,6 +560,8 @@
         <text class="small center" x="140" y="204" id="tPump"></text>
         <text class="small" x="160" y="230">Rücklauf</text>
         <text x="194" y="230" id="tReturn" style="font-weight:600">–</text>
+        <text class="small" x="246" y="230" id="tSpreadLabel">Spreizung</text>
+        <text x="284" y="230" id="tSpread" style="font-weight:600"></text>
     </svg>
     </div>
 
@@ -514,6 +579,8 @@
     </div>
 
     <div class="view" id="viewStats" hidden>
+        <div class="subnav" id="sMode"><button data-m="energy" class="on">Energie</button><button data-m="cost">Kosten</button><button data-m="mon">Überwachung <span id="sMonDot"></span></button></div>
+        <div class="smode" id="sModeEnergy">
         <div class="stats-bar">
             <span class="seg" id="sPeriod">
                 <button data-p="day" class="on">Tage</button><button data-p="week">Wochen</button><button data-p="month">Monate</button>
@@ -535,6 +602,26 @@
             <div id="sEmpty">Noch keine Daten für diesen Zeitraum – die Auswertung füllt sich ab dem Update Tag für Tag.</div>
         </div>
         <div id="sDetail"></div>
+        </div>
+        <div class="smode" id="sModeCost" hidden>
+            <div class="cost-cards" id="cCards"></div>
+            <div class="sec-title">Kosten je Tag nach Ø Außentemperatur <span class="hint" id="cPrice"></span></div>
+            <div class="chart-wrap" style="min-height:170px">
+                <svg id="costChart"></svg>
+                <div id="costEmpty" class="empty">Noch zu wenig vollständige Tage – die Übersicht füllt sich mit jedem Tag.</div>
+            </div>
+            <table class="tbl" id="cTable"></table>
+            <div class="hint">Erfahrungswerte aus allen vollständigen Tagen. ≈ €/Monat = Ø Kosten je Tag × 30,4 bei gleichbleibender Außentemperatur.</div>
+        </div>
+        <div class="smode" id="sModeMon" hidden>
+            <div class="mon-head">
+                <label class="sw"><input type="checkbox" id="mOn"><i></i></label><b>Überwachung</b><span class="badge" id="mBadge">–</span>
+            </div>
+            <div class="hint" id="mIntro">Vergleicht die letzten 3 vollständigen Tage mit den eigenen Erfahrungswerten bei ähnlicher Außentemperatur
+                und meldet Auffälligkeiten (z.B. sinkende Effizienz, Anzeichen für Kältemittelverlust, hoher Energieaufwand beim Warmwasser).
+                Meldungen stehen auch in den Variablen „Überwachung: Auffälligkeit“ und „Überwachung: Meldung“ (z.B. für Benachrichtigungen).</div>
+            <div class="mon-list" id="mList"></div>
+        </div>
     </div>
 
     <div class="view" id="viewPower" hidden>
@@ -559,8 +646,9 @@
         </div>
         <div class="stats-bar">
             <span class="seg" id="pwRange">
-                <button data-r="day" class="on">24 h</button><button data-r="week">Woche</button><button data-r="month">Monat</button>
+                <button data-r="day" class="on">Tag</button><button data-r="week">Woche</button><button data-r="month">Monat</button>
             </span>
+            <span id="pwDayNav"><button class="nav" id="pwDPrev" title="Tag davor">‹</button> <span id="pwDLabel">letzte 24 h</span> <button class="nav" id="pwDNext" title="Tag danach">›</button></span>
             <span class="legend" style="margin:0">
                 <span><i class="l-pw"></i><span id="pwLegend">Leistung (kW, Ø 15 min)</span></span>
                 <span id="pwLegendPeak" hidden><i style="background:var(--hot)"></i>Spitze 15 min</span>
@@ -573,7 +661,7 @@
             <div id="pwEmpty">Noch keine Daten – der erste Balken erscheint nach der nächsten vollen Viertelstunde.</div>
         </div>
         <div class="pw-peaks">
-            <div class="pw-peaks-title">Höchste 15-min-Leistung je Tag</div>
+            <div class="pw-peaks-title">Höchste 15-min-Leistung je Tag <span class="hint">· antippen zeigt den Tag</span></div>
             <div id="pwPeaks"></div>
         </div>
     </div>
@@ -653,8 +741,15 @@
     </div>
 
     <div class="view" id="viewCtl" hidden>
+        <div class="subnav" id="cNav">
+            <button data-p="main">Übersicht</button><button data-p="heat">Heizung</button><button data-p="dhw">Warmwasser</button><button data-p="rooms">Räume</button><button data-p="limit">Leistung</button><button data-p="pv">PV</button><button data-p="set">⚙ Einstellungen</button>
+        </div>
         <div class="ctl-grid">
-            <div class="card" id="cFunc">
+            <div class="card" id="cSum" data-page="main">
+                <h3>Status</h3>
+                <div class="sum" id="cSumList"></div>
+            </div>
+            <div class="card" id="cFunc" data-page="main">
                 <h3>Funktionen <span class="badge" id="cLock">🔒 gesperrt</span></h3>
                 <div class="func">
                     <label class="sw"><input type="checkbox" data-f="ctlOn"><i></i></label><span>Heizungssteuerung</span><span class="hint">Zeitprogramme, Warmwasser</span>
@@ -672,7 +767,7 @@
                 </div>
                 <div class="hint" id="cNoPw" hidden>In der Instanz ist kein Passwort hinterlegt – ohne Passwort ist keine Aktivierung möglich.</div>
             </div>
-            <div class="card" id="cHeat">
+            <div class="card" id="cHeat" data-page="heat">
                 <h3>Heizung <small id="cHeatHoval"></small></h3>
                 <div class="row"><span class="seg" id="cMode">
                     <button data-v="auto">Automatik</button><button data-v="frost">Frostschutz</button><button data-v="const">Dauer</button>
@@ -683,7 +778,7 @@
                 </span><span class="hint" id="cSeasonHint"></span></div>
                 <div class="state" id="cHeatState">–</div>
             </div>
-            <div class="card" id="cDhw">
+            <div class="card" id="cDhw" data-page="dhw">
                 <h3>Warmwasser <small id="cDhwHoval"></small></h3>
                 <div class="state" id="cDhwState">–</div>
                 <div class="row" id="cBoostRun" hidden><span id="cBoostText"></span><button class="btn warn" id="cBoostStop">Beenden</button></div>
@@ -701,7 +796,7 @@
                     <button class="btn primary" id="cMaxOk">Speichern</button><button class="btn" id="cMaxCancel">Abbrechen</button>
                 </div>
             </div>
-            <div class="card" id="cRooms">
+            <div class="card" id="cRooms" data-page="rooms">
                 <h3>Räume <span class="badge" id="cDemand">–</span></h3>
                 <div class="avg">
                     <div>Ø Ist<b id="cAvgIst">–</b></div><div>Ø Soll<b id="cAvgSoll">–</b></div><div>Abweichung<b id="cAvgDev">–</b></div>
@@ -709,7 +804,7 @@
                 <div class="hint" id="cRoomMode"></div>
                 <div class="rooms sel" id="cRoomList"></div>
             </div>
-            <div class="card" id="cLimit">
+            <div class="card" id="cLimit" data-page="limit">
                 <h3>Leistungsbegrenzung <small id="cLimEnd"></small></h3>
                 <div class="lim-bar" id="cLimBar"><div class="used" id="cLimUsed"></div><div class="fc" id="cLimFc"></div></div>
                 <div class="row hint" id="cLimText"></div>
@@ -718,14 +813,14 @@
                     <div>Letzte ¼ h gesamt<b id="cLimLast">–</b></div><div>Spitze heute<b id="cLimPeak">–</b></div><div>Grenze<b id="cLimMax">–</b></div>
                 </div>
             </div>
-            <div class="card" id="cPv">
+            <div class="card" id="cPv" data-page="pv">
                 <h3>PV-Überschuss <span class="badge" id="cPvBadge">–</span></h3>
                 <div class="lim-vals">
                     <div>Überschuss verfügbar<b id="cPvAvail">–</b></div><div>Einschalten ab<b id="cPvStart">–</b></div><div>Ausschalten unter<b id="cPvStop">–</b></div>
                 </div>
                 <div class="row hint" id="cPvText"></div>
             </div>
-            <div class="card" id="cSet" hidden>
+            <div class="card" id="cSet" data-page="set">
                 <h3>Einstellungen <small>werden erst mit „Speichern“ übernommen</small></h3>
                 <details open><summary>Saison und Absenkung</summary>
                     <div class="row"><span class="hint">Saison</span><span class="seg" id="sSeasonMode"><button data-v="0">manuell</button><button data-v="1">automatisch (Ø 24 h Außen)</button></span></div>
@@ -756,12 +851,13 @@
             </div>
         </div>
     </div>
-    <div id="ctlToast"></div>
 
     <table id="cmp">
         <thead><tr><th>Vergleich</th><th>Pumpe</th><th>Eigene</th><th class="src">Quelle</th><th>Abw.</th></tr></thead>
         <tbody></tbody>
     </table>
+    </div>
+    <div id="ctlToast"></div>
 </div>
 
 <script>
@@ -925,7 +1021,7 @@
         $('rangeBtns').hidden = name !== 'daily';
         try { localStorage.setItem('hwpView', name); } catch (e) {}
         if (name === 'daily') drawDaily();
-        if (name === 'stats') requestStats();
+        if (name === 'stats') showStatsMode(sMode);
         if (name === 'power') drawPower();
         if (name === 'ctl') drawCtl();
         if (name === 'refri') { drawRefri(); requestRefri(); }
@@ -1006,7 +1102,8 @@
         document.querySelectorAll('#rRange button').forEach(b => b.classList.toggle('on', b.dataset.r === rRange));
         const cfg = R_SERIES[rRange];
         $('rLegend').innerHTML = cfg.lines.map(([, label, color, dash]) => `<span style="color:${color}"><i class="${dash ? 'dash' : ''}" style="background:${dash ? 'transparent' : color}"></i><span style="color:var(--fg)">${label}</span></span>`).join('')
-            + '<span><i style="background:var(--cold);opacity:.25"></i>Abtauung</span><span><i style="background:rgba(128,128,128,.3)"></i>Verdichter aus</span>';
+            + '<span><i style="background:var(--cold);opacity:.25"></i>Abtauung</span><span><i style="background:rgba(128,128,128,.3)"></i>Verdichter aus</span>'
+            + (refriHist.some((d, k) => k && d[0] - refriHist[k - 1][0] > 300) ? '<span><i style="background:rgba(128,128,128,.55)"></i>keine Daten</span>' : '');
         if (W < 60 || H < 40) return;
         svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
         const data = refriHist;
@@ -1015,14 +1112,22 @@
         const L = 34, R = 10, T = 6, B = 18;
         const t1 = data[data.length - 1][0], t0 = t1 - 6 * 3600;
         const x = (t) => L + (t - t0) / (t1 - t0) * (W - L - R);
-        // Überhitzung ist nur bei laufendem Verdichter aussagekräftig (im Stillstand wärmt sich die Saugleitung auf)
-        const valid = (row, i) => !(i === 3 && !(row[8] > 0)) && row[i] !== null && row[i] !== undefined;
-        const vals = data.flatMap(d => cfg.lines.map(([i]) => valid(d, i) ? d[i] : null)).filter(v => v !== null);
+        // Linien laufen auch im Stillstand weiter (grau hinterlegt); die Überhitzung ist dann nur blass gezeichnet,
+        // weil sie ohne Kältemittelstrom nicht aussagekräftig ist und die Achse nicht bestimmen soll
+        const valid = (row, i) => row[i] !== null && row[i] !== undefined;
+        const running = (row) => row[8] > 0;
+        const vals = data.flatMap(d => cfg.lines.map(([i]) => valid(d, i) && (i !== 3 || running(d)) ? d[i] : null)).filter(v => v !== null);
+        if (!vals.length) vals.push(...data.flatMap(d => cfg.lines.map(([i]) => valid(d, i) ? d[i] : null)).filter(v => v !== null));
+        if (!vals.length) vals.push(0, 1);
         if (cfg.band) vals.push(...cfg.band);
         let lo = Math.min(...vals), hi = Math.max(...vals);
         const pad = Math.max(1, (hi - lo) * 0.1); lo = Math.floor(lo - pad); hi = Math.ceil(hi + pad);
         const step = Math.max(1, Math.ceil((hi - lo) / 4)); lo = Math.floor(lo / step) * step; hi = lo + 4 * step; // glatte Achsenschritte
         const y = (v) => H - B - (v - lo) / (hi - lo) * (H - T - B);
+        // Datenlücken (> 5 min ohne Minutenwert, z.B. Symcon neu gestartet) schraffiert hinterlegen
+        for (let k = 1; k < data.length; k++) {
+            if (data[k][0] - data[k - 1][0] > 300) svgEl('rect', { x: x(data[k - 1][0]), y: T, width: Math.max(1, x(data[k][0]) - x(data[k - 1][0])), height: H - T - B, class: 'gap' }, svg);
+        }
         // Stillstand des Verdichters grau hinterlegen
         let offStart = null;
         data.forEach((d, k) => {
@@ -1051,14 +1156,19 @@
         for (let t = Math.ceil(t0 / 3600) * 3600; t <= t1; t += 3600) {
             svgEl('text', { x: x(t), y: H - 4, 'text-anchor': 'middle' }, svg).textContent = hhmm(t);
         }
+        const clampY = (v) => y(Math.max(lo, Math.min(hi, v)));
         for (const [i, , color, dash] of cfg.lines) {
-            let d = '', prev = null;
-            for (const row of data) {
-                if (!valid(row, i)) { prev = null; continue; }
-                d += (prev === null || row[0] - prev > 300 ? 'M' : 'L') + x(row[0]).toFixed(1) + ' ' + y(row[i]).toFixed(1) + ' ';
-                prev = row[0];
+            // Überhitzung: Laufzeit kräftig, Stillstand blass; alle anderen Werte durchgehend
+            const parts = i === 3 ? [[true, ''], [false, ' faint']] : [[null, '']];
+            for (const [want, cls] of parts) {
+                let d = '', prev = null;
+                for (const row of data) {
+                    if (!valid(row, i) || (want !== null && running(row) !== want)) { prev = null; continue; }
+                    d += (prev === null || row[0] - prev > 300 ? 'M' : 'L') + x(row[0]).toFixed(1) + ' ' + clampY(row[i]).toFixed(1) + ' ';
+                    prev = row[0];
+                }
+                if (d) svgEl('path', { d, class: 'ln' + cls, style: `stroke:${color}` + (dash ? ';stroke-dasharray:4 3' : '') }, svg);
             }
-            if (d) svgEl('path', { d, class: 'ln', style: `stroke:${color}` + (dash ? ';stroke-dasharray:4 3' : '') }, svg);
         }
         rGeo = { x, T, B, H, data, cfg };
     }
@@ -1103,10 +1213,13 @@
         $('tabCtl').hidden = !ctl;
         if (!ctl && gotData && !$('viewCtl').hidden) showView('schema'); // Steuerung in der Instanz deaktiviert
         if (!ctl || $('viewCtl').hidden) return;
-        $('cHeat').hidden = $('cDhw').hidden = !ctl.ctl;
-        $('cRooms').hidden = !ctl.rooms && !(ctl.roomList || []).length;
-        $('cLimit').hidden = !ctl.limit;
-        $('cPv').hidden = !ctl.pv;
+        // Unterseiten: nur verfügbare Seiten anbieten; Karten nur auf ihrer Seite zeigen
+        const avail = { main: true, heat: ctl.ctl, dhw: ctl.ctl, rooms: ctl.rooms || (ctl.roomList || []).length > 0,
+                        limit: ctl.limit, pv: ctl.pv, set: unlocked };
+        if (!avail[ctlPage]) ctlPage = 'main';
+        if (ctlPage === 'set' && !setDraft) openSettings();
+        document.querySelectorAll('#cNav button').forEach(b => { b.hidden = !avail[b.dataset.p]; b.classList.toggle('on', b.dataset.p === ctlPage); });
+        document.querySelectorAll('#viewCtl .card[data-page]').forEach(c => { c.hidden = c.dataset.page !== ctlPage; });
         drawFunc();
 
         // Heizung
@@ -1206,6 +1319,7 @@
         }
         $('cLimLast').textContent = kwTxt(ctl.total15);
         $('cLimPeak').textContent = kwTxt(ctl.totalPeak);
+        drawSummary(avail);
     }
 
     // Bedienung
@@ -1232,13 +1346,46 @@
     // ---------- Funktionen und Einstellungen (Passwort) ----------
     // Das Passwort wird nur im Speicher der Kachel gehalten (10 min) und bei jeder Änderung vom Modul geprüft.
     let pwMem = '', unlocked = false, unlockTimer = null, setDraft = null;
+    let ctlPage = 'main';
+    try { ctlPage = localStorage.getItem('hwpCtlPage') || 'main'; } catch (e) {}
+    function showCtlPage(p) {
+        ctlPage = p;
+        try { localStorage.setItem('hwpCtlPage', p); } catch (e) {}
+        if (p !== 'set') setDraft = null;
+        $('body').scrollTop = 0;
+        drawCtl();
+    }
+    document.querySelectorAll('#cNav button').forEach(b => b.addEventListener('click', () => showCtlPage(b.dataset.p)));
+    // Übersicht: je Funktion eine Zeile mit dem aktuellen Zustand, antippen öffnet die Unterseite
+    function drawSummary(avail) {
+        const plain = (id) => $(id).textContent.replace(/\s+/g, ' ').trim();
+        const items = [];
+        if (ctl.ctl) {
+            items.push(['heat', '🔥', 'Heizung', plain('cHeatState')]);
+            items.push(['dhw', '🚿', 'Warmwasser', plain('cDhwState')]);
+        } else items.push(['main', '🔥', 'Heizungssteuerung', 'aus – Hoval regelt selbst', true]);
+        if (avail.rooms) {
+            const rs = ctl.roomStats || {};
+            items.push(['rooms', '🏠', 'Räume', (ctl.rooms ? (ctl.demand ? 'Anforderung' : 'keine Anforderung') + ' · ' : 'nur Anzeige · ')
+                + `Ø ${tTxt(rs.avgIst)} / Soll ${tTxt(rs.avgSoll)}` + (rs.dev != null ? ` (${rs.dev > 0 ? '+' : ''}${num(rs.dev, 1)} %)` : '')]);
+        }
+        items.push(ctl.limit ? ['limit', '⚡', 'Leistungsbegrenzung', ctl.pw ? `Prognose ${kwTxt(ctl.pw.forecast)} von ${kwTxt(ctl.pw.max)}` + (ctl.sgOn ? ' · WP begrenzt' : '') : 'keine Hausleistung']
+                             : ['main', '⚡', 'Leistungsbegrenzung', 'aus', true]);
+        const pv = ctl.pvState || {};
+        items.push(ctl.pv ? ['pv', '☀️', 'PV-Überschuss', (pv.active ? 'aktiv' : pv.since ? 'wartet' : 'inaktiv') + ` · ${kwTxt(pv.avail)} verfügbar`]
+                          : ['main', '☀️', 'PV-Überschuss', 'aus', true]);
+        $('cSumList').innerHTML = items.map(([p, icon, name, text, off]) =>
+            `<div class="it${off ? ' off' : ''}" data-p="${p}"><span>${icon}</span><span class="t"><b>${name}</b><small>${esc(text)}</small></span><span class="go">${off ? '' : '›'}</span></div>`).join('');
+        $('cSumList').querySelectorAll('.it').forEach(it => it.addEventListener('click', () => { if (it.dataset.p !== 'main') showCtlPage(it.dataset.p); }));
+    }
     const esc = (t) => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
     const DAYS = [['mo-so', 'Mo–So'], ['mo-fr', 'Mo–Fr'], ['sa-so', 'Sa–So'], ['mo', 'Montag'], ['di', 'Dienstag'], ['mi', 'Mittwoch'],
                   ['do', 'Donnerstag'], ['fr', 'Freitag'], ['sa', 'Samstag'], ['so', 'Sonntag']];
     const SEASONS = [['winter', 'Winter'], ['transition', 'Übergang'], ['summer', 'Sommer']];
     function lock() {
         pwMem = ''; unlocked = false; clearTimeout(unlockTimer);
-        $('cSet').hidden = true; setDraft = null;
+        setDraft = null;
+        if (ctlPage === 'set') ctlPage = 'main';
         drawCtl();
     }
     function setUnlocked(pw) {
@@ -1303,16 +1450,15 @@
             box.querySelectorAll('.del').forEach(b => b.addEventListener('click', () => { d[key].splice(Number(b.dataset.i), 1); drawSet(); }));
         });
     }
-    $('cSetOpen').addEventListener('click', () => {
+    function openSettings() {
         setDraft = JSON.parse(JSON.stringify(ctl.settings || {}));
         setDraft.heatPrograms = setDraft.heatPrograms || [];
         setDraft.dhwPrograms = setDraft.dhwPrograms || [];
         $('sMsg').textContent = '';
-        $('cSet').hidden = false;
         drawSet();
-        $('cSet').scrollIntoView({ behavior: 'smooth', block: 'start' });
-    });
-    $('sCancel').addEventListener('click', () => { $('cSet').hidden = true; setDraft = null; });
+    }
+    $('cSetOpen').addEventListener('click', () => showCtlPage('set'));
+    $('sCancel').addEventListener('click', () => showCtlPage('main'));
     document.querySelectorAll('#sSeasonMode button').forEach(b => b.addEventListener('click', () => { setDraft.seasonMode = Number(b.dataset.v); drawSet(); }));
     document.querySelectorAll('#sRoomMode button').forEach(b => b.addEventListener('click', () => { setDraft.roomMode = b.dataset.v; drawSet(); }));
     $('sHeatAdd').addEventListener('click', () => { setDraft.heatPrograms.push({ Season: 'winter', Days: 'mo-fr', From: '06:00', To: '22:00', Temp: 21 }); drawSet(); });
@@ -1363,6 +1509,32 @@
     const WD = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
     const ddmm = (ts) => { const d = new Date(ts * 1000); return d.getDate() + '.' + (d.getMonth() + 1) + '.'; };
 
+    // Tagesauswahl: 0 = letzte 24 h, 1 = gestern, 2 = vorgestern … (15-min-Werte der letzten 31 Tage, beim Modul angefordert)
+    let pwDayOff = 0, pwDay = null;
+    const isoDate = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    const dayOffDate = (off) => { const d = new Date(); d.setHours(12, 0, 0, 0); d.setDate(d.getDate() - off); return isoDate(d); };
+    function setPowerDay(off) {
+        pwDayOff = Math.max(0, Math.min(31, off));
+        pwRange = 'day';
+        pwDay = null;
+        if (pwDayOff > 0) requestAction('PowerDay', dayOffDate(pwDayOff));
+        drawPower();
+    }
+    $('pwDPrev').addEventListener('click', () => setPowerDay(pwDayOff + 1));
+    $('pwDNext').addEventListener('click', () => setPowerDay(pwDayOff - 1));
+    function drawPowerDayNav() {
+        $('pwDayNav').hidden = pwRange !== 'day';
+        const oldest = pw && pw.oldest ? new Date(pw.oldest * 1000) : new Date();
+        oldest.setHours(0, 0, 0, 0);
+        const prevDate = new Date(dayOffDate(pwDayOff + 1) + 'T12:00');
+        $('pwDPrev').disabled = pwDayOff >= 31 || prevDate < oldest;
+        $('pwDNext').disabled = pwDayOff === 0;
+        if (pwDayOff === 0) { $('pwDLabel').textContent = 'letzte 24 h'; return; }
+        const d = new Date(dayOffDate(pwDayOff) + 'T12:00');
+        $('pwDLabel').textContent = (pwDayOff === 1 ? 'gestern' : WD[d.getDay()]) + ' ' + ddmm(d.getTime() / 1000)
+            + (pwDay && pwDay.energy !== null ? ` · ${num(pwDay.energy, 1)} kWh` + (pwDay.cost !== null ? ` · ${num(pwDay.cost, 2)} €` : '') : '');
+    }
+
     // Daten des gewählten Zeitraums einheitlich aufbereiten: {t, slot, v (Balken), pk (Spitze), temp, tip, peak}
     function powerItems() {
         if (pwRange === 'week') {
@@ -1381,8 +1553,9 @@
                 };
             });
         }
-        const peakStart = pw.peak ? pw.peak[1] : null;
-        return (pw.series || []).map(([t, kw, temp]) => ({
+        const dayData = pwDayOff > 0 ? (pwDay || { series: [], peak: null }) : null;
+        const peakStart = dayData ? (dayData.peak ? dayData.peak[1] : null) : pw.peak ? pw.peak[1] : null;
+        return ((dayData ? dayData.series : pw.series) || []).map(([t, kw, temp]) => ({
             t, slot: 900, v: kw, pk: null, temp, peak: t === peakStart,
             tip: `${hhmm(t)}–${hhmm(t + 900)} · ${num(kw, 2)} kW · ${temp === null ? '–' : num(temp, 1)} °C`
         }));
@@ -1396,14 +1569,18 @@
         $('pwLegend').textContent = { day: 'Leistung (kW, Ø 15 min)', week: 'Leistung (kW, Ø je Stunde)', month: 'Leistung (kW, Ø je Tag)' }[pwRange];
         $('pwLegendPeak').hidden = pwRange !== 'month';
         $('tile').classList.toggle('pw-long', pwRange !== 'day');
+        drawPowerDayNav();
         if (W < 60 || H < 40) return;
         svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
         const items = powerItems();
         $('pwEmpty').style.display = items.some(i => i.v !== null) ? 'none' : 'flex';
+        $('pwEmpty').textContent = pwDayOff > 0 && pwRange === 'day' ? (pwDay ? 'Für diesen Tag sind keine 15-min-Werte gespeichert.' : 'lädt …')
+            : 'Noch keine Daten – der erste Balken erscheint nach der nächsten vollen Viertelstunde.';
 
         const L = 34, R = 34, T = 6, B = 18;
         let tStart, tEnd;
-        if (pwRange === 'day') { tEnd = Math.ceil(pw.now / 900) * 900; tStart = tEnd - 86400; }
+        if (pwRange === 'day' && pwDayOff > 0) { tStart = new Date(dayOffDate(pwDayOff) + 'T00:00').getTime() / 1000; tEnd = tStart + 86400; }
+        else if (pwRange === 'day') { tEnd = Math.ceil(pw.now / 900) * 900; tStart = tEnd - 86400; }
         else if (pwRange === 'week') { tEnd = Math.ceil(pw.now / 3600) * 3600; tStart = tEnd - 7 * 86400; }
         else { const m = new Date(pw.now * 1000); m.setHours(0, 0, 0, 0); tEnd = m.getTime() / 1000 + 86400; tStart = tEnd - 31 * 86400; }
         const span = tEnd - tStart;
@@ -1465,7 +1642,9 @@
         const days = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
         list.forEach(([date, kw, ts], i) => {
             const day = document.createElement('div');
-            day.className = 'day' + (i === list.length - 1 ? ' today' : '');
+            const off = list.length - 1 - i;
+            day.className = 'day' + (i === list.length - 1 ? ' today' : '') + (pwRange === 'day' && off === pwDayOff ? ' sel' : '');
+            day.addEventListener('click', () => setPowerDay(off));
             day.title = kw === null ? date : `${date}: ${num(kw, 2)} kW um ${hhmm(ts)} Uhr`;
             const h = kw === null ? 2 : Math.max(3, kw / max * 34);
             day.innerHTML = `<span class="v">${kw === null ? '–' : num(kw, 1)}</span><span class="b" style="height:${h}px"></span>`
@@ -1499,6 +1678,15 @@
     $('pwChart').addEventListener('pointermove', showPowerTip);
     $('pwChart').addEventListener('pointerdown', showPowerTip);
     $('pwChart').addEventListener('pointerleave', hidePowerTip);
+    $('pwChart').addEventListener('click', (e) => {
+        if (pwRange !== 'month' || !pwGeo) return;
+        const r = $('pwChart').getBoundingClientRect(), px = e.clientX - r.left;
+        let best = null;
+        for (const it of pwGeo.items) { const dx = Math.abs(pwGeo.x(it.t) + pwGeo.slotPx / 2 - px); if (!best || dx < best.dx) best = { dx, it }; }
+        if (!best) return;
+        const today = new Date(); today.setHours(12, 0, 0, 0);
+        setPowerDay(Math.round((today.getTime() / 1000 - (best.it.t + 43200)) / 86400));
+    });
     window.addEventListener('resize', () => drawPower());
 
     // ---------- Auswertung: Daten werden beim Öffnen/Blättern beim Modul angefordert ----------
@@ -1585,6 +1773,89 @@
         });
     }
 
+    // ---------- Auswertung: Bereiche Energie / Kosten / Überwachung ----------
+    let sMode = 'energy', costData = null, monData = null;
+    try { sMode = localStorage.getItem('hwpSMode') || 'energy'; } catch (e) {}
+    function showStatsMode(m) {
+        sMode = m;
+        try { localStorage.setItem('hwpSMode', m); } catch (e) {}
+        document.querySelectorAll('#sMode button').forEach(b => b.classList.toggle('on', b.dataset.m === m));
+        $('sModeEnergy').hidden = m !== 'energy';
+        $('sModeCost').hidden = m !== 'cost';
+        $('sModeMon').hidden = m !== 'mon';
+        if (m === 'energy') requestStats();
+        if (m === 'cost') { drawCost(); requestAction('Cost', ''); }
+        if (m === 'mon') { drawMonitor(); requestAction('Monitor', ''); }
+    }
+    document.querySelectorAll('#sMode button').forEach(b => b.addEventListener('click', () => showStatsMode(b.dataset.m)));
+    const eur = (v) => v === null || v === undefined ? '–' : num(v, 2) + ' €';
+
+    function drawCost() {
+        if (!costData || $('sModeCost').hidden) return;
+        const c = costData;
+        $('cPrice').textContent = c.price ? `· Strompreis ${num(c.price, 4).replace(/0+$/, '').replace(/,$/, '')} €/kWh` : '· kein Strompreis in der Instanz';
+        $('cCards').innerHTML = c.periods.map(([label, p]) => `<div class="kpi"><div class="label">${label}</div><div class="value">${eur(p.c)}</div>`
+            + `<div class="sub">${num(p.e, 1)} kWh${p.t !== null ? ' · Ø ' + num(p.t, 1) + ' °C' : ''}</div></div>`).join('');
+        // Diagramm: Ø Kosten je Tag je 2-K-Temperaturbereich
+        const svg = $('costChart'), W = svg.clientWidth, H = svg.clientHeight;
+        svg.innerHTML = '';
+        $('costEmpty').style.display = c.bins.length ? 'none' : 'flex';
+        if (c.bins.length && W > 60 && H > 50) {
+            svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+            const L = 34, R = 8, T = 14, B = 30, n = c.bins.length, slot = (W - L - R) / n;
+            const max = niceCeil(Math.max(0.5, ...c.bins.map(b => b.c)));
+            const y = (v) => H - B - v / max * (H - T - B);
+            for (let i = 0; i <= 4; i++) {
+                const yy = T + i * (H - T - B) / 4;
+                svgEl('line', { x1: L, x2: W - R, y1: yy, y2: yy, class: 'grid' }, svg);
+                svgEl('text', { x: L - 4, y: yy + 3, 'text-anchor': 'end' }, svg).textContent = axisNum(max * (4 - i) / 4) + ' €';
+            }
+            const bw = Math.max(4, Math.min(38, slot * 0.7));
+            c.bins.forEach((b, i) => {
+                const xx = L + i * slot + (slot - bw) / 2;
+                svgEl('rect', { x: xx, y: y(b.c), width: bw, height: H - B - y(b.c), class: 'bar' + (b.to <= 0 ? ' cold' : ''), rx: 2 }, svg);
+                if (slot > 26) svgEl('text', { x: xx + bw / 2, y: y(b.c) - 3, 'text-anchor': 'middle', class: 'v' }, svg).textContent = num(b.c, slot > 40 ? 2 : 1);
+                svgEl('text', { x: L + i * slot + slot / 2, y: H - 16, 'text-anchor': 'middle' }, svg).textContent = `${b.from}…${b.to}°`;
+                svgEl('text', { x: L + i * slot + slot / 2, y: H - 4, 'text-anchor': 'middle' }, svg).textContent = `${b.n} T`;
+            });
+        }
+        $('cTable').innerHTML = '<tr><th>Ø Außen</th><th>Tage</th><th>kWh/Tag</th><th>€/Tag</th><th>≈ €/Monat</th><th>Arbeitszahl</th></tr>'
+            + c.bins.map(b => `<tr><td>${b.from} … ${b.to} °C</td><td>${b.n}</td><td>${num(b.e, 1)}</td><td>${eur(b.c)}</td><td>${num(b.month, 0)} €</td><td>${b.az === null ? '–' : num(b.az, 2)}</td></tr>`).join('');
+    }
+    window.addEventListener('resize', () => { if (!$('sModeCost').hidden) drawCost(); });
+
+    const MON_TXT = { ok: 'unauffällig', warn: 'auffällig', alarm: 'deutlich auffällig', learn: 'lernt noch', nodata: 'keine Daten', off: 'aus' };
+    function drawMonState(state) {
+        const st = state || 'learn';
+        $('sMonDot').className = ['ok', 'warn', 'alarm'].includes(st) ? st : '';
+        const dot = $('tabStats').querySelector('.dot');
+        if (dot) dot.className = 'dot ' + (['warn', 'alarm'].includes(st) ? st : '');
+    }
+    function drawMonitor() {
+        if (!monData || $('sModeMon').hidden) return;
+        const m = monData;
+        $('mOn').checked = !!m.on;
+        $('mBadge').textContent = m.on ? MON_TXT[m.status] : 'aus';
+        $('mBadge').className = 'badge' + (m.on && ['ok', 'warn', 'alarm'].includes(m.status) ? ' ' + (m.status === 'ok' ? 'ok' : m.status) : '');
+        drawMonState(m.on ? m.status : 'off');
+        if (!m.on) { $('mList').innerHTML = '<div class="hint">Die Überwachung ist ausgeschaltet.</div>'; return; }
+        $('mList').innerHTML = m.checks.map(c => {
+            const d = c.digits;
+            let body;
+            if (c.status === 'learn' || c.status === 'nodata') {
+                const p = Math.min(100, c.refDays / c.minRef * 100);
+                body = c.status === 'nodata' ? '<div class="hint">Noch keine Werte (Datenpunkt fehlt oder wird erst ab jetzt gesammelt).</div>'
+                    : `<div class="vals">Erfahrungswerte: ${c.refDays} von ${c.minRef} Tagen</div><div class="prog"><i style="width:${p}%"></i></div>`;
+            } else {
+                body = `<div class="vals">letzte Tage ${num(c.actual, d)}${c.unit} · erwartet ${num(c.expected, d)}${c.unit}`
+                    + (c.dev !== null && c.dev !== undefined ? ` · ${c.dev > 0 ? '+' : ''}${num(c.dev, c.devUnit === ' %' ? 0 : 1)}${c.devUnit}` : '') + '</div>'
+                    + (c.status === 'warn' || c.status === 'alarm' ? `<div class="hint">${esc(c.hint)}</div>` : '');
+            }
+            return `<div class="mon-item ${c.status}"><div class="top"><b>${c.label}</b><span class="st ${c.status}">${MON_TXT[c.status]}</span></div>${body}</div>`;
+        }).join('');
+    }
+    $('mOn').addEventListener('change', () => requestAction('Monitor', JSON.stringify({ on: $('mOn').checked })));
+
     // Detailkarte: gewählter Zeitraum mit Vergleich zum Vorzeitraum
     function drawStatDetail() {
         const box = $('sDetail');
@@ -1608,6 +1879,7 @@
         box.innerHTML = `<div class="head"><span><b>${r.title}</b>${r.p ? ' (laufend)' : ''}</span><span>Vergleich mit ${name}: ${prev.title}</span></div>`
             + '<div class="grid">'
             + item('Strom gesamt', num(r.e, 1) + ' kWh', delta(r.e, prev.e))
+            + item('Kosten', r.c === null || r.c === undefined ? '–' : num(r.c, 2) + ' €', delta(r.c, prev.c), sData.price ? num(sData.price, 4).replace(/0+$/, '') + ' €/kWh' : '')
             + item('<i style="background:var(--heat)"></i>Heizen', num(r.eh, 1) + ' kWh', share(r.eh || 0))
             + item('<i style="background:var(--hot)"></i>Warmwasser', num(r.ew, 1) + ' kWh', share(r.ew || 0))
             + item('<i style="background:var(--cold)"></i>Abtauen', num(r.ed, 2) + ' kWh', share(r.ed || 0))
@@ -1688,12 +1960,19 @@
             ctlResult(msg.ctlResult);
             return;
         }
+        if (msg.cost) { costData = msg.cost; drawCost(); return; }
+        if (msg.monitor) { monData = msg.monitor; drawMonitor(); return; }
+        if (msg.powerDay) { // Antwort: 15-min-Werte eines Tages
+            if (pwDayOff > 0 && msg.powerDay.date === dayOffDate(pwDayOff)) { pwDay = msg.powerDay; drawPower(); }
+            return;
+        }
         if (msg.stats) { // Antwort auf die Anforderung der Auswertung
             renderStats(msg.stats);
             return;
         }
         values = msg.values || {};
         gotData = true;
+        drawMonState(msg.monState);
 
         document.querySelectorAll('.kpi[data-key]').forEach(k => {
             k.hidden = !has(k.dataset.key);
@@ -1726,6 +2005,14 @@
         err.classList.toggle('error', !!msg.error);
         err.classList.toggle('noerror', has('ErrorCode') && !msg.error);
         $('tFlow').textContent = f('FlowTemp');
+        // Spreizung Vorlauf − Rücklauf (nur sinnvoll, solange Wasser fließt)
+        const spread = n('FlowTemp') !== null && n('ReturnTemp') !== null ? n('FlowTemp') - n('ReturnTemp') : null;
+        $('tSpread').textContent = spread === null ? '–' : num(spread, 1) + ' K';
+        $('tSpreadLabel').style.display = $('tSpread').style.display = spread === null ? 'none' : '';
+        // elektrische Leistung: gemessen (externer Zähler), sonst Hoval
+        const pEl = msg.power ? msg.power.current : null;
+        $('tElecLabel').textContent = msg.power && msg.power.measured ? 'Strom (gem.)' : 'Strom';
+        $('tElec').textContent = pEl === null || pEl === undefined ? '–' : num(pEl, 2) + ' kW';
         $('tReturn').textContent = f('ReturnTemp');
         $('tFlowRate').textContent = has('FlowRate') ? f('FlowRate') : '';
         $('tPump').textContent = has('PumpCP') ? 'Pumpe ' + f('PumpCP') : '';
@@ -1790,7 +2077,7 @@
         $('schema').classList.toggle('defrosting', defrosting);
         syncGlints();
         // offene Auswertung höchstens einmal pro Minute aktualisieren (laufender Tag/Woche/Monat)
-        if (!$('viewStats').hidden && Date.now() - sLastRequest > 60000) requestStats();
+        if (!$('viewStats').hidden && sMode === 'energy' && Date.now() - sLastRequest > 60000) requestStats();
     }
     try { const v = localStorage.getItem('hwpView'); if (['daily', 'stats', 'power', 'ctl', 'refri'].includes(v)) showView(v); } catch (e) {}
 </script>

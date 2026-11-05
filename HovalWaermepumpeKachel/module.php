@@ -208,7 +208,7 @@ class HovalWaermepumpeKachel extends IPSModule
         $this->RegisterAttributeString('DailyHistory', '[]');
         // Aufteilung des Stroms nach Betriebsart: {last, p (kW), mode: heat|ww|defrost}
         $this->RegisterAttributeString('SplitState', '');
-        // 15-Minuten-Leistung: laufende Viertelstunde, abgeschlossene Viertelstunden [[Beginn, kW, °C]] (7 Tage),
+        // 15-Minuten-Leistung: laufende Viertelstunde, abgeschlossene Viertelstunden [[Beginn, kW, °C]] (31 Tage),
         // Tagesspitzen {Datum: [kW, Beginn]} (31 Tage)
         $this->RegisterAttributeInteger('QStart', 0);
         $this->RegisterAttributeFloat('QEnergy', 0);
@@ -228,6 +228,8 @@ class HovalWaermepumpeKachel extends IPSModule
         $this->RegisterAttributeString('HouseState', '');
         // Kältekreis: Minutenwerte der letzten 6 Stunden für den Verlauf
         $this->RegisterAttributeString('RefHist', '[]');
+        // Überwachung: letzter Gesamtstatus (ok | warn | alarm | learn | off) für die Anzeige am Reiter
+        $this->RegisterAttributeString('MonState', 'learn');
 
         $this->RegisterTimer('Tick', 0, 'HWP_Tick($_IPS[\'TARGET\']);');
 
@@ -238,6 +240,7 @@ class HovalWaermepumpeKachel extends IPSModule
     public function ApplyChanges()
     {
         parent::ApplyChanges();
+        $this->UpdateMonitor(false);
 
         // Symcon zeigt den Instanznamen als Kacheltitel an
         $name = trim($this->ReadPropertyString('TileName'));
@@ -373,6 +376,20 @@ class HovalWaermepumpeKachel extends IPSModule
                 $request = json_decode((string) $Value, true) ?: [];
                 $period = in_array($request['p'] ?? '', ['day', 'week', 'month'], true) ? $request['p'] : 'day';
                 $this->UpdateVisualizationValue(json_encode(['stats' => $this->GetStats($period, max(0, (int) ($request['o'] ?? 0)))]));
+                break;
+            case 'PowerDay': // Kachel fordert die 15-min-Werte eines Tages an: "YYYY-MM-DD"
+                $this->UpdateVisualizationValue(json_encode(['powerDay' => $this->GetPowerDay((string) $Value)]));
+                break;
+            case 'Cost': // Kachel fordert die Kostenübersicht an
+                $this->UpdateVisualizationValue(json_encode(['cost' => $this->GetCostView()]));
+                break;
+            case 'Monitor': // Überwachung anfordern bzw. ein-/ausschalten: {"on": true|false} oder leer
+                $request = json_decode((string) $Value, true) ?: [];
+                if (isset($request['on'])) {
+                    $this->SaveSettings(['monOn' => (bool) $request['on']]);
+                    $this->UpdateMonitor(false);
+                }
+                $this->UpdateVisualizationValue(json_encode(['monitor' => $this->EvaluateMonitor()]));
                 break;
             case 'Refri': // Kachel fordert den Kältekreis-Verlauf an
                 $this->UpdateVisualizationValue(json_encode(['refriHist' => json_decode($this->ReadAttributeString('RefHist'), true) ?: []]));
@@ -709,8 +726,48 @@ class HovalWaermepumpeKachel extends IPSModule
             'ed'   => round($defrost, 2),
             'h'    => $dHeat === null ? null : round($dHeat, 2),
             'df'   => $this->GetValue('DefrostCountToday'),
-            'dfe'  => round($this->GetValue('DefrostElecToday'), 2)
-        ];
+            'dfe'  => round($this->GetValue('DefrostElecToday'), 2),
+            // Betrieb: Laufzeit Verdichter (min), Starts, Ø Kältekreiswerte bei eingeschwungenem Betrieb (Überwachung)
+            'n'    => $day['tCount'],                       // Minuten mit Daten (vollständiger Tag ≈ 1440)
+            'trk'  => !empty($day['trk']),                   // Laufzeit/Starts ab Tagesbeginn erfasst
+            'run'  => $day['runMin'] ?? null,
+            'st'   => $day['starts'] ?? null
+        ] + $this->DayRefAverages($day);
+    }
+
+    private function DayRefAverages(array $day): array
+    {
+        $result = [];
+        foreach (['sh', 'air', 'hot', 'ratio'] as $key) {
+            $sum = $day['ref'][$key] ?? null;
+            $result[$key] = ($sum && $sum[1] >= 30) ? round($sum[0] / $sum[1], 2) : null;
+        }
+        return $result;
+    }
+
+    /** Jede Minute: Verdichterlaufzeit, Starts und Kältekreiswerte des Tages sammeln */
+    private function AccumulateRun(array &$day, int $now)
+    {
+        $ref = $this->GetRefrigerantView();
+        $running = $ref !== null && $ref['v']['CompressorSpeed'] !== null ? $ref['running'] : $this->IsRunning();
+        $defrost = @$this->GetIDForIdent('DefrostActive') && $this->GetValue('DefrostActive');
+        if ($running && empty($day['wasRun'])) {
+            $day['starts'] = ($day['starts'] ?? 0) + 1;
+            $day['runSince'] = $now;
+        }
+        if ($running) {
+            $day['runMin'] = ($day['runMin'] ?? 0) + 1;
+            // erst nach 10 min Laufzeit und nicht beim Abtauen: Werte sind dann eingeschwungen
+            if ($ref !== null && !$defrost && $now - ($day['runSince'] ?? $now) >= 600) {
+                foreach (['sh' => $ref['sh'], 'air' => $ref['airDelta'], 'hot' => $ref['v']['HotGas'], 'ratio' => $ref['ratio']] as $key => $value) {
+                    if ($value !== null) {
+                        $sum = $day['ref'][$key] ?? [0, 0];
+                        $day['ref'][$key] = [$sum[0] + $value, $sum[1] + 1];
+                    }
+                }
+            }
+        }
+        $day['wasRun'] = $running;
     }
 
     /** Jede Minute: Außentemperatur sammeln; um Mitternacht den Tag abschließen */
@@ -743,11 +800,14 @@ class HovalWaermepumpeKachel extends IPSModule
             foreach (['DefrostCountToday', 'DefrostElecToday', 'DefrostHeatToday'] as $ident) {
                 $this->SetValue($ident, 0);
             }
+            $carry = ['wasRun' => $day['wasRun'] ?? false, 'runSince' => $day['runSince'] ?? $now];
             $day = null;
+            $this->UpdateMonitor(true);
         }
         if (!$day) {
             $day = ['date' => $today, 'tSum' => 0, 'tCount' => 0, 'tMin' => null, 'tMax' => null, 'humSum' => 0, 'humCount' => 0,
-                    'eDhw' => 0, 'eInt' => 0, 'elecStart' => $this->DayElecCounter(), 'heatStart' => $this->DayHeatCounter()];
+                    'eDhw' => 0, 'eInt' => 0, 'elecStart' => $this->DayElecCounter(), 'heatStart' => $this->DayHeatCounter(),
+                    'runMin' => 0, 'starts' => 0, 'trk' => true] + ($carry ?? []);
         }
         // Zähler, die erst später verfügbar werden, nachtragen
         $day['elecStart'] = $day['elecStart'] ?? $this->DayElecCounter();
@@ -772,6 +832,7 @@ class HovalWaermepumpeKachel extends IPSModule
             $day['humSum'] = ($day['humSum'] ?? 0) + $humidity;
             $day['humCount'] = ($day['humCount'] ?? 0) + 1;
         }
+        $this->AccumulateRun($day, $now);
         $this->WriteAttributeString('DayStats', json_encode($day));
     }
 
@@ -829,7 +890,7 @@ class HovalWaermepumpeKachel extends IPSModule
 
                 $history = json_decode($this->ReadAttributeString('QHistory'), true) ?: [];
                 $history[] = [$start, $kW, $temperature];
-                $history = array_values(array_filter($history, fn ($q) => $q[0] >= $boundary - 7 * 86400));
+                $history = array_values(array_filter($history, fn ($q) => $q[0] >= $boundary - 32 * 86400)); // 31 Tage für die Tagesauswahl
                 $this->WriteAttributeString('QHistory', json_encode($history));
                 $this->SetValue('Power15', $kW);
                 if ($this->Setting('limitOn') && @$this->GetIDForIdent('Total15')) {
@@ -885,12 +946,14 @@ class HovalWaermepumpeKachel extends IPSModule
         return [
             'now'     => $now,
             'current' => $current === null ? null : round(max(0, $current), 3),
+            'measured' => $this->MeasuredPowerKW() !== null,
             'avg15'   => count($history) > 0 ? end($history)[1] : null,
             'temp'    => $this->Value('OutdoorTemp'),
             'energy'  => $energyToday,
             'cost'    => $energyToday === null ? null : round($energyToday * $this->ReadPropertyFloat('PricePerKWh'), 2),
             'peak'    => $peaks[date('Y-m-d', $now)] ?? null,
             'series'  => array_values(array_filter($history, fn ($q) => $q[0] >= $now - 86400)),
+            'oldest'  => count($history) > 0 ? $history[0][0] : $now,
             'peaks'   => $peakList,
             'week'    => $this->GetPowerWeek($history, $now),
             'month'   => $this->GetPowerMonth($peaks, $now)
@@ -940,6 +1003,294 @@ class HovalWaermepumpeKachel extends IPSModule
                          $peaks[$date][0] ?? null, $peaks[$date][1] ?? null, $d['t'] ?? null];
         }
         return $result;
+    }
+
+
+    // ---------------------------------------------------------------- Leistung: einzelner Tag
+
+    /** 15-min-Werte eines Kalendertags (für die Tagesauswahl in der Ansicht "Leistung") */
+    private function GetPowerDay(string $date): array
+    {
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+            $date = date('Y-m-d');
+        }
+        $start = strtotime($date . ' 00:00');
+        $end = strtotime($date . ' 00:00 +1 day');
+        $series = array_values(array_filter(json_decode($this->ReadAttributeString('QHistory'), true) ?: [],
+            fn ($q) => $q[0] >= $start && $q[0] < $end));
+        $peaks = json_decode($this->ReadAttributeString('QPeaks'), true) ?: [];
+        $energy = null;
+        foreach ($series as $q) {
+            $energy = ($energy ?? 0) + $q[1] * 0.25;
+        }
+        $temps = array_filter(array_column($series, 2), fn ($t) => $t !== null);
+        return [
+            'date'   => $date,
+            'start'  => $start,
+            'end'    => $end,
+            'series' => $series,
+            'peak'   => $peaks[$date] ?? null,
+            'energy' => $energy === null ? null : round($energy, 2),
+            'cost'   => $energy === null ? null : round($energy * $this->ReadPropertyFloat('PricePerKWh'), 2),
+            'temp'   => count($temps) ? round(array_sum($temps) / count($temps), 1) : null
+        ];
+    }
+
+    // ---------------------------------------------------------------- Kosten
+
+    /** Alle Tage inkl. des laufenden (p = laufend) */
+    private function AllDays(): array
+    {
+        $days = json_decode($this->ReadAttributeString('DailyHistory'), true) ?: [];
+        $current = json_decode($this->ReadAttributeString('DayStats'), true);
+        if ($current) {
+            $days[] = $this->DaySummary($current) + ['p' => true];
+        }
+        return $days;
+    }
+
+    /** Kostenübersicht: laufende Zeiträume und Kosten je Tag nach Ø Außentemperatur (Erfahrungswerte) */
+    private function GetCostView(): array
+    {
+        $price = $this->ReadPropertyFloat('PricePerKWh');
+        $now = time();
+        $days = $this->AllDays();
+        $sum = function (callable $filter) use ($days, $price) {
+            $e = 0.0; $n = 0; $tSum = 0.0; $tN = 0; $h = 0.0;
+            foreach ($days as $d) {
+                if (!$filter($d) || ($d['e'] ?? null) === null) {
+                    continue;
+                }
+                $e += $d['e']; $n++; $h += $d['h'] ?? 0;
+                if (($d['t'] ?? null) !== null) { $tSum += $d['t']; $tN++; }
+            }
+            return ['e' => round($e, 1), 'c' => round($e * $price, 2), 'days' => $n, 't' => $tN ? round($tSum / $tN, 1) : null];
+        };
+        $today = date('Y-m-d', $now);
+        $weekStart = date('Y-m-d', strtotime('monday this week', $now));
+        $monthStart = date('Y-m-01', $now);
+        $yearAgo = date('Y-m-d', strtotime('-365 days', $now));
+        $periods = [
+            ['Heute', $sum(fn ($d) => $d['d'] === $today)],
+            ['Gestern', $sum(fn ($d) => $d['d'] === date('Y-m-d', strtotime('-1 day', $now)))],
+            ['Diese Woche', $sum(fn ($d) => $d['d'] >= $weekStart)],
+            ['Dieser Monat', $sum(fn ($d) => $d['d'] >= $monthStart)],
+            ['Letzter Monat', $sum(fn ($d) => $d['d'] >= date('Y-m-01', strtotime('first day of last month', $now)) && $d['d'] < $monthStart)],
+            ['Letzte 365 Tage', $sum(fn ($d) => $d['d'] > $yearAgo)]
+        ];
+
+        // Kosten je Tag nach Ø Außentemperatur in 2-K-Schritten (nur vollständige Tage)
+        $bins = [];
+        foreach ($days as $d) {
+            if (!empty($d['p']) || ($d['e'] ?? null) === null || ($d['t'] ?? null) === null || ($d['n'] ?? 1440) < 1200) {
+                continue;
+            }
+            $key = (int) (floor(max(-20, min(26, $d['t'])) / 2) * 2);
+            $b = &$bins[$key];
+            $b['n'] = ($b['n'] ?? 0) + 1;
+            foreach (['e', 'eh', 'ew', 'ed', 'h'] as $field) {
+                if (($d[$field] ?? null) !== null) {
+                    $b[$field] = ($b[$field] ?? 0) + $d[$field];
+                    $b[$field . 'N'] = ($b[$field . 'N'] ?? 0) + 1;
+                }
+            }
+            unset($b);
+        }
+        ksort($bins);
+        $rows = [];
+        foreach ($bins as $t => $b) {
+            $avg = fn ($f) => isset($b[$f . 'N']) ? $b[$f] / $b[$f . 'N'] : null;
+            $e = $avg('e');
+            $rows[] = [
+                'from' => $t, 'to' => $t + 2, 'n' => $b['n'],
+                'e'  => round($e, 2), 'c' => round($e * $price, 2), 'month' => round($e * $price * 30.4, 0),
+                'eh' => $avg('eh') === null ? null : round($avg('eh'), 2), 'ew' => $avg('ew') === null ? null : round($avg('ew'), 2),
+                'az' => ($avg('h') !== null && $e > 0.5) ? round($avg('h') / $e, 2) : null
+            ];
+        }
+        return ['price' => $price, 'periods' => $periods, 'bins' => $rows];
+    }
+
+    // ---------------------------------------------------------------- Überwachung (Erfahrungswerte)
+
+    /**
+     * Kennzahlen der Überwachung: [Schlüssel, Bezeichnung, Einheit, Stellen, abhängig von Außentemp., Richtung,
+     * Warnschwelle, Alarmschwelle, Art der Schwelle (rel = %, abs = Einheit, cnt = Faktor/Zuschlag), Mindestanzahl Referenztage, Hinweis]
+     */
+    private const MONITOR = [
+        ['az', 'Arbeitszahl (Wärme ÷ Strom)', '', 2, true, 'low', 15, 25, 'rel', 14,
+            'Effizienz gesunken – mögliche Ursachen: Kältemittelverlust, verschmutzter/vereister Verdampfer, geänderte Einstellungen.'],
+        ['eh', 'Strom Heizen je Tag', ' kWh', 1, true, 'high', 25, 45, 'rel', 14,
+            'Mehrverbrauch beim Heizen bei gleicher Außentemperatur.'],
+        ['ew', 'Strom Warmwasser je Tag', ' kWh', 2, false, 'high', 35, 60, 'rel', 14,
+            'Ungewöhnlich hoher Energieaufwand für Warmwasser – z.B. Zirkulation, Speicherfühler, Heizstab, Verkalkung, höherer Verbrauch.'],
+        ['df', 'Abtauungen je Tag', '', 1, true, 'high', [1.5, 2], [2, 4], 'cnt', 14,
+            'Häufigeres Abtauen – Verdampfer verschmutzt oder Kältemittelmangel.'],
+        ['st', 'Verdichterstarts je Tag', '', 0, true, 'high', [1.5, 3], [2, 6], 'cnt', 10,
+            'Häufiges Takten – Heizkurve, Mindestlaufzeit, Volumenstrom oder Hydraulik prüfen.'],
+        ['sh', 'Ø Überhitzung', ' K', 1, true, 'high', 3, 5, 'abs', 10,
+            'Steigende Überhitzung ist ein typisches Anzeichen für Kältemittelmangel oder ein Problem am Expansionsventil.'],
+        ['air', 'Ø Luft − Verdampfung', ' K', 1, true, 'high', 3, 5, 'abs', 10,
+            'Sinkender Verdampfungsdruck – Kältemittelmangel, Vereisung oder verschmutzter Verdampfer.'],
+        ['hot', 'Ø Heißgas', ' °C', 1, true, 'high', 8, 12, 'abs', 10,
+            'Steigende Heißgastemperatur – Kältemittelmangel oder Verdichterproblem.']
+    ];
+
+    /** Wert einer Kennzahl für einen Tag (null = nicht verwertbar) */
+    private static function MonitorValue(array $d, string $key): ?float
+    {
+        if (!empty($d['p']) || ($d['n'] ?? 1440) < 1200) {
+            return null; // laufender oder unvollständiger Tag
+        }
+        switch ($key) {
+            case 'az':
+                return (($d['e'] ?? 0) >= 1 && ($d['h'] ?? 0) > 0) ? $d['h'] / $d['e'] : null;
+            case 'eh':
+                return ($d['eh'] ?? null) !== null && $d['eh'] >= 0.5 ? (float) $d['eh'] : null;
+            case 'ew':
+                return ($d['ew'] ?? null) !== null && $d['ew'] > 0.2 ? (float) $d['ew'] : null;
+            case 'st':
+                return !empty($d['trk']) && ($d['st'] ?? null) !== null ? (float) $d['st'] : null;
+            default:
+                return isset($d[$key]) && $d[$key] !== null ? (float) $d[$key] : null;
+        }
+    }
+
+    private static function Median(array $values): ?float
+    {
+        if (!$values) {
+            return null;
+        }
+        sort($values);
+        $n = count($values);
+        return $n % 2 ? $values[intdiv($n, 2)] : ($values[$n / 2 - 1] + $values[$n / 2]) / 2;
+    }
+
+    /** Erwartungswert aus den Referenztagen: ähnliche Außentemperatur (±2,5 K), sonst lineare Regression */
+    private static function Expected(array $ref, ?float $t, bool $tempDependent): ?float
+    {
+        if (!$tempDependent || $t === null) {
+            return self::Median(array_column($ref, 1));
+        }
+        $near = array_filter($ref, fn ($r) => $r[0] !== null && abs($r[0] - $t) <= 2.5);
+        if (count($near) >= 5) {
+            return self::Median(array_column($near, 1));
+        }
+        $pts = array_values(array_filter($ref, fn ($r) => $r[0] !== null));
+        $n = count($pts);
+        if ($n < 5) {
+            return null;
+        }
+        $mx = array_sum(array_column($pts, 0)) / $n;
+        $my = array_sum(array_column($pts, 1)) / $n;
+        $sxx = 0; $sxy = 0;
+        foreach ($pts as [$x, $y]) {
+            $sxx += ($x - $mx) ** 2;
+            $sxy += ($x - $mx) * ($y - $my);
+        }
+        $value = $sxx > 0 ? $my + $sxy / $sxx * ($t - $mx) : $my;
+        $ys = array_column($pts, 1);
+        return max(min($ys), min(max($ys), $value)); // nicht über die Erfahrung hinaus hochrechnen
+    }
+
+    /** Überwachung auswerten: letzte 3 vollständige Tage gegen die Erfahrungswerte der Tage davor */
+    private function EvaluateMonitor(): array
+    {
+        if (!$this->Setting('monOn')) {
+            return ['on' => false];
+        }
+        $days = json_decode($this->ReadAttributeString('DailyHistory'), true) ?: [];
+        $days = array_slice($days, -400);
+        $checks = [];
+        $worst = 'ok';
+        $rank = ['learn' => 0, 'nodata' => 0, 'ok' => 1, 'warn' => 2, 'alarm' => 3];
+        foreach (self::MONITOR as [$key, $label, $unit, $digits, $tempDep, $dir, $warn, $alarm, $kind, $minRef, $hint]) {
+            $series = [];
+            foreach ($days as $d) {
+                $value = self::MonitorValue($d, $key);
+                if ($value !== null) {
+                    $series[] = [$d['t'] ?? null, $value, $d['d']];
+                }
+            }
+            $recent = array_slice($series, -3);
+            $ref = array_slice($series, 0, max(0, count($series) - 3));
+            $check = ['key' => $key, 'label' => $label, 'unit' => $unit, 'digits' => $digits, 'hint' => $hint,
+                      'refDays' => count($ref), 'minRef' => $minRef];
+            if (count($series) === 0) {
+                $check['status'] = 'nodata';
+            } elseif (count($ref) < $minRef || count($recent) < 2) {
+                $check['status'] = 'learn';
+            } else {
+                $act = []; $exp = [];
+                foreach ($recent as [$t, $value]) {
+                    $e = self::Expected($ref, $t, $tempDep);
+                    if ($e !== null) {
+                        $act[] = $value;
+                        $exp[] = $e;
+                    }
+                }
+                if (!$act) {
+                    $check['status'] = 'learn';
+                } else {
+                    $a = array_sum($act) / count($act);
+                    $e = array_sum($exp) / count($exp);
+                    $check['actual'] = round($a, 2);
+                    $check['expected'] = round($e, 2);
+                    $sign = $dir === 'high' ? 1 : -1;
+                    $level = function ($limit) use ($kind, $a, $e, $sign) {
+                        if ($kind === 'rel') {
+                            return $e > 0 && $sign * ($a - $e) / $e * 100 > $limit;
+                        }
+                        if ($kind === 'cnt') {
+                            return $a > $e * $limit[0] + $limit[1];
+                        }
+                        return $sign * ($a - $e) > $limit;
+                    };
+                    $check['status'] = $level($alarm) ? 'alarm' : ($level($warn) ? 'warn' : 'ok');
+                    $check['dev'] = $kind === 'rel' || $kind === 'cnt'
+                        ? ($e > 0 ? round(($a - $e) / $e * 100, 0) : null) : round($a - $e, 1);
+                    $check['devUnit'] = $kind === 'abs' ? $unit : ' %';
+                }
+            }
+            if ($rank[$check['status']] > $rank[$worst]) {
+                $worst = $check['status'];
+            }
+            $checks[] = $check;
+        }
+        $learned = count(array_filter($checks, fn ($c) => !in_array($c['status'], ['learn', 'nodata'], true)));
+        return ['on' => true, 'status' => $learned === 0 ? 'learn' : $worst, 'checks' => $checks,
+                'days' => count(array_filter($days, fn ($d) => ($d['n'] ?? 1440) >= 1200)), 'ts' => time()];
+    }
+
+    private function MaintainMonitorVariables()
+    {
+        $on = (bool) $this->Setting('monOn');
+        $this->MaintainVariable('MonWarn', 'Überwachung: Auffälligkeit', VARIABLETYPE_BOOLEAN, '~Alert', 270, $on);
+        $this->MaintainVariable('MonText', 'Überwachung: Meldung', VARIABLETYPE_STRING, '', 271, $on);
+    }
+
+    /** Überwachung auswerten und Variablen setzen (täglich nach Tagesabschluss und beim Umschalten) */
+    private function UpdateMonitor(bool $log)
+    {
+        $this->MaintainMonitorVariables();
+        $monitor = $this->EvaluateMonitor();
+        $this->WriteAttributeString('MonState', empty($monitor['on']) ? 'off' : $monitor['status']);
+        if (empty($monitor['on'])) {
+            return;
+        }
+        $issues = array_filter($monitor['checks'], fn ($c) => in_array($c['status'], ['warn', 'alarm'], true));
+        $text = implode(' · ', array_map(fn ($c) => ($c['status'] === 'alarm' ? '⚠ ' : '') . $c['label'] . ': '
+            . $this->Number($c['actual'], $c['digits']) . $c['unit'] . ' (erwartet ' . $this->Number($c['expected'], $c['digits']) . $c['unit'] . ')', $issues));
+        $warn = count($issues) > 0;
+        if ($this->GetValue('MonWarn') !== $warn) {
+            $this->SetValue('MonWarn', $warn);
+        }
+        if ($this->GetValue('MonText') !== $text) {
+            $this->SetValue('MonText', $text);
+            if ($log && $warn) {
+                $this->LogMessage('Wärmepumpe – Auffälligkeit: ' . $text, KL_WARNING);
+            }
+        }
     }
 
     // ---------------------------------------------------------------- Auswertung Tage / Wochen / Monate
@@ -1060,10 +1411,11 @@ class HovalWaermepumpeKachel extends IPSModule
                 'tmin'  => $b['tmin'] ?? null,
                 'tmax'  => $b['tmax'] ?? null,
                 'hum'   => isset($b['humCount']) ? round($b['humSum'] / $b['humCount'], 0) : null,
-                'df'    => isset($b['df']) ? (int) $b['df'] : null
+                'df'    => isset($b['df']) ? (int) $b['df'] : null,
+                'c'     => $e === null ? null : round($e * $this->ReadPropertyFloat('PricePerKWh'), 2)
             ];
         }
-        return ['period' => $period, 'page' => $page, 'rows' => $rows, 'older' => $hasOlder];
+        return ['period' => $period, 'page' => $page, 'rows' => $rows, 'older' => $hasOlder, 'price' => $this->ReadPropertyFloat('PricePerKWh')];
     }
 
     // ---------------------------------------------------------------- Werte
@@ -1394,7 +1746,8 @@ class HovalWaermepumpeKachel extends IPSModule
             'daily'   => $this->GetDailySeries(),
             'power'   => $this->GetPowerView(),
             'control' => $this->GetControlView(),
-            'refri'   => $this->GetRefrigerantView()
+            'refri'   => $this->GetRefrigerantView(),
+            'monState' => $this->ReadAttributeString('MonState')
         ]);
     }
 
@@ -1444,8 +1797,12 @@ class HovalWaermepumpeKachel extends IPSModule
     {
         $keys = ['AirIntake', 'SuctionGas', 'HotGas', 'Superheat', 'LowPressure', 'HighPressure', 'CompressorSpeed', 'FanSpeed', 'HPFlowTemp', 'HPReturnTemp'];
         $v = [];
+        // Grenzen für plausible Werte – Ersatzwerte des Gateways (z.B. -3276,8) oder Fühlerfehler werden verworfen
+        $limits = ['LowPressure' => [-1, 60], 'HighPressure' => [-1, 70], 'Superheat' => [-30, 80], 'CompressorSpeed' => [0, 150], 'FanSpeed' => [0, 150]];
         foreach ($keys as $key) {
-            $v[$key] = $this->Value($key);
+            $value = $this->Value($key);
+            [$min, $max] = $limits[$key] ?? [-60, 160];
+            $v[$key] = ($value === null || !is_finite($value) || $value < $min || $value > $max) ? null : $value;
         }
         if (count(array_filter($v, fn ($x) => $x !== null)) === 0) {
             return null;
@@ -1520,7 +1877,7 @@ class HovalWaermepumpeKachel extends IPSModule
                 'maxPeak' => $this->ReadPropertyFloat('MaxPeak15'), 'margin' => $this->ReadPropertyFloat('PowerMargin'),
                 'minHP' => $this->ReadPropertyFloat('MinHPPower'), 'hpMax' => $this->ReadPropertyFloat('HPMaxPower'),
                 'pvStart' => 1.5, 'pvStop' => 0.5, 'pvStartMin' => 5, 'pvStopMin' => 10, 'pvMinRun' => 30,
-                'pvOffRoom' => 2.0, 'pvOffDHW' => 10.0, 'pvOffBuffer' => 0.0
+                'pvOffRoom' => 2.0, 'pvOffDHW' => 10.0, 'pvOffBuffer' => 0.0, 'monOn' => true
             ];
             $this->settingsCache = (json_decode($this->ReadAttributeString('Settings'), true) ?: []) + $defaults;
         }
@@ -1540,7 +1897,7 @@ class HovalWaermepumpeKachel extends IPSModule
             if (isset(self::SETTING_LIMITS[$key])) {
                 [$min, $max] = self::SETTING_LIMITS[$key];
                 $settings[$key] = round(max($min, min($max, (float) $value)), 2);
-            } elseif (in_array($key, ['ctlOn', 'roomsOn', 'limitOn', 'pvOn'], true)) {
+            } elseif (in_array($key, ['ctlOn', 'roomsOn', 'limitOn', 'pvOn', 'monOn'], true)) {
                 $settings[$key] = (bool) $value;
             } elseif ($key === 'seasonMode') {
                 $settings[$key] = (int) $value === 0 ? 0 : 1;

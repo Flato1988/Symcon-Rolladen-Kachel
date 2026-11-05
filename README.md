@@ -221,6 +221,25 @@ Benötigt Symcon-Modbus-Geräte mit Funktion 6 (Write Single Register), Temperat
 
 Beim Deaktivieren werden HK1 und Warmwasser wieder auf Hoval „Woche 1“ gestellt und 27545 auf 0 (Normalbetrieb).
 
+**Steuerung – Unterseiten:** Übersicht (Status aller Funktionen, antippen öffnet die Unterseite, Funktionsschalter mit Passwort),
+Heizung, Warmwasser, Räume, Leistung, PV und Einstellungen (nur entsperrt). Nicht berücksichtigte Räume werden ausgegraut.
+
+**Leistung – Tagesauswahl:** Im Zeitraum „Tag“ blättert man mit ‹ › durch die 15-min-Werte der letzten 31 Tage
+(mit Energie und Kosten des Tages). Antippen eines Tages in „Höchste 15-min-Leistung je Tag“ oder eines Balkens in
+der Monatsansicht öffnet diesen Tag.
+
+**Auswertung – Kosten:** Kosten heute / gestern / Woche / Monat / letzter Monat / 365 Tage sowie die Ø Kosten je Tag nach
+Ø Außentemperatur (2-K-Bereiche, Erfahrungswerte aus vollständigen Tagen) mit ≈ Kosten je Monat und Arbeitszahl.
+In der Energie-Ansicht stehen zusätzlich die Kosten je Tag/Woche/Monat.
+
+**Auswertung – Überwachung (abschaltbar):** vergleicht die letzten 3 vollständigen Tage mit den eigenen Erfahrungswerten
+bei ähnlicher Außentemperatur (±2,5 K, sonst Regression): Arbeitszahl, Strom Heizen, Strom Warmwasser, Abtauungen,
+Verdichterstarts sowie Ø Überhitzung, Ø Luft − Verdampfung und Ø Heißgas (Anzeichen für Kältemittelverlust).
+Lernphase 10–14 Tage je Kennzahl; die Kältekreis-Tageswerte werden ab Version 3.5 gesammelt.
+Auffälligkeiten stehen in den Variablen „Überwachung: Auffälligkeit“ (~Alert) und „Überwachung: Meldung“ und im Meldungsprotokoll.
+
+**Anlage:** Spreizung (Vorlauf − Rücklauf) und elektrische Leistung (gemessen, sonst Hoval) im Schema.
+
 **Kältekreis-Bewertung:** Überhitzung (3–10 K), Druckverhältnis (bis 6), Luft − Verdampfung (bis 10 K),
 Kondensator (bis 6 K) und Heißgas (bis 95 °C) werden bei laufendem Verdichter **grün** (Norm), orange (auffällig)
 oder rot hinterlegt.
