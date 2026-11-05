@@ -60,7 +60,7 @@ class HovalWaermepumpeKachel extends IPSModule
         'LowPressure'     => ['Niederdruck (relativ)', 31914, 'bar'],
         'HighPressure'    => ['Hochdruck (relativ)', 31916, 'bar'],
         'CompressorSpeed' => ['Drehzahl Verdichter (Drehzahl Ist)', 31920, 'pct'],
-        'FanSpeed'        => ['Drehzahl Ventilator (Drehzahl WQP)', 31910, 'pct'],
+        'FanSpeed'        => ['Drehzahl WQP (bei Luft-WP meist nicht belegt)', 31910, 'pct'],
         'HPFlowTemp'      => ['WP-Vorlauftemperatur (an der WP)', 31892, 'temp'],
         'HPReturnTemp'    => ['WP-Rücklauftemperatur (an der WP)', 31894, 'temp'],
         'Humidity'        => ['Luftfeuchtigkeit außen', null, 'hum']

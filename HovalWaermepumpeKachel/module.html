@@ -141,6 +141,7 @@
     #rChart text { fill: var(--fg); font-size: 10px; opacity: .6; }
     #rChart .grid { stroke: rgba(128, 128, 128, .22); stroke-width: 1; }
     #rChart .df { fill: var(--cold); opacity: .12; }
+    #rChart .off { fill: rgba(128, 128, 128, .12); }
     #rChart .band { fill: var(--acc); opacity: .1; }
     #rChart .ln { fill: none; stroke-width: 1.8; stroke-linejoin: round; }
     #rChart .cursor { stroke: var(--fg); stroke-width: 1; opacity: .4; }
@@ -863,10 +864,10 @@
         kpi('rkAir', vTxt(refri.airDelta, 1, ' K'), !refri.running || refri.airDelta === null ? '' : refri.airDelta <= 10 ? 'ok' : refri.airDelta <= 14 ? 'warn' : 'bad');
         kpi('rkCond', vTxt(refri.condDelta, 1, ' K'), '');
         kpi('rkComp', vTxt(v.CompressorSpeed, 0, ' %'), '');
-        $('rkFan').textContent = v.FanSpeed === null ? '' : 'Ventilator ' + vTxt(v.FanSpeed, 0, ' %');
+        $('rkFan').textContent = (v.FanSpeed || 0) > 0 ? 'Ventilator ' + vTxt(v.FanSpeed, 0, ' %') : (refri.running ? 'läuft' : 'aus');
         // Schema
         $('rAir').textContent = vTxt(v.AirIntake, 1, ' °C');
-        $('rFanTxt').textContent = v.FanSpeed === null ? '' : vTxt(v.FanSpeed, 0, ' %');
+        $('rFanTxt').textContent = (v.FanSpeed || 0) > 0 ? vTxt(v.FanSpeed, 0, ' %') : ''; // 31910 (WQP) ist bei Luft-WP evtl. nicht belegt
         $('rEvap').textContent = vTxt(refri.evap, 1, ' °C');
         $('rCond').textContent = vTxt(refri.cond, 1, ' °C');
         $('rVl').textContent = vTxt(v.HPFlowTemp ?? n('FlowTemp'), 1, ' °C');
@@ -879,7 +880,8 @@
         $('rHp').textContent = v.HighPressure === null ? '–' : vTxt(v.HighPressure, 2, ' bar');
         $('rDefrost').toggleAttribute('hidden', !refri.defrost);
         $('rSchema').classList.toggle('run', !!refri.running);
-        $('rSchema').classList.toggle('fan', (v.FanSpeed || 0) > 0);
+        // Ventilator läuft bei der Luft-WP mit dem Verdichter (eigene Drehzahl gibt es per Modbus nicht)
+        $('rSchema').classList.toggle('fan', !!refri.running || (v.FanSpeed || 0) > 0);
         drawRefriChart();
         if (Date.now() - rLast > 60000) requestRefri(); // Verlauf höchstens einmal pro Minute nachladen
     }
@@ -897,7 +899,7 @@
         document.querySelectorAll('#rRange button').forEach(b => b.classList.toggle('on', b.dataset.r === rRange));
         const cfg = R_SERIES[rRange];
         $('rLegend').innerHTML = cfg.lines.map(([, label, color, dash]) => `<span style="color:${color}"><i class="${dash ? 'dash' : ''}" style="background:${dash ? 'transparent' : color}"></i><span style="color:var(--fg)">${label}</span></span>`).join('')
-            + '<span><i style="background:var(--cold);opacity:.25"></i>Abtauung</span>';
+            + '<span><i style="background:var(--cold);opacity:.25"></i>Abtauung</span><span><i style="background:rgba(128,128,128,.3)"></i>Verdichter aus</span>';
         if (W < 60 || H < 40) return;
         svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
         const data = refriHist;
@@ -906,12 +908,24 @@
         const L = 34, R = 10, T = 6, B = 18;
         const t1 = data[data.length - 1][0], t0 = t1 - 6 * 3600;
         const x = (t) => L + (t - t0) / (t1 - t0) * (W - L - R);
-        const vals = data.flatMap(d => cfg.lines.map(([i]) => d[i])).filter(v => v !== null && v !== undefined);
+        // Überhitzung ist nur bei laufendem Verdichter aussagekräftig (im Stillstand wärmt sich die Saugleitung auf)
+        const valid = (row, i) => !(i === 3 && !(row[8] > 0)) && row[i] !== null && row[i] !== undefined;
+        const vals = data.flatMap(d => cfg.lines.map(([i]) => valid(d, i) ? d[i] : null)).filter(v => v !== null);
         if (cfg.band) vals.push(...cfg.band);
         let lo = Math.min(...vals), hi = Math.max(...vals);
         const pad = Math.max(1, (hi - lo) * 0.1); lo = Math.floor(lo - pad); hi = Math.ceil(hi + pad);
         const step = Math.max(1, Math.ceil((hi - lo) / 4)); lo = Math.floor(lo / step) * step; hi = lo + 4 * step; // glatte Achsenschritte
         const y = (v) => H - B - (v - lo) / (hi - lo) * (H - T - B);
+        // Stillstand des Verdichters grau hinterlegen
+        let offStart = null;
+        data.forEach((d, k) => {
+            const off = !(d[8] > 0) && !d[10];
+            if (off && offStart === null) offStart = d[0];
+            if ((!off || k === data.length - 1) && offStart !== null) {
+                svgEl('rect', { x: x(offStart), y: T, width: Math.max(1, x(d[0]) - x(offStart)), height: H - T - B, class: 'off' }, svg);
+                offStart = null;
+            }
+        });
         // Abtauungen hinterlegen
         let dfStart = null;
         data.forEach((d, k) => {
@@ -933,7 +947,7 @@
         for (const [i, , color, dash] of cfg.lines) {
             let d = '', prev = null;
             for (const row of data) {
-                if (row[i] === null || row[i] === undefined) { prev = null; continue; }
+                if (!valid(row, i)) { prev = null; continue; }
                 d += (prev === null || row[0] - prev > 300 ? 'M' : 'L') + x(row[0]).toFixed(1) + ' ' + y(row[i]).toFixed(1) + ' ';
                 prev = row[0];
             }
@@ -951,8 +965,8 @@
         const d = best.d, cx = rGeo.x(d[0]);
         svgEl('line', { x1: cx, x2: cx, y1: rGeo.T, y2: rGeo.H - rGeo.B, class: 'cursor' }, $('rChart'));
         const tip = $('rTip');
-        tip.innerHTML = `<b>${hhmm(d[0])}</b>${d[10] ? ' · ❄ Abtauung' : ''}<br>` + rGeo.cfg.lines.map(([i, label]) => `${label}: ${vTxt(d[i], 1, rGeo.cfg.unit)}`).join('<br>')
-            + `<br>Verdichter ${vTxt(d[8], 0, ' %')}` + (d[9] !== null ? ` · Ventilator ${vTxt(d[9], 0, ' %')}` : '');
+        tip.innerHTML = `<b>${hhmm(d[0])}</b>${d[10] ? ' · ❄ Abtauung' : !(d[8] > 0) ? ' · Verdichter aus' : ''}<br>` + rGeo.cfg.lines.map(([i, label]) => `${label}: ${vTxt(d[i], 1, rGeo.cfg.unit)}`).join('<br>')
+            + `<br>Verdichter ${vTxt(d[8], 0, ' %')}` + ((d[9] || 0) > 0 ? ` · Ventilator ${vTxt(d[9], 0, ' %')}` : '');
         tip.style.display = 'block';
         tip.style.left = Math.min(Math.max(0, cx - tip.offsetWidth / 2), r.width - tip.offsetWidth) + 'px';
     }
