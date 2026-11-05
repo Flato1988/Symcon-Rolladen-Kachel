@@ -222,7 +222,12 @@ Benötigt Symcon-Modbus-Geräte mit Funktion 6 (Write Single Register), Temperat
 Beim Deaktivieren werden HK1 und Warmwasser wieder auf Hoval „Woche 1“ gestellt und 27545 auf 0 (Normalbetrieb).
 
 **Steuerung – Unterseiten:** Übersicht (Status aller Funktionen, antippen öffnet die Unterseite, Funktionsschalter mit Passwort),
-Heizung, Warmwasser, Räume, Leistung, PV und Einstellungen (nur entsperrt). Nicht berücksichtigte Räume werden ausgegraut.
+Heizung, Warmwasser, Räume, Leistung und PV. Die zugehörigen Einstellungen (Zeitprogramme, Saison, Ladezeiten, Verfahren,
+Grenzwerte, PV-Schwellen) stehen direkt auf der jeweiligen Unterseite unter „⚙ …“ und lassen sich dort nach dem Entsperren ändern.
+Nicht berücksichtigte Räume werden ausgegraut.
+
+**Verdichterstarts:** aus dem Hoval-Zähler Schaltzyklen (1518, U32, Funktion 3, in Symcon Datentyp DWord), sonst selbst
+erkannt. Anzeige der Starts heute und Ø Laufzeit je Start (Kältekreis), Starts je Zeitraum in der Auswertung und Prüfung in der Überwachung.
 
 **Leistung – Tagesauswahl:** Im Zeitraum „Tag“ blättert man mit ‹ › durch die 15-min-Werte der letzten 31 Tage
 (mit Energie und Kosten des Tages). Antippen eines Tages in „Höchste 15-min-Leistung je Tag“ oder eines Balkens in

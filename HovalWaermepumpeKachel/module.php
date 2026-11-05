@@ -28,7 +28,7 @@ class HovalWaermepumpeKachel extends IPSModule
         'COPPump'         => ['COP', 27490, 'num'],
         'JAZPump'         => ['JAZ', 27467, 'num'],
         'Hours'           => ['Betriebsstunden', 1516, 'int:h'],
-        'Cycles'          => ['Schaltzyklen', 1518, 'int'],
+        'Cycles'          => ['Schaltzyklen (Verdichterstarts)', 1518, 'int'],
         'ElecEnergy'      => ['Elektrische Gesamtenergie', 25613, 'energy'],
         'ThermEnergyHeat' => ['Thermische Gesamtenergie Heizen', 27484, 'energy'],
         'ThermEnergyDHW'  => ['Thermische Gesamtenergie Warmwasser', 27488, 'energy'],
@@ -729,10 +729,29 @@ class HovalWaermepumpeKachel extends IPSModule
             'dfe'  => round($this->GetValue('DefrostElecToday'), 2),
             // Betrieb: Laufzeit Verdichter (min), Starts, Ø Kältekreiswerte bei eingeschwungenem Betrieb (Überwachung)
             'n'    => $day['tCount'],                       // Minuten mit Daten (vollständiger Tag ≈ 1440)
-            'trk'  => !empty($day['trk']),                   // Laufzeit/Starts ab Tagesbeginn erfasst
+            'trk'  => isset($day['cycStart']) ? !empty($day['cycFull']) : !empty($day['trk']), // Starts ab Tagesbeginn erfasst
             'run'  => $day['runMin'] ?? null,
-            'st'   => $day['starts'] ?? null
+            'st'   => $this->DayStarts($day)
         ] + $this->DayRefAverages($day);
+    }
+
+    /** Starts und Laufzeit heute (für die Kältekreis-Ansicht) */
+    private function TodayRun(): array
+    {
+        $day = json_decode($this->ReadAttributeString('DayStats'), true) ?: [];
+        $starts = $this->DayStarts($day);
+        $run = $day['runMin'] ?? null;
+        return ['starts' => $starts, 'run' => $run, 'perStart' => ($starts && $run !== null) ? round($run / $starts) : null];
+    }
+
+    /** Verdichterstarts des Tages: Hoval-Zähler Schaltzyklen, sonst selbst gezählte Starts */
+    private function DayStarts(array $day): ?int
+    {
+        $cycles = $this->Value('Cycles');
+        if (isset($day['cycStart']) && $cycles !== null && $cycles >= $day['cycStart']) {
+            return (int) round($cycles - $day['cycStart']);
+        }
+        return isset($day['starts']) ? (int) $day['starts'] : null;
     }
 
     private function DayRefAverages(array $day): array
@@ -819,6 +838,12 @@ class HovalWaermepumpeKachel extends IPSModule
             $day['elecSrc'] = $this->DayElecSource();
         }
         $day['heatStart'] = $day['heatStart'] ?? $this->DayHeatCounter();
+        // Verdichterstarts aus dem Hoval-Zähler Schaltzyklen (1518), sobald eingetragen
+        $cycles = $this->Value('Cycles');
+        if ($cycles !== null && !isset($day['cycStart'])) {
+            $day['cycStart'] = $cycles;
+            $day['cycFull'] = ($day['tCount'] ?? 0) === 0; // ab Tagesbeginn gezählt?
+        }
 
         $temperature = $this->Value('OutdoorTemp');
         if ($temperature !== null) {
@@ -1368,6 +1393,10 @@ class HovalWaermepumpeKachel extends IPSModule
                 $day['ew'] = $day['ew'] ?? 0;
                 $day['eh'] = max(0, $day['e'] - $day['ed'] - $day['ew']);
             }
+            if (!empty($day['trk']) && isset($day['st']) && $day['st'] !== null) {
+                $b['st'] = ($b['st'] ?? 0) + $day['st'];
+                $b['run'] = ($b['run'] ?? 0) + ($day['run'] ?? 0);
+            }
             foreach (['e', 'eh', 'ew', 'ed', 'h', 'df'] as $field) {
                 if (isset($day[$field]) && $day[$field] !== null) {
                     $b[$field] = ($b[$field] ?? 0) + $day[$field];
@@ -1412,7 +1441,9 @@ class HovalWaermepumpeKachel extends IPSModule
                 'tmax'  => $b['tmax'] ?? null,
                 'hum'   => isset($b['humCount']) ? round($b['humSum'] / $b['humCount'], 0) : null,
                 'df'    => isset($b['df']) ? (int) $b['df'] : null,
-                'c'     => $e === null ? null : round($e * $this->ReadPropertyFloat('PricePerKWh'), 2)
+                'c'     => $e === null ? null : round($e * $this->ReadPropertyFloat('PricePerKWh'), 2),
+                'st'    => isset($b['st']) ? (int) $b['st'] : null,
+                'rps'   => (isset($b['st']) && $b['st'] > 0) ? round($b['run'] / $b['st'], 0) : null // Ø Laufzeit je Start (min)
             ];
         }
         return ['period' => $period, 'page' => $page, 'rows' => $rows, 'older' => $hasOlder, 'price' => $this->ReadPropertyFloat('PricePerKWh')];
@@ -1822,7 +1853,8 @@ class HovalWaermepumpeKachel extends IPSModule
             'condDelta' => ($cond !== null && $flow !== null) ? round($cond - $flow, 1) : null,
             'running'   => ($v['CompressorSpeed'] ?? 0) > 0,
             'defrost'   => @$this->GetIDForIdent('DefrostActive') ? $this->GetValue('DefrostActive') : false,
-            'refrigerant' => $this->ReadPropertyString('Refrigerant')
+            'refrigerant' => $this->ReadPropertyString('Refrigerant'),
+            'today'     => $this->TodayRun()
         ];
     }
 

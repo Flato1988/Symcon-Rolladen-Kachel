@@ -22,13 +22,19 @@
         user-select: none;
         -webkit-user-select: none;
         -webkit-tap-highlight-color: transparent;
+        -webkit-text-size-adjust: 100%;
+        overflow-x: hidden;
     }
+    button, .sw, .sum .it, summary { touch-action: manipulation; }
     #tile {
         box-sizing: border-box;
-        /* fest an die Kachel gebunden: die Seite selbst kann nicht scrollen (iOS ignoriert overflow: hidden im iFrame);
-           gescrollt wird nur der Inhaltsbereich unter den Reitern */
-        position: fixed;
-        inset: 0;
+        /* genau so hoch wie die Kachel (100vh), nie höher: die Seite selbst hat dadurch nichts zu scrollen;
+           gescrollt wird nur der Inhaltsbereich unter den Reitern (#body) */
+        height: 100vh;
+        max-height: 100vh;
+        width: 100%;
+        overflow: hidden;
+        position: relative;
         /* oben Platz für den Titel und das Vergrößern-Symbol, die Symcon selbst zeichnet */
         padding: 58px 14px 10px;
         display: flex;
@@ -110,7 +116,8 @@
     /* ---------- Kältekreis ---------- */
     #tile.refri-view #cmp { display: none !important; }
     #viewRefri { gap: 6px; }
-    #rSchema { width: 100%; flex: 1.2; min-height: 170px; display: block; }
+    #rSchema { width: 100%; flex: .7 1 0; min-height: 120px; max-height: 32vh; display: block; }
+    #viewRefri .chart-wrap { flex: 1.8 1 0; min-height: 240px; }
     #rSchema text { fill: var(--fg); font-size: 8.5px; }
     #rSchema .t { font-size: 9.5px; font-weight: 600; }
     #rSchema .s { font-size: 7.5px; opacity: .65; }
@@ -135,8 +142,10 @@
     #rSchema.fan .blade2 { fill: var(--acc); opacity: .9; }
     #rSchema .ev { fill: #fff; stroke: var(--fg); stroke-width: 1; stroke-opacity: .6; }
     #rSchema .dfb { fill: var(--cold); }
-    .r-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(105px, 1fr)); gap: 6px; }
-    .r-kpis .kpi .value { font-size: 14px; }
+    .r-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 5px; }
+    .r-kpis .kpi { padding: 3px 7px; }
+    .r-kpis .kpi .label { font-size: 10px; }
+    .r-kpis .kpi .value { font-size: 13px; }
     .r-kpis .kpi .sub { font-size: 10px; opacity: .6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     /* Bewertung: grün = im Normbereich, orange = auffällig, rot = außerhalb (nur bei laufendem Verdichter) */
     .r-kpis .kpi { box-shadow: inset 0 0 0 1px transparent; transition: background .3s; }
@@ -209,7 +218,23 @@
     .avg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; font-size: 11px; }
     .avg b { display: block; font-size: 14px; font-weight: 500; font-variant-numeric: tabular-nums; }
     .avg b.ok { color: #30a46c; } .avg b.warn { color: #f2994a; } .avg b.bad { color: var(--hot); }
-    #cSet { grid-column: 1 / -1; }
+    .ed { border-top: 1px solid rgba(128, 128, 128, .2); padding-top: 6px; }
+    .ed summary { cursor: pointer; font-size: 12.5px; font-weight: 600; padding: 3px 0; list-style-position: inside; }
+    .edbody { display: flex; flex-direction: column; gap: 6px; padding-top: 6px; }
+    .edbody .lockrow { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; padding: 6px 8px; border-radius: 8px; background: rgba(128, 128, 128, .1); }
+    .edbody input:disabled, .edbody select:disabled { opacity: .6; }
+    .edbody .lockrow input { font: inherit; font-size: 12px; padding: 3px 6px; border-radius: 6px; border: 1px solid rgba(128, 128, 128, .4); background: transparent; color: inherit; }
+    .plist { display: flex; flex-direction: column; gap: 6px; }
+    .prow { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 6px; border-radius: 8px; background: rgba(128, 128, 128, .07); font-size: 12px; }
+    .prow select, .prow input { font: inherit; font-size: 12px; padding: 3px 6px; border-radius: 6px; border: 1px solid rgba(128, 128, 128, .4); background: transparent; color: inherit; }
+    .prow select option { color: #000; }
+    .prow .pt { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+    .prow input[type=time] { width: 92px; }
+    .prow input[type=number] { width: 58px; }
+    .prow .del { width: 26px; padding: 3px 0; margin-left: auto; }
+    .edbody .ok-msg { color: #30a46c; }
+    .edbody .err-msg { color: var(--hot); }
+    .card[data-page="heat"], .card[data-page="dhw"] { grid-column: 1 / -1; }
     .subnav { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
     .subnav button { border: 1px solid rgba(128, 128, 128, .3); background: var(--box); color: inherit; font: inherit; font-size: 11.5px;
                      padding: 4px 11px; border-radius: 12px; cursor: pointer; }
@@ -222,8 +247,6 @@
     .sum .it .t small { font-size: 11px; opacity: .65; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .sum .it .go { opacity: .4; font-size: 16px; }
     .sum .it.off { opacity: .45; }
-    #cSet details { border-top: 1px solid rgba(128, 128, 128, .2); padding-top: 6px; }
-    #cSet summary { cursor: pointer; font-size: 12.5px; font-weight: 600; padding: 2px 0; }
     .fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px 12px; margin: 6px 0 4px; }
     .fields label { display: flex; flex-direction: column; gap: 2px; font-size: 11px; opacity: .85; }
     .fields input, .prog select, .prog input { font: inherit; font-size: 12px; padding: 3px 6px; border-radius: 6px;
@@ -742,7 +765,7 @@
 
     <div class="view" id="viewCtl" hidden>
         <div class="subnav" id="cNav">
-            <button data-p="main">Übersicht</button><button data-p="heat">Heizung</button><button data-p="dhw">Warmwasser</button><button data-p="rooms">Räume</button><button data-p="limit">Leistung</button><button data-p="pv">PV</button><button data-p="set">⚙ Einstellungen</button>
+            <button data-p="main">Übersicht</button><button data-p="heat">Heizung</button><button data-p="dhw">Warmwasser</button><button data-p="rooms">Räume</button><button data-p="limit">Leistung</button><button data-p="pv">PV</button>
         </div>
         <div class="ctl-grid">
             <div class="card" id="cSum" data-page="main">
@@ -762,7 +785,7 @@
                     <button class="btn primary" id="cUnlock">Entsperren</button>
                 </div>
                 <div class="row" id="cUnlocked" hidden>
-                    <button class="btn" id="cSetOpen">⚙ Einstellungen</button><button class="btn" id="cRelock">Sperren</button>
+                    <button class="btn" id="cRelock">Sperren</button>
                     <span class="hint" id="cLockHint"></span>
                 </div>
                 <div class="hint" id="cNoPw" hidden>In der Instanz ist kein Passwort hinterlegt – ohne Passwort ist keine Aktivierung möglich.</div>
@@ -777,6 +800,7 @@
                     <button data-v="winter">Winter</button><button data-v="transition">Übergang</button><button data-v="summer">Sommer</button>
                 </span><span class="hint" id="cSeasonHint"></span></div>
                 <div class="state" id="cHeatState">–</div>
+                <details class="ed" data-sec="heat"><summary>⚙ Zeitprogramm, Saison und Absenkung</summary><div class="edbody"></div></details>
             </div>
             <div class="card" id="cDhw" data-page="dhw">
                 <h3>Warmwasser <small id="cDhwHoval"></small></h3>
@@ -795,6 +819,7 @@
                     <input type="number" id="cMaxVal" min="30" max="70" step="0.5" placeholder="°C">
                     <button class="btn primary" id="cMaxOk">Speichern</button><button class="btn" id="cMaxCancel">Abbrechen</button>
                 </div>
+                <details class="ed" data-sec="dhw"><summary>⚙ Ladezeiten</summary><div class="edbody"></div></details>
             </div>
             <div class="card" id="cRooms" data-page="rooms">
                 <h3>Räume <span class="badge" id="cDemand">–</span></h3>
@@ -803,6 +828,7 @@
                 </div>
                 <div class="hint" id="cRoomMode"></div>
                 <div class="rooms sel" id="cRoomList"></div>
+                <details class="ed" data-sec="rooms"><summary>⚙ Verfahren und Hysterese</summary><div class="edbody"></div></details>
             </div>
             <div class="card" id="cLimit" data-page="limit">
                 <h3>Leistungsbegrenzung <small id="cLimEnd"></small></h3>
@@ -812,6 +838,7 @@
                     <div>Haus<b id="cLimHouse">–</b></div><div>Wärmepumpe<b id="cLimHp">–</b></div><div>WP erlaubt<b id="cLimAllowed">–</b></div>
                     <div>Letzte ¼ h gesamt<b id="cLimLast">–</b></div><div>Spitze heute<b id="cLimPeak">–</b></div><div>Grenze<b id="cLimMax">–</b></div>
                 </div>
+                <details class="ed" data-sec="limit"><summary>⚙ Grenzwerte</summary><div class="edbody"></div></details>
             </div>
             <div class="card" id="cPv" data-page="pv">
                 <h3>PV-Überschuss <span class="badge" id="cPvBadge">–</span></h3>
@@ -819,35 +846,7 @@
                     <div>Überschuss verfügbar<b id="cPvAvail">–</b></div><div>Einschalten ab<b id="cPvStart">–</b></div><div>Ausschalten unter<b id="cPvStop">–</b></div>
                 </div>
                 <div class="row hint" id="cPvText"></div>
-            </div>
-            <div class="card" id="cSet" data-page="set">
-                <h3>Einstellungen <small>werden erst mit „Speichern“ übernommen</small></h3>
-                <details open><summary>Saison und Absenkung</summary>
-                    <div class="row"><span class="hint">Saison</span><span class="seg" id="sSeasonMode"><button data-v="0">manuell</button><button data-v="1">automatisch (Ø 24 h Außen)</button></span></div>
-                    <div class="fields" data-keys="winterBelow:Winter unter °C,summerAbove:Sommer über °C,ecoWinter:Absenkung Winter °C,ecoTransition:Absenkung Übergang °C"></div>
-                </details>
-                <details><summary>Heizen: Komfortzeiten</summary>
-                    <div class="hint">Außerhalb der Zeiten: Absenkung; im Sommer ohne Zeiten: aus (Frostschutz).</div>
-                    <div class="prog heat" id="sHeat"></div>
-                    <button class="btn" id="sHeatAdd">+ Zeit hinzufügen</button>
-                </details>
-                <details><summary>Warmwasser: Ladezeiten</summary>
-                    <div class="hint">Außerhalb der Zeiten: Standby. Keine Zeiten = Warmwasser bleibt beim Hoval-Programm.</div>
-                    <div class="prog dhw" id="sDhw"></div>
-                    <button class="btn" id="sDhwAdd">+ Zeit hinzufügen</button>
-                </details>
-                <details><summary>Raumanforderung</summary>
-                    <div class="row"><span class="hint">Anforderung</span><span class="seg" id="sRoomMode"><button data-v="any">ein Raum zu kalt</button><button data-v="avg">Durchschnitt zu kalt</button></span></div>
-                    <div class="fields" data-keys="roomHyst:Hysterese K,roomMin:Mindestzeit zwischen Wechseln min"></div>
-                </details>
-                <details><summary>Leistungsbegrenzung</summary>
-                    <div class="fields" data-keys="maxPeak:max. 15-min-Spitze gesamt kW,margin:Sicherheitsabstand kW,minHP:WP mindestens kW,hpMax:WP max. elektrisch kW"></div>
-                </details>
-                <details><summary>PV-Überschuss</summary>
-                    <div class="fields" data-keys="pvStart:Einschalten ab kW Überschuss,pvStartMin:… für mindestens min,pvStop:Ausschalten unter kW,pvStopMin:… für mindestens min,pvMinRun:Mindestlaufzeit min,pvOffRoom:Offset Raum HK1 K,pvOffDHW:Offset Warmwasser K,pvOffBuffer:Offset Puffer K"></div>
-                    <div class="hint">Überschuss = Einspeisung + aktuelle WP-Leistung. Bei aktivem PV-Überschuss werden die Offsets über Smart Grid (Vorzugsbetrieb) gesetzt.</div>
-                </details>
-                <div class="setbar"><span class="hint" id="sMsg"></span><button class="btn" id="sCancel">Schließen</button><button class="btn primary" id="sSave">Speichern</button></div>
+                <details class="ed" data-sec="pv"><summary>⚙ Schwellen, Zeiten und Offsets</summary><div class="edbody"></div></details>
             </div>
         </div>
     </div>
@@ -1067,7 +1066,9 @@
         tint('rSh', cSh);
         tint('rHot', cHot);
         kpi('rkComp', vTxt(v.CompressorSpeed, 0, ' %'), '');
-        $('rkFan').textContent = (v.FanSpeed || 0) > 0 ? 'Ventilator ' + vTxt(v.FanSpeed, 0, ' %') : (refri.running ? 'läuft' : 'aus');
+        const td = refri.today || {};
+        $('rkFan').textContent = (td.starts !== null && td.starts !== undefined ? `heute ${td.starts} Starts` + (td.perStart ? ` · Ø ${td.perStart} min` : '') : (refri.running ? 'läuft' : 'aus'));
+        $('rkFan').title = 'Verdichterstarts heute und Ø Laufzeit je Start – häufiges Takten kostet Effizienz und verschleißt den Verdichter';
         // Schema
         $('rAir').textContent = vTxt(v.AirIntake, 1, ' °C');
         $('rFanTxt').textContent = (v.FanSpeed || 0) > 0 ? vTxt(v.FanSpeed, 0, ' %') : ''; // 31910 (WQP) ist bei Luft-WP evtl. nicht belegt
@@ -1215,12 +1216,13 @@
         if (!ctl || $('viewCtl').hidden) return;
         // Unterseiten: nur verfügbare Seiten anbieten; Karten nur auf ihrer Seite zeigen
         const avail = { main: true, heat: ctl.ctl, dhw: ctl.ctl, rooms: ctl.rooms || (ctl.roomList || []).length > 0,
-                        limit: ctl.limit, pv: ctl.pv, set: unlocked };
+                        limit: ctl.limit, pv: ctl.pv };
         if (!avail[ctlPage]) ctlPage = 'main';
-        if (ctlPage === 'set' && !setDraft) openSettings();
         document.querySelectorAll('#cNav button').forEach(b => { b.hidden = !avail[b.dataset.p]; b.classList.toggle('on', b.dataset.p === ctlPage); });
         document.querySelectorAll('#viewCtl .card[data-page]').forEach(c => { c.hidden = c.dataset.page !== ctlPage; });
         drawFunc();
+        // offene Einstellungen nur neu aufbauen, wenn kein Entwurf läuft oder sich der Sperrzustand geändert hat
+        document.querySelectorAll('.ed[open]').forEach(el => { if (!drafts[el.dataset.sec] || el.dataset.u !== String(unlocked)) renderEd(el.dataset.sec); });
 
         // Heizung
         const h = ctl.heat;
@@ -1345,13 +1347,12 @@
 
     // ---------- Funktionen und Einstellungen (Passwort) ----------
     // Das Passwort wird nur im Speicher der Kachel gehalten (10 min) und bei jeder Änderung vom Modul geprüft.
-    let pwMem = '', unlocked = false, unlockTimer = null, setDraft = null;
+    let pwMem = '', unlocked = false, unlockTimer = null, drafts = {}, savingSec = null;
     let ctlPage = 'main';
     try { ctlPage = localStorage.getItem('hwpCtlPage') || 'main'; } catch (e) {}
     function showCtlPage(p) {
         ctlPage = p;
         try { localStorage.setItem('hwpCtlPage', p); } catch (e) {}
-        if (p !== 'set') setDraft = null;
         $('body').scrollTop = 0;
         drawCtl();
     }
@@ -1384,8 +1385,7 @@
     const SEASONS = [['winter', 'Winter'], ['transition', 'Übergang'], ['summer', 'Sommer']];
     function lock() {
         pwMem = ''; unlocked = false; clearTimeout(unlockTimer);
-        setDraft = null;
-        if (ctlPage === 'set') ctlPage = 'main';
+        drafts = {};
         drawCtl();
     }
     function setUnlocked(pw) {
@@ -1420,58 +1420,83 @@
     function ctlResult(r) {
         if (r.unlocked) { setUnlocked(pendingPw); pendingPw = ''; }
         if (r.locked) { pendingPw = ''; if (unlocked) lock(); }
-        if (r.ok && $('cSet').dataset.saving) { delete $('cSet').dataset.saving; $('sMsg').textContent = 'gespeichert'; }
+        if (savingSec) {
+            const sec = savingSec;
+            savingSec = null;
+            if (r.ok) delete drafts[sec]; // neu aus den gespeicherten Werten aufbauen (kommt mit der nächsten Nachricht)
+            else { const m = document.querySelector(`.ed[data-sec="${sec}"] .ed-msg`); if (m) { m.textContent = r.msg; m.className = 'hint ed-msg err-msg'; } }
+        }
     }
 
-    // Einstellungen: Entwurf bearbeiten, erst mit "Speichern" übernehmen
-    const opt = (list, v) => list.map(([k, t]) => `<option value="${k}"${k === v ? ' selected' : ''}>${t}</option>`).join('');
-    function drawSet() {
-        const d = setDraft;
-        document.querySelectorAll('#sSeasonMode button').forEach(b => b.classList.toggle('on', Number(b.dataset.v) === Number(d.seasonMode)));
-        document.querySelectorAll('#sRoomMode button').forEach(b => b.classList.toggle('on', b.dataset.v === (d.roomMode || 'any')));
-        document.querySelectorAll('#cSet .fields').forEach(box => {
-            box.innerHTML = box.dataset.keys.split(',').map(e => {
-                const [k, label] = e.split(':');
-                return `<label>${label}<input type="number" step="0.1" data-k="${k}" value="${d[k] ?? ''}"></label>`;
-            }).join('');
-        });
-        const row = (r, i, kind) => (kind === 'heat' ? `<select data-i="${i}" data-c="Season">${opt(SEASONS, r.Season)}</select>` : '')
-            + `<select data-i="${i}" data-c="Days">${opt(DAYS, r.Days)}</select>`
-            + `<input type="time" data-i="${i}" data-c="From" value="${r.From}"><input type="time" data-i="${i}" data-c="To" value="${r.To}">`
-            + `<input type="number" step="0.5" data-i="${i}" data-c="Temp" value="${r.Temp}"><button class="btn del" data-i="${i}" title="löschen">✕</button>`;
-        [['heat', 'heatPrograms', 'sHeat', '<span class="h">Saison</span>'], ['dhw', 'dhwPrograms', 'sDhw', '']].forEach(([kind, key, id, first]) => {
-            const box = $(id);
-            box.innerHTML = (d[key].length ? first + '<span class="h">Tage</span><span class="h">von</span><span class="h">bis</span><span class="h">°C</span><span></span>' : '<span class="hint">keine Zeiten</span>')
-                + d[key].map((r, i) => row(r, i, kind)).join('');
-            box.querySelectorAll('[data-c]').forEach(el => el.addEventListener('change', () => {
-                const r = d[key][Number(el.dataset.i)];
-                r[el.dataset.c] = el.dataset.c === 'Temp' ? Number(el.value) : el.value;
-            }));
-            box.querySelectorAll('.del').forEach(b => b.addEventListener('click', () => { d[key].splice(Number(b.dataset.i), 1); drawSet(); }));
-        });
+    // Einstellungen direkt in der jeweiligen Unterseite: Entwurf bearbeiten, erst mit "Speichern" übernehmen (Passwort)
+    const opt = (list, v, dis) => list.map(([k, t]) => `<option value="${k}"${k === v ? ' selected' : ''}>${t}</option>`).join('');
+    const SEC = {
+        heat: { seg: ['seasonMode', 'Saison', [[0, 'manuell'], [1, 'automatisch (Ø 24 h Außen)']], true],
+                fields: 'winterBelow:Winter unter °C,summerAbove:Sommer über °C,ecoWinter:Absenkung Winter °C,ecoTransition:Absenkung Übergang °C',
+                prog: 'heatPrograms', hint: 'Komfortzeiten je Saison – außerhalb gilt die Absenkung, im Sommer ohne Zeiten ist die Heizung aus (Frostschutz).' },
+        dhw: { prog: 'dhwPrograms', hint: 'Außerhalb der Ladezeiten: Standby. Ohne Ladezeiten regelt Hoval das Warmwasser selbst.' },
+        rooms: { seg: ['roomMode', 'Anforderung', [['any', 'ein Raum zu kalt'], ['avg', 'Durchschnitt zu kalt']], false],
+                 fields: 'roomHyst:Hysterese K,roomMin:Mindestzeit zwischen Wechseln min' },
+        limit: { fields: 'maxPeak:max. 15-min-Spitze gesamt kW,margin:Sicherheitsabstand kW,minHP:WP mindestens kW,hpMax:WP max. elektrisch kW' },
+        pv: { fields: 'pvStart:Einschalten ab kW Überschuss,pvStartMin:… für mindestens min,pvStop:Ausschalten unter kW,pvStopMin:… für mindestens min,pvMinRun:Mindestlaufzeit min,pvOffRoom:Offset Raum HK1 K,pvOffDHW:Offset Warmwasser K,pvOffBuffer:Offset Puffer K',
+              hint: 'Überschuss = Einspeisung + aktuelle WP-Leistung. Bei aktivem PV-Überschuss werden die Offsets über Smart Grid (Vorzugsbetrieb) gesetzt.' }
+    };
+    const secKeys = (sec) => { const c = SEC[sec]; return [...(c.seg ? [c.seg[0]] : []), ...(c.fields ? c.fields.split(',').map(e => e.split(':')[0]) : []), ...(c.prog ? [c.prog] : [])]; };
+    function renderEd(sec) {
+        const el = document.querySelector(`.ed[data-sec="${sec}"]`);
+        if (!el || !ctl) return;
+        const c = SEC[sec];
+        if (!drafts[sec]) {
+            const st = ctl.settings || {};
+            drafts[sec] = {};
+            secKeys(sec).forEach(k => { drafts[sec][k] = JSON.parse(JSON.stringify(st[k] ?? (k === c.prog ? [] : null))); });
+        }
+        const d = drafts[sec], dis = unlocked ? '' : ' disabled';
+        el.dataset.u = String(unlocked);
+        let h = '';
+        if (!unlocked) h += `<div class="lockrow"><span class="hint">🔒 Zum Ändern entsperren</span><input type="password" class="lpw" placeholder="Passwort" autocomplete="off" style="width:110px"><button class="btn primary" data-unlock>Entsperren</button></div>`;
+        if (c.hint) h += `<div class="hint">${c.hint}</div>`;
+        if (c.seg) {
+            const [k, label, options] = c.seg;
+            h += `<div class="row"><span class="hint">${label}</span><span class="seg">` + options.map(([v, t]) => `<button data-seg="${v}" class="${String(d[k]) === String(v) ? 'on' : ''}"${dis}>${t}</button>`).join('') + '</span></div>';
+        }
+        if (c.fields) h += '<div class="fields">' + c.fields.split(',').map(e => { const [k, label] = e.split(':'); return `<label>${label}<input type="number" step="0.1" data-k="${k}" value="${d[k] ?? ''}"${dis}></label>`; }).join('') + '</div>';
+        if (c.prog) {
+            const rows = d[c.prog], heat = sec === 'heat';
+            // je Zeit eine Zeile, die auf schmalen Bildschirmen umbricht
+            h += '<div class="plist">' + (rows.length ? '' : '<span class="hint">keine Zeiten</span>')
+                + rows.map((r, i) => '<div class="prow">' + (heat ? `<select data-i="${i}" data-c="Season"${dis}>${opt(SEASONS, r.Season)}</select>` : '')
+                    + `<select data-i="${i}" data-c="Days"${dis}>${opt(DAYS, r.Days)}</select>`
+                    + `<span class="pt"><input type="time" data-i="${i}" data-c="From" value="${r.From}"${dis}>–<input type="time" data-i="${i}" data-c="To" value="${r.To}"${dis}></span>`
+                    + `<span class="pt"><input type="number" step="0.5" data-i="${i}" data-c="Temp" value="${r.Temp}"${dis}>°C</span>`
+                    + (unlocked ? `<button class="btn del" data-i="${i}" title="löschen">✕</button>` : '') + '</div>').join('') + '</div>';
+            if (unlocked) h += '<div><button class="btn" data-add>+ Zeit hinzufügen</button></div>';
+        }
+        if (unlocked) h += '<div class="setbar"><span class="hint ed-msg"></span><button class="btn" data-reset>Zurücksetzen</button><button class="btn primary" data-save>Speichern</button></div>';
+        const body = el.querySelector('.edbody');
+        body.innerHTML = h;
+        const q = (sel) => body.querySelectorAll(sel);
+        q('[data-unlock]').forEach(b => b.addEventListener('click', () => { const v = body.querySelector('.lpw').value; if (v) { pendingPw = v; ctlSend({ a: 'unlock', pw: v }); } }));
+        q('.lpw').forEach(i => i.addEventListener('keydown', (e) => { if (e.key === 'Enter' && i.value) { pendingPw = i.value; ctlSend({ a: 'unlock', pw: i.value }); } }));
+        q('[data-seg]').forEach(b => b.addEventListener('click', () => { d[c.seg[0]] = c.seg[3] ? Number(b.dataset.seg) : b.dataset.seg; renderEd(sec); }));
+        q('input[data-k]').forEach(i => i.addEventListener('change', () => { if (i.value !== '') d[i.dataset.k] = Number(i.value); }));
+        q('[data-c]').forEach(e => e.addEventListener('change', () => { const r = d[c.prog][Number(e.dataset.i)]; r[e.dataset.c] = e.dataset.c === 'Temp' ? Number(e.value) : e.value; }));
+        q('.del').forEach(b => b.addEventListener('click', () => { d[c.prog].splice(Number(b.dataset.i), 1); renderEd(sec); }));
+        q('[data-add]').forEach(b => b.addEventListener('click', () => {
+            d[c.prog].push(sec === 'heat' ? { Season: 'winter', Days: 'mo-fr', From: '06:00', To: '22:00', Temp: 21 } : { Days: 'mo-so', From: '05:00', To: '07:00', Temp: 50 });
+            renderEd(sec);
+        }));
+        q('[data-reset]').forEach(b => b.addEventListener('click', () => { delete drafts[sec]; renderEd(sec); }));
+        q('[data-save]').forEach(b => b.addEventListener('click', () => {
+            const msg = body.querySelector('.ed-msg');
+            q('input[data-k]').forEach(i => { if (i.value !== '') d[i.dataset.k] = Number(i.value); });
+            if (c.prog && d[c.prog].some(r => !/^\d\d:\d\d$/.test(r.From) || !/^\d\d:\d\d$/.test(r.To))) { msg.textContent = 'Bitte alle Uhrzeiten ausfüllen.'; msg.className = 'hint ed-msg err-msg'; return; }
+            savingSec = sec;
+            msg.textContent = 'speichert …'; msg.className = 'hint ed-msg';
+            ctlSend({ a: 'settings', pw: pwMem, values: d });
+        }));
     }
-    function openSettings() {
-        setDraft = JSON.parse(JSON.stringify(ctl.settings || {}));
-        setDraft.heatPrograms = setDraft.heatPrograms || [];
-        setDraft.dhwPrograms = setDraft.dhwPrograms || [];
-        $('sMsg').textContent = '';
-        drawSet();
-    }
-    $('cSetOpen').addEventListener('click', () => showCtlPage('set'));
-    $('sCancel').addEventListener('click', () => showCtlPage('main'));
-    document.querySelectorAll('#sSeasonMode button').forEach(b => b.addEventListener('click', () => { setDraft.seasonMode = Number(b.dataset.v); drawSet(); }));
-    document.querySelectorAll('#sRoomMode button').forEach(b => b.addEventListener('click', () => { setDraft.roomMode = b.dataset.v; drawSet(); }));
-    $('sHeatAdd').addEventListener('click', () => { setDraft.heatPrograms.push({ Season: 'winter', Days: 'mo-fr', From: '06:00', To: '22:00', Temp: 21 }); drawSet(); });
-    $('sDhwAdd').addEventListener('click', () => { setDraft.dhwPrograms.push({ Days: 'mo-so', From: '05:00', To: '07:00', Temp: 50 }); drawSet(); });
-    $('sSave').addEventListener('click', () => {
-        if (!unlocked) return;
-        document.querySelectorAll('#cSet .fields input[data-k]').forEach(i => { if (i.value !== '') setDraft[i.dataset.k] = Number(i.value); });
-        const bad = [...setDraft.heatPrograms, ...setDraft.dhwPrograms].some(r => !/^\d\d:\d\d$/.test(r.From) || !/^\d\d:\d\d$/.test(r.To));
-        if (bad) { $('sMsg').textContent = 'Bitte alle Uhrzeiten ausfüllen.'; return; }
-        $('cSet').dataset.saving = '1';
-        $('sMsg').textContent = 'speichert …';
-        ctlSend({ a: 'settings', pw: pwMem, values: setDraft });
-    });
+    document.querySelectorAll('.ed').forEach(el => el.addEventListener('toggle', () => { if (el.open) renderEd(el.dataset.sec); }));
 
     // ---------- Leistung: aktuelle Leistung, 15-min-Mittel (24 h), Tagesspitzen ----------
     let pw = null, pwGeo = null;
@@ -1884,6 +1909,7 @@
             + item('<i style="background:var(--hot)"></i>Warmwasser', num(r.ew, 1) + ' kWh', share(r.ew || 0))
             + item('<i style="background:var(--cold)"></i>Abtauen', num(r.ed, 2) + ' kWh', share(r.ed || 0))
             + item('Abtauungen', r.df === null ? '–' : r.df, delta(r.df, prev.df))
+            + (r.st !== null && r.st !== undefined ? item('Verdichterstarts', r.st, delta(r.st, prev.st), r.rps ? `Ø ${r.rps} min Laufzeit je Start` : '') : '')
             + item('Wärme', num(r.h, 1) + ' kWh', delta(r.h, prev.h))
             + item('Arbeitszahl', num(r.az, 2), delta(r.az, prev.az, false))
             + item('Ø Außen', num(r.t, 1) + ' °C', delta(r.t, prev.t, true, true), r.tmin !== null ? `min ${num(r.tmin, 1)} · max ${num(r.tmax, 1)} °C` : '')
