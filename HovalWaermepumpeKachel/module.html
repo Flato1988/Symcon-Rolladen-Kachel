@@ -70,7 +70,7 @@
     /* ---------- Umschalter Anlage / Verlauf ---------- */
     .view { flex: 1; min-height: 0; display: flex; flex-direction: column; }
     .view[hidden] { display: none; }
-    .tabs { display: flex; gap: 4px; align-items: center; }
+    .tabs { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; row-gap: 4px; }
     .tabs button {
         border: 1px solid rgba(128, 128, 128, .3); background: transparent; color: inherit; font: inherit;
         font-size: 11px; padding: 3px 10px; border-radius: 12px; cursor: pointer;
@@ -134,9 +134,17 @@
     .r-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(105px, 1fr)); gap: 6px; }
     .r-kpis .kpi .value { font-size: 14px; }
     .r-kpis .kpi .sub { font-size: 10px; opacity: .6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .r-kpis .kpi.ok .value { color: var(--acc); }
-    .r-kpis .kpi.warn .value { color: #f2994a; }
-    .r-kpis .kpi.bad .value { color: var(--hot); }
+    /* Bewertung: grün = im Normbereich, orange = auffällig, rot = außerhalb (nur bei laufendem Verdichter) */
+    .r-kpis .kpi { box-shadow: inset 0 0 0 1px transparent; transition: background .3s; }
+    .r-kpis .kpi.ok { background: rgba(48, 164, 108, .16); box-shadow: inset 0 0 0 1px rgba(48, 164, 108, .45); }
+    .r-kpis .kpi.warn { background: rgba(242, 153, 74, .16); box-shadow: inset 0 0 0 1px rgba(242, 153, 74, .5); }
+    .r-kpis .kpi.bad { background: rgba(229, 72, 77, .16); box-shadow: inset 0 0 0 1px rgba(229, 72, 77, .5); }
+    .r-kpis .kpi.ok .value { color: #30a46c; font-weight: 600; }
+    .r-kpis .kpi.warn .value { color: #f2994a; font-weight: 600; }
+    .r-kpis .kpi.bad .value { color: var(--hot); font-weight: 600; }
+    #rSchema text.ok { fill: #30a46c; font-weight: 600; }
+    #rSchema text.warn { fill: #f2994a; font-weight: 600; }
+    #rSchema text.bad { fill: var(--hot); font-weight: 600; }
     #rChart { flex: 1; width: 100%; min-height: 0; display: block; touch-action: pan-y; }
     #rChart text { fill: var(--fg); font-size: 10px; opacity: .6; }
     #rChart .grid { stroke: rgba(128, 128, 128, .22); stroke-width: 1; }
@@ -174,12 +182,43 @@
     .badge.ok { background: var(--acc); color: #fff; }
     .rooms { display: grid; grid-template-columns: 1fr auto auto auto; gap: 3px 12px; font-size: 12px; font-variant-numeric: tabular-nums; }
     .rooms .h { opacity: .55; font-size: 10.5px; }
+    .rooms > span { white-space: nowrap; }
     .lim-bar { position: relative; height: 16px; border-radius: 8px; background: rgba(128, 128, 128, .18); overflow: hidden; }
     .lim-bar .used { position: absolute; left: 0; top: 0; bottom: 0; background: var(--acc); }
     .lim-bar .fc { position: absolute; top: 0; bottom: 0; background: var(--acc); opacity: .35; }
     .lim-bar.over .used, .lim-bar.over .fc { background: var(--hot); }
     .lim-vals { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; font-size: 11px; }
     .lim-vals b { display: block; font-size: 14px; font-weight: 500; }
+    .sw { position: relative; display: inline-block; width: 36px; height: 20px; flex: none; }
+    .sw input { opacity: 0; width: 0; height: 0; position: absolute; }
+    .sw i { position: absolute; inset: 0; border-radius: 10px; background: rgba(128, 128, 128, .35); transition: background .2s; cursor: pointer; }
+    .sw i::after { content: ''; position: absolute; left: 2px; top: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform .2s; }
+    .sw input:checked + i { background: #30a46c; }
+    .sw input:checked + i::after { transform: translateX(16px); }
+    .sw input:disabled + i { opacity: .5; cursor: default; }
+    .func { display: grid; grid-template-columns: auto 1fr auto; gap: 7px 10px; align-items: center; font-size: 12.5px; }
+    .func .hint { text-align: right; }
+    .rooms.sel { grid-template-columns: auto 1fr auto auto auto; }
+    .rooms .off { opacity: .4; text-decoration: line-through; }
+    .rooms .off.n { text-decoration: none; }
+    .avg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; font-size: 11px; }
+    .avg b { display: block; font-size: 14px; font-weight: 500; font-variant-numeric: tabular-nums; }
+    .avg b.ok { color: #30a46c; } .avg b.warn { color: #f2994a; } .avg b.bad { color: var(--hot); }
+    #cSet { grid-column: 1 / -1; }
+    #cSet details { border-top: 1px solid rgba(128, 128, 128, .2); padding-top: 6px; }
+    #cSet summary { cursor: pointer; font-size: 12.5px; font-weight: 600; padding: 2px 0; }
+    .fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px 12px; margin: 6px 0 4px; }
+    .fields label { display: flex; flex-direction: column; gap: 2px; font-size: 11px; opacity: .85; }
+    .fields input, .prog select, .prog input { font: inherit; font-size: 12px; padding: 3px 6px; border-radius: 6px;
+        border: 1px solid rgba(128, 128, 128, .4); background: transparent; color: inherit; min-width: 0; }
+    .fields input { width: 100%; box-sizing: border-box; }
+    .prog select option { color: #000; }
+    .prog { display: grid; gap: 4px 6px; align-items: center; font-size: 11px; margin: 6px 0; }
+    .prog.heat { grid-template-columns: minmax(80px, 1fr) minmax(80px, 1fr) minmax(76px, 100px) minmax(76px, 100px) 58px 26px; }
+    .prog.dhw { grid-template-columns: minmax(80px, 1fr) minmax(76px, 100px) minmax(76px, 100px) 58px 26px; }
+    .prog .h { opacity: .55; font-size: 10.5px; }
+    .prog .del { width: 26px; padding: 3px 0; }
+    .setbar { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; align-items: center; }
     .pwbox { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
     .pwbox input { font: inherit; font-size: 12px; padding: 3px 6px; border-radius: 6px; border: 1px solid rgba(128, 128, 128, .4);
                    background: transparent; color: inherit; width: 110px; }
@@ -542,9 +581,10 @@
     <div class="view" id="viewRefri" hidden>
         <div class="r-kpis">
             <div class="kpi" id="rkSh"><div class="label">Überhitzung</div><div class="value">–</div><div class="sub">Expansionsventil · ca. 3–10 K</div></div>
-            <div class="kpi" id="rkRatio"><div class="label">Druckverhältnis</div><div class="value">–</div><div class="sub">HD ÷ ND (absolut)</div></div>
-            <div class="kpi" id="rkAir"><div class="label">Luft − Verdampfung</div><div class="value">–</div><div class="sub">steigt bei Vereisung</div></div>
-            <div class="kpi" id="rkCond"><div class="label">Kondensator</div><div class="value">–</div><div class="sub">Kondensation − Vorlauf</div></div>
+            <div class="kpi" id="rkRatio"><div class="label">Druckverhältnis</div><div class="value">–</div><div class="sub">HD ÷ ND (absolut) · bis ca. 6</div></div>
+            <div class="kpi" id="rkAir"><div class="label">Luft − Verdampfung</div><div class="value">–</div><div class="sub">bis ca. 10 K · steigt bei Vereisung</div></div>
+            <div class="kpi" id="rkCond"><div class="label">Kondensator</div><div class="value">–</div><div class="sub">Kondensation − Vorlauf · ca. 0–6 K</div></div>
+            <div class="kpi" id="rkHot"><div class="label">Heißgas</div><div class="value">–</div><div class="sub">Verdichteraustritt · bis ca. 95 °C</div></div>
             <div class="kpi" id="rkComp"><div class="label">Verdichter</div><div class="value">–</div><div class="sub" id="rkFan"></div></div>
         </div>
         <svg id="rSchema" viewBox="0 0 440 212" preserveAspectRatio="xMidYMid meet">
@@ -614,6 +654,24 @@
 
     <div class="view" id="viewCtl" hidden>
         <div class="ctl-grid">
+            <div class="card" id="cFunc">
+                <h3>Funktionen <span class="badge" id="cLock">🔒 gesperrt</span></h3>
+                <div class="func">
+                    <label class="sw"><input type="checkbox" data-f="ctlOn"><i></i></label><span>Heizungssteuerung</span><span class="hint">Zeitprogramme, Warmwasser</span>
+                    <label class="sw"><input type="checkbox" data-f="roomsOn"><i></i></label><span>Raumanforderung</span><span class="hint">Heizen nur bei Bedarf</span>
+                    <label class="sw"><input type="checkbox" data-f="limitOn"><i></i></label><span>Leistungsbegrenzung</span><span class="hint">15-min-Spitze</span>
+                    <label class="sw"><input type="checkbox" data-f="pvOn"><i></i></label><span>PV-Überschuss</span><span class="hint">Überschuss in Wärme</span>
+                </div>
+                <div class="pwbox" id="cUnlockBox">
+                    <input type="password" id="cPw" placeholder="Passwort" autocomplete="off">
+                    <button class="btn primary" id="cUnlock">Entsperren</button>
+                </div>
+                <div class="row" id="cUnlocked" hidden>
+                    <button class="btn" id="cSetOpen">⚙ Einstellungen</button><button class="btn" id="cRelock">Sperren</button>
+                    <span class="hint" id="cLockHint"></span>
+                </div>
+                <div class="hint" id="cNoPw" hidden>In der Instanz ist kein Passwort hinterlegt – ohne Passwort ist keine Aktivierung möglich.</div>
+            </div>
             <div class="card" id="cHeat">
                 <h3>Heizung <small id="cHeatHoval"></small></h3>
                 <div class="row"><span class="seg" id="cMode">
@@ -644,8 +702,12 @@
                 </div>
             </div>
             <div class="card" id="cRooms">
-                <h3>Raumanforderung <span class="badge" id="cDemand">–</span></h3>
-                <div class="rooms" id="cRoomList"></div>
+                <h3>Räume <span class="badge" id="cDemand">–</span></h3>
+                <div class="avg">
+                    <div>Ø Ist<b id="cAvgIst">–</b></div><div>Ø Soll<b id="cAvgSoll">–</b></div><div>Abweichung<b id="cAvgDev">–</b></div>
+                </div>
+                <div class="hint" id="cRoomMode"></div>
+                <div class="rooms sel" id="cRoomList"></div>
             </div>
             <div class="card" id="cLimit">
                 <h3>Leistungsbegrenzung <small id="cLimEnd"></small></h3>
@@ -655,6 +717,42 @@
                     <div>Haus<b id="cLimHouse">–</b></div><div>Wärmepumpe<b id="cLimHp">–</b></div><div>WP erlaubt<b id="cLimAllowed">–</b></div>
                     <div>Letzte ¼ h gesamt<b id="cLimLast">–</b></div><div>Spitze heute<b id="cLimPeak">–</b></div><div>Grenze<b id="cLimMax">–</b></div>
                 </div>
+            </div>
+            <div class="card" id="cPv">
+                <h3>PV-Überschuss <span class="badge" id="cPvBadge">–</span></h3>
+                <div class="lim-vals">
+                    <div>Überschuss verfügbar<b id="cPvAvail">–</b></div><div>Einschalten ab<b id="cPvStart">–</b></div><div>Ausschalten unter<b id="cPvStop">–</b></div>
+                </div>
+                <div class="row hint" id="cPvText"></div>
+            </div>
+            <div class="card" id="cSet" hidden>
+                <h3>Einstellungen <small>werden erst mit „Speichern“ übernommen</small></h3>
+                <details open><summary>Saison und Absenkung</summary>
+                    <div class="row"><span class="hint">Saison</span><span class="seg" id="sSeasonMode"><button data-v="0">manuell</button><button data-v="1">automatisch (Ø 24 h Außen)</button></span></div>
+                    <div class="fields" data-keys="winterBelow:Winter unter °C,summerAbove:Sommer über °C,ecoWinter:Absenkung Winter °C,ecoTransition:Absenkung Übergang °C"></div>
+                </details>
+                <details><summary>Heizen: Komfortzeiten</summary>
+                    <div class="hint">Außerhalb der Zeiten: Absenkung; im Sommer ohne Zeiten: aus (Frostschutz).</div>
+                    <div class="prog heat" id="sHeat"></div>
+                    <button class="btn" id="sHeatAdd">+ Zeit hinzufügen</button>
+                </details>
+                <details><summary>Warmwasser: Ladezeiten</summary>
+                    <div class="hint">Außerhalb der Zeiten: Standby. Keine Zeiten = Warmwasser bleibt beim Hoval-Programm.</div>
+                    <div class="prog dhw" id="sDhw"></div>
+                    <button class="btn" id="sDhwAdd">+ Zeit hinzufügen</button>
+                </details>
+                <details><summary>Raumanforderung</summary>
+                    <div class="row"><span class="hint">Anforderung</span><span class="seg" id="sRoomMode"><button data-v="any">ein Raum zu kalt</button><button data-v="avg">Durchschnitt zu kalt</button></span></div>
+                    <div class="fields" data-keys="roomHyst:Hysterese K,roomMin:Mindestzeit zwischen Wechseln min"></div>
+                </details>
+                <details><summary>Leistungsbegrenzung</summary>
+                    <div class="fields" data-keys="maxPeak:max. 15-min-Spitze gesamt kW,margin:Sicherheitsabstand kW,minHP:WP mindestens kW,hpMax:WP max. elektrisch kW"></div>
+                </details>
+                <details><summary>PV-Überschuss</summary>
+                    <div class="fields" data-keys="pvStart:Einschalten ab kW Überschuss,pvStartMin:… für mindestens min,pvStop:Ausschalten unter kW,pvStopMin:… für mindestens min,pvMinRun:Mindestlaufzeit min,pvOffRoom:Offset Raum HK1 K,pvOffDHW:Offset Warmwasser K,pvOffBuffer:Offset Puffer K"></div>
+                    <div class="hint">Überschuss = Einspeisung + aktuelle WP-Leistung. Bei aktivem PV-Überschuss werden die Offsets über Smart Grid (Vorzugsbetrieb) gesetzt.</div>
+                </details>
+                <div class="setbar"><span class="hint" id="sMsg"></span><button class="btn" id="sCancel">Schließen</button><button class="btn primary" id="sSave">Speichern</button></div>
             </div>
         </div>
     </div>
@@ -859,10 +957,19 @@
         // Kennwerte mit Bewertung
         const kpi = (id, text, cls) => { const k = $(id); k.querySelector('.value').textContent = text; k.classList.remove('ok', 'warn', 'bad'); if (cls) k.classList.add(cls); };
         const sh = refri.sh;
-        kpi('rkSh', vTxt(sh, 1, ' K'), !refri.running || sh === null ? '' : sh >= 3 && sh <= 10 ? 'ok' : sh >= 1.5 && sh <= 14 ? 'warn' : 'bad');
-        kpi('rkRatio', vTxt(refri.ratio, 2, ''), '');
-        kpi('rkAir', vTxt(refri.airDelta, 1, ' K'), !refri.running || refri.airDelta === null ? '' : refri.airDelta <= 10 ? 'ok' : refri.airDelta <= 14 ? 'warn' : 'bad');
-        kpi('rkCond', vTxt(refri.condDelta, 1, ' K'), '');
+        // Normbereiche: [ok von, ok bis, auffällig von, auffällig bis]; bewertet wird nur bei laufendem Verdichter (nicht beim Abtauen)
+        const rate = (val, okLo, okHi, wLo, wHi) => !refri.running || refri.defrost || val === null || val === undefined ? ''
+            : val >= okLo && val <= okHi ? 'ok' : val >= wLo && val <= wHi ? 'warn' : 'bad';
+        const cSh = rate(sh, 3, 10, 1.5, 14), cHot = rate(v.HotGas, 0, 95, 0, 105);
+        kpi('rkSh', vTxt(sh, 1, ' K'), cSh);
+        kpi('rkRatio', vTxt(refri.ratio, 2, ''), rate(refri.ratio, 1.5, 6, 1.2, 8));
+        kpi('rkAir', vTxt(refri.airDelta, 1, ' K'), rate(refri.airDelta, -2, 10, -5, 14));
+        kpi('rkCond', vTxt(refri.condDelta, 1, ' K'), rate(refri.condDelta, -2, 6, -4, 10));
+        kpi('rkHot', vTxt(v.HotGas, 1, ' °C'), cHot);
+        $('rkHot').hidden = v.HotGas === null || v.HotGas === undefined;
+        const tint = (id, cls) => { const t = $(id); t.classList.remove('ok', 'warn', 'bad'); if (cls) t.classList.add(cls); };
+        tint('rSh', cSh);
+        tint('rHot', cHot);
         kpi('rkComp', vTxt(v.CompressorSpeed, 0, ' %'), '');
         $('rkFan').textContent = (v.FanSpeed || 0) > 0 ? 'Ventilator ' + vTxt(v.FanSpeed, 0, ' %') : (refri.running ? 'läuft' : 'aus');
         // Schema
@@ -997,8 +1104,10 @@
         if (!ctl && gotData && !$('viewCtl').hidden) showView('schema'); // Steuerung in der Instanz deaktiviert
         if (!ctl || $('viewCtl').hidden) return;
         $('cHeat').hidden = $('cDhw').hidden = !ctl.ctl;
-        $('cRooms').hidden = !ctl.rooms;
+        $('cRooms').hidden = !ctl.rooms && !(ctl.roomList || []).length;
         $('cLimit').hidden = !ctl.limit;
+        $('cPv').hidden = !ctl.pv;
+        drawFunc();
 
         // Heizung
         const h = ctl.heat;
@@ -1033,11 +1142,48 @@
         $('cDhwState').innerHTML = ws + (d.top !== null ? ` <span class="hint">· oben ${tTxt(d.top)}</span>` : '');
         $('cDhwHoval').textContent = d.status ? `Hoval: ${d.status}${d.set !== null ? ' · Soll ' + tTxt(d.set) : ''}` : '';
 
-        // Raumanforderung
+        // Räume: Anforderung, Durchschnitt, Abweichung, einzelne Räume berücksichtigen
+        const rs = ctl.roomStats || {};
+        $('cDemand').hidden = !ctl.rooms;
         $('cDemand').textContent = ctl.demand ? 'Anforderung' : 'keine Anforderung';
         $('cDemand').className = 'badge' + (ctl.demand ? ' on' : ' ok');
-        $('cRoomList').innerHTML = '<span class="h">Raum</span><span class="h">Ist</span><span class="h">Soll</span><span class="h"></span>'
-            + (ctl.roomList || []).map(r => `<span>${r.name}</span><span>${tTxt(r.ist)}</span><span>${tTxt(r.soll)}</span><span>${r.demand ? '🔥' : '✓'}</span>`).join('');
+        $('cAvgIst').textContent = tTxt(rs.avgIst);
+        $('cAvgSoll').textContent = tTxt(rs.avgSoll);
+        const dev = rs.dev, devK = rs.avgIst != null && rs.avgSoll != null ? rs.avgIst - rs.avgSoll : null;
+        const hyst = ctl.settings ? ctl.settings.roomHyst : 0.3;
+        $('cAvgDev').textContent = dev == null ? '–' : (dev > 0 ? '+' : '') + num(dev, 1) + ' %' + ` (${devK > 0 ? '+' : ''}${num(devK, 1)} K)`;
+        $('cAvgDev').className = devK == null ? '' : Math.abs(devK) <= hyst ? 'ok' : Math.abs(devK) <= 1.5 ? 'warn' : 'bad';
+        const mode = ctl.settings && ctl.settings.roomMode === 'avg' ? 'avg' : 'any';
+        $('cRoomMode').textContent = !ctl.rooms ? 'Raumanforderung ist nicht aktiviert – nur Anzeige.'
+            : `Verfahren: ${mode === 'avg' ? 'Durchschnitt zu kalt' : 'ein Raum zu kalt'} · einzeln ${rs.anyDemand ? 'Anforderung' : 'keine'}, Ø ${rs.avgDemand ? 'Anforderung' : 'keine'}`
+            + ` · ${rs.count || 0} Raum/Räume berücksichtigt`;
+        $('cRoomList').innerHTML = `<span class="h" title="berücksichtigen">✓</span><span class="h">Raum</span><span class="h">Ist</span><span class="h">Soll</span><span class="h"></span>`
+            + (ctl.roomList || []).map((r, i) => {
+                const off = r.active === false ? ' class="off"' : '';
+                return `<label class="sw" title="${unlocked ? 'berücksichtigen' : 'zum Ändern entsperren'}"><input type="checkbox" data-room="${i}"${r.active !== false ? ' checked' : ''}${unlocked ? '' : ' disabled'}><i></i></label>`
+                    + `<span${off}>${esc(r.name)}</span><span${off}>${tTxt(r.ist)}</span><span${off}>${tTxt(r.soll)}</span>`
+                    + `<span>${r.active === false ? '<span class="hint">nicht berücksichtigt</span>' : r.demand ? '🔥' : '✓'}</span>`;
+            }).join('');
+        $('cRoomList').querySelectorAll('input[data-room]').forEach(c => c.addEventListener('change', () => {
+            const r = ctl.roomList[Number(c.dataset.room)];
+            if (r) ctlSend({ a: 'room', pw: pwMem, name: r.name, v: c.checked });
+        }));
+
+        // PV-Überschuss
+        const pv = ctl.pvState || {};
+        const st2 = ctl.settings || {};
+        $('cPvAvail').textContent = kwTxt(pv.avail);
+        $('cPvStart').textContent = kwTxt(st2.pvStart);
+        $('cPvStop').textContent = kwTxt(st2.pvStop);
+        $('cPvBadge').textContent = pv.active ? 'aktiv' : pv.since ? 'wartet' : 'inaktiv';
+        $('cPvBadge').className = 'badge' + (pv.active ? ' ok' : '');
+        let pvt;
+        if (!pv.hasVar) pvt = 'In der Instanz ist keine Netz- bzw. Überschussvariable hinterlegt.';
+        else if (pv.active) pvt = `Vorzugsbetrieb seit ${until(pv.started)} · Offsets Raum +${num(st2.pvOffRoom, 1)} K, Warmwasser +${num(st2.pvOffDHW, 1)} K, Puffer +${num(st2.pvOffBuffer, 1)} K`;
+        else if (pv.since) pvt = `Überschuss ausreichend seit ${until(pv.since)} – Start nach ${num(st2.pvStartMin, 0)} min`;
+        else pvt = 'Zu wenig Überschuss – Wärmepumpe im Normalbetrieb.';
+        if (ctl.limit && pv.active) pvt += ' · Leistungsbegrenzung bleibt wirksam';
+        $('cPvText').textContent = pvt;
 
         // Leistungsbegrenzung
         const l = ctl.pw;
@@ -1078,9 +1224,107 @@
     $('cMaxEdit').addEventListener('click', () => { $('cMaxBox').hidden = false; $('cMaxVal').value = ctl ? ctl.dhw.max : ''; $('cMaxPw').focus(); });
     $('cMaxCancel').addEventListener('click', () => { $('cMaxBox').hidden = true; $('cMaxPw').value = ''; });
     $('cMaxOk').addEventListener('click', () => {
-        ctlSend({ a: 'maxTemp', pw: $('cMaxPw').value, v: Number($('cMaxVal').value) });
+        ctlSend({ a: 'maxTemp', pw: unlocked ? pwMem : $('cMaxPw').value, v: Number($('cMaxVal').value) });
         $('cMaxPw').value = '';
         $('cMaxBox').hidden = true;
+    });
+
+    // ---------- Funktionen und Einstellungen (Passwort) ----------
+    // Das Passwort wird nur im Speicher der Kachel gehalten (10 min) und bei jeder Änderung vom Modul geprüft.
+    let pwMem = '', unlocked = false, unlockTimer = null, setDraft = null;
+    const esc = (t) => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+    const DAYS = [['mo-so', 'Mo–So'], ['mo-fr', 'Mo–Fr'], ['sa-so', 'Sa–So'], ['mo', 'Montag'], ['di', 'Dienstag'], ['mi', 'Mittwoch'],
+                  ['do', 'Donnerstag'], ['fr', 'Freitag'], ['sa', 'Samstag'], ['so', 'Sonntag']];
+    const SEASONS = [['winter', 'Winter'], ['transition', 'Übergang'], ['summer', 'Sommer']];
+    function lock() {
+        pwMem = ''; unlocked = false; clearTimeout(unlockTimer);
+        $('cSet').hidden = true; setDraft = null;
+        drawCtl();
+    }
+    function setUnlocked(pw) {
+        pwMem = pw; unlocked = true;
+        clearTimeout(unlockTimer);
+        unlockTimer = setTimeout(lock, 10 * 60 * 1000);
+        $('cLockHint').textContent = 'sperrt automatisch nach 10 min';
+        drawCtl();
+    }
+    function drawFunc() {
+        $('cLock').textContent = unlocked ? '🔓 entsperrt' : '🔒 gesperrt';
+        $('cLock').className = 'badge' + (unlocked ? ' ok' : '');
+        document.querySelectorAll('#cFunc input[data-f]').forEach(c => {
+            const key = { ctlOn: 'ctl', roomsOn: 'rooms', limitOn: 'limit', pvOn: 'pv' }[c.dataset.f];
+            c.checked = !!ctl[key];
+            c.disabled = !unlocked;
+        });
+        $('cNoPw').hidden = ctl.pwSet !== false;
+        $('cUnlockBox').hidden = unlocked || ctl.pwSet === false;
+        $('cUnlocked').hidden = !unlocked;
+        $('cMaxPw').hidden = unlocked;
+    }
+    document.querySelectorAll('#cFunc input[data-f]').forEach(c => c.addEventListener('change', () => {
+        if (!unlocked) { c.checked = !c.checked; return; }
+        ctlSend({ a: 'feature', pw: pwMem, f: c.dataset.f, v: c.checked });
+    }));
+    const doUnlock = () => { const pw = $('cPw').value; if (!pw) return; pendingPw = pw; ctlSend({ a: 'unlock', pw }); $('cPw').value = ''; };
+    let pendingPw = '';
+    $('cUnlock').addEventListener('click', doUnlock);
+    $('cPw').addEventListener('keydown', (e) => { if (e.key === 'Enter') doUnlock(); });
+    $('cRelock').addEventListener('click', lock);
+    function ctlResult(r) {
+        if (r.unlocked) { setUnlocked(pendingPw); pendingPw = ''; }
+        if (r.locked) { pendingPw = ''; if (unlocked) lock(); }
+        if (r.ok && $('cSet').dataset.saving) { delete $('cSet').dataset.saving; $('sMsg').textContent = 'gespeichert'; }
+    }
+
+    // Einstellungen: Entwurf bearbeiten, erst mit "Speichern" übernehmen
+    const opt = (list, v) => list.map(([k, t]) => `<option value="${k}"${k === v ? ' selected' : ''}>${t}</option>`).join('');
+    function drawSet() {
+        const d = setDraft;
+        document.querySelectorAll('#sSeasonMode button').forEach(b => b.classList.toggle('on', Number(b.dataset.v) === Number(d.seasonMode)));
+        document.querySelectorAll('#sRoomMode button').forEach(b => b.classList.toggle('on', b.dataset.v === (d.roomMode || 'any')));
+        document.querySelectorAll('#cSet .fields').forEach(box => {
+            box.innerHTML = box.dataset.keys.split(',').map(e => {
+                const [k, label] = e.split(':');
+                return `<label>${label}<input type="number" step="0.1" data-k="${k}" value="${d[k] ?? ''}"></label>`;
+            }).join('');
+        });
+        const row = (r, i, kind) => (kind === 'heat' ? `<select data-i="${i}" data-c="Season">${opt(SEASONS, r.Season)}</select>` : '')
+            + `<select data-i="${i}" data-c="Days">${opt(DAYS, r.Days)}</select>`
+            + `<input type="time" data-i="${i}" data-c="From" value="${r.From}"><input type="time" data-i="${i}" data-c="To" value="${r.To}">`
+            + `<input type="number" step="0.5" data-i="${i}" data-c="Temp" value="${r.Temp}"><button class="btn del" data-i="${i}" title="löschen">✕</button>`;
+        [['heat', 'heatPrograms', 'sHeat', '<span class="h">Saison</span>'], ['dhw', 'dhwPrograms', 'sDhw', '']].forEach(([kind, key, id, first]) => {
+            const box = $(id);
+            box.innerHTML = (d[key].length ? first + '<span class="h">Tage</span><span class="h">von</span><span class="h">bis</span><span class="h">°C</span><span></span>' : '<span class="hint">keine Zeiten</span>')
+                + d[key].map((r, i) => row(r, i, kind)).join('');
+            box.querySelectorAll('[data-c]').forEach(el => el.addEventListener('change', () => {
+                const r = d[key][Number(el.dataset.i)];
+                r[el.dataset.c] = el.dataset.c === 'Temp' ? Number(el.value) : el.value;
+            }));
+            box.querySelectorAll('.del').forEach(b => b.addEventListener('click', () => { d[key].splice(Number(b.dataset.i), 1); drawSet(); }));
+        });
+    }
+    $('cSetOpen').addEventListener('click', () => {
+        setDraft = JSON.parse(JSON.stringify(ctl.settings || {}));
+        setDraft.heatPrograms = setDraft.heatPrograms || [];
+        setDraft.dhwPrograms = setDraft.dhwPrograms || [];
+        $('sMsg').textContent = '';
+        $('cSet').hidden = false;
+        drawSet();
+        $('cSet').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+    $('sCancel').addEventListener('click', () => { $('cSet').hidden = true; setDraft = null; });
+    document.querySelectorAll('#sSeasonMode button').forEach(b => b.addEventListener('click', () => { setDraft.seasonMode = Number(b.dataset.v); drawSet(); }));
+    document.querySelectorAll('#sRoomMode button').forEach(b => b.addEventListener('click', () => { setDraft.roomMode = b.dataset.v; drawSet(); }));
+    $('sHeatAdd').addEventListener('click', () => { setDraft.heatPrograms.push({ Season: 'winter', Days: 'mo-fr', From: '06:00', To: '22:00', Temp: 21 }); drawSet(); });
+    $('sDhwAdd').addEventListener('click', () => { setDraft.dhwPrograms.push({ Days: 'mo-so', From: '05:00', To: '07:00', Temp: 50 }); drawSet(); });
+    $('sSave').addEventListener('click', () => {
+        if (!unlocked) return;
+        document.querySelectorAll('#cSet .fields input[data-k]').forEach(i => { if (i.value !== '') setDraft[i.dataset.k] = Number(i.value); });
+        const bad = [...setDraft.heatPrograms, ...setDraft.dhwPrograms].some(r => !/^\d\d:\d\d$/.test(r.From) || !/^\d\d:\d\d$/.test(r.To));
+        if (bad) { $('sMsg').textContent = 'Bitte alle Uhrzeiten ausfüllen.'; return; }
+        $('cSet').dataset.saving = '1';
+        $('sMsg').textContent = 'speichert …';
+        ctlSend({ a: 'settings', pw: pwMem, values: setDraft });
     });
 
     // ---------- Leistung: aktuelle Leistung, 15-min-Mittel (24 h), Tagesspitzen ----------
@@ -1441,6 +1685,7 @@
         }
         if (msg.ctlResult) { // Rückmeldung auf eine Bedienung
             toast(msg.ctlResult.msg, !msg.ctlResult.ok);
+            ctlResult(msg.ctlResult);
             return;
         }
         if (msg.stats) { // Antwort auf die Anforderung der Auswertung

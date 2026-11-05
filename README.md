@@ -188,28 +188,42 @@ R290 wählbar) Verdampfungs- und Kondensationstemperatur berechnet, dazu Druckve
 und Kondensator-Grädigkeit. Verlauf der letzten 6 Stunden (Drücke / Temperaturen / Überhitzung mit Sollbereich 3–10 K),
 Abtauungen blau und Verdichter-Stillstand grau hinterlegt; die Überhitzung wird nur bei laufendem Verdichter gezeichnet.
 
-**Steuerung (fünfter Reiter, erscheint nur wenn aktiviert) – schreibt in die Wärmepumpe:**
+**Steuerung (Reiter „Steuerung“) – schreibt in die Wärmepumpe:**
+In der Instanz werden nur die **Variablen** und das **Passwort** eingetragen. Aktivieren/Deaktivieren und alle
+Einstellungen (Zeitprogramme, Saison, Grenzwerte, Räume, PV) erfolgen in der Kachel: Passwort eingeben → „Entsperren“
+(bleibt 10 min entsperrt). Das Passwort wird bei jeder Änderung im Modul geprüft und nie an die Kachel gesendet.
+Einstellungen aus älteren Versionen (Instanz) werden beim Update übernommen.
+
 Benötigt Symcon-Modbus-Geräte mit Funktion 6 (Write Single Register), Temperaturen mit Faktor 0,1:
 1478 Betriebswahl HK1, 1481 Normal-Raumtemperatur HK1, 1496 Betriebswahl WW, 1497 Normal-WW-Temperatur,
-27536 Verfügbare el. Leistung gedämpft, 27546 Auslöser Smart Grid, 27545 Smart Grid über Systembus. Geschrieben wird nur bei Änderung (Auffrischung alle 30 min).
+27536 Verfügbare el. Leistung gedämpft, 27546 Auslöser Smart Grid, 27545 Smart Grid über Systembus,
+27528 / 27509 / 28839 Smart-Grid-Offsets Raum HK1 / Warmwasser / Puffer. Geschrieben wird nur bei Änderung (Auffrischung alle 30 min).
 
 - **Heizungssteuerung:** Automatik (Zeitprogramm), Frostschutz (1478 = Standby) oder Dauerbetrieb mit Raum-Soll.
   Zeitprogramme mit Komfortzeiten je Saison **Winter / Übergang / Sommer** (außerhalb: Absenktemperatur, Sommer: Heizung aus).
   Saison manuell oder automatisch nach Ø 24 h der Außentemperatur. Im Automatik-/Dauerbetrieb wird HK1 auf „Konstant“ (4)
   gestellt und die Normal-Raumtemperatur geschrieben.
 - **Warmwasser:** Ladezeiten mit Temperatur (außerhalb Standby; ohne Ladezeiten regelt Hoval), Taste „x Stunden auf y °C
-  aufheizen“. Die **maximale Warmwassertemperatur** begrenzt alle Werte und ist in der Kachel nur mit **Passwort** änderbar.
-- **Raumanforderung (separat aktivierbar):** beliebig viele Raum-Istwerte, Soll aus eigener Variable oder Programmtemperatur
-  (+ Offset). Kein Raum zu kalt → HK1 Standby; mit Hysterese und Mindestzeit zwischen Wechseln.
-- **Leistungsbegrenzung (separat aktivierbar):** Haus- und WP-Leistung werden über die laufende Viertelstunde aufsummiert.
+  aufheizen“. Die **maximale Warmwassertemperatur** begrenzt alle Werte und ist nur mit **Passwort** änderbar.
+- **Räume / Raumanforderung:** beliebig viele Raum-Istwerte, Soll aus eigener Variable oder Programmtemperatur (+ Offset).
+  Jeder Raum kann in der Kachel auf **„nicht berücksichtigt“** geschaltet werden. Angezeigt werden **Ø Ist, Ø Soll und die
+  Abweichung in % (und K)** der berücksichtigten Räume. Verfahren wählbar: **„ein Raum zu kalt“** oder **„Durchschnitt zu kalt“**
+  (jeweils Soll − Hysterese, mit Mindestzeit zwischen Wechseln). Keine Anforderung → HK1 Standby.
+- **Leistungsbegrenzung:** Haus- und WP-Leistung werden über die laufende Viertelstunde aufsummiert.
   Der WP wird über 27536 nur so viel erlaubt, dass Haus + WP die eingestellte 15-min-Spitze nicht überschreiten
   (Budget = Grenze × ¼ h, verteilt auf die Restzeit, abzüglich aktueller Hausleistung). Ablauf laut Hoval-Anwendungsfall 6:
-  27546 = 2 (Systembus), 27545 = 1 (Vorzugsbetrieb) → 27536 wirksam; 27545 = 0 → Normalbetrieb. Der Vorzugsbetrieb wird nur
-  gesetzt, solange die erlaubte Leistung unter der WP-Maximalleistung liegt; nie weniger als die eingestellte Mindestleistung.
-  Voraussetzung: Grundeinstellung durch den Hoval-Service, Smart-Grid-Offsets (27528, 27509, 28839) auf 0.
+  27546 = 2 (Systembus), 27545 = 1 (Vorzugsbetrieb) → 27536 wirksam; 27545 = 0 → Normalbetrieb.
+- **PV-Überschuss (optional):** Überschuss = Einspeisung + aktuelle WP-Leistung (Netzzähler mit + Bezug / − Einspeisung oder
+  Überschuss positiv, W oder kW). Liegt er für die eingestellte Zeit über der Einschaltschwelle, werden die Offsets
+  (Raum HK1, Warmwasser, Puffer) geschrieben und der Vorzugsbetrieb (27545 = 1) gesetzt (Hoval-Anwendungsfall 8);
+  nach Mindestlaufzeit und Ausschaltverzögerung zurück auf Offsets 0 / Normalbetrieb. Mit Leistungsbegrenzung bleibt 27536 wirksam.
+  Ohne PV-Überschuss werden die Offsets auf 0 gehalten. Voraussetzung: Smart-Grid-Grundeinstellung durch den Hoval-Service.
 
-Beim Deaktivieren der Steuerung werden HK1 und Warmwasser wieder auf Hoval „Woche 1“ gestellt, die Leistungsbegrenzung
-setzt 27545 wieder auf 0 (Normalbetrieb).
+Beim Deaktivieren werden HK1 und Warmwasser wieder auf Hoval „Woche 1“ gestellt und 27545 auf 0 (Normalbetrieb).
+
+**Kältekreis-Bewertung:** Überhitzung (3–10 K), Druckverhältnis (bis 6), Luft − Verdampfung (bis 10 K),
+Kondensator (bis 6 K) und Heißgas (bis 95 °C) werden bei laufendem Verdichter **grün** (Norm), orange (auffällig)
+oder rot hinterlegt.
 
 **Eigene Klartexte:** In der Instanz unter „Klartexte (Status, Betriebsarten, Störungen)“ kann je Datenpunkt
 und Wert ein eigener Text hinterlegt werden (z.B. Status Wärmeerzeuger · 1 · „Betriebsbereit“). Eigene Texte haben
