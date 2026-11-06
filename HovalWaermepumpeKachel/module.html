@@ -78,7 +78,9 @@
     .kpi[hidden] { display: none; }
 
     /* ---------- Anlagenschema ---------- */
-    #schema { flex: 1 1 0; min-height: 190px; width: 100%; display: block; }
+    .schema-wrap { position: relative; flex: 1 1 0; min-height: 190px; }
+    #schema, #schemaFx { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+    #schemaFx { pointer-events: none; will-change: transform; transform: translateZ(0); }
     .kpi.defrost.active .value { color: var(--cold); }
 
     /* ---------- Umschalter Anlage / Verlauf ---------- */
@@ -485,8 +487,8 @@
     #schema .on-tank { fill: #fff; opacity: .9; }
     /* Zweig, auf den das Y-Ventil gerade nicht geschaltet ist */
     #schema .pipe.inactive { stroke: var(--stroke); animation: none !important; }
-    #schema .glint.inactive { opacity: 0 !important; animation: none !important; }
-    #schema .glint.core.inactive { opacity: .15 !important; }
+    #schemaFx .glint.inactive { opacity: 0 !important; animation: none !important; }
+    #schemaFx .glint.core.inactive { opacity: .15 !important; }
     #schema .pipe-bg.inactive { opacity: 0; }
 
     /* Strömung: laufende Striche auf den Leitungen, wenn die Pumpe läuft */
@@ -496,12 +498,12 @@
        kleine Wasserperlen, die in Fließrichtung wandern – ohne SVG-Verläufe/Filter */
     @keyframes sheen { to { stroke-dashoffset: -110; } }
     @keyframes beads { to { stroke-dashoffset: -28; } }
-    #schema .glint { fill: none; stroke: #fff; stroke-linecap: round; pointer-events: none; transition: opacity 1s ease; }
-    #schema .glint.core { stroke-width: 1.2; opacity: .35; transform: translateY(-1px); }
-    #schema .glint.sheen { stroke-width: 5; stroke-dasharray: 34 76; opacity: 0; }
-    #schema .glint.beads { stroke-width: 2.4; stroke-dasharray: .01 14; opacity: 0; }
-    #schema.running .glint.sheen:not(.inactive) { opacity: .22; animation: sheen 3.2s linear infinite; }
-    #schema.running .glint.beads:not(.inactive) { opacity: .85; animation: beads 1.1s linear infinite; }
+    #schemaFx .glint { fill: none; stroke: #fff; stroke-linecap: round; pointer-events: none; transition: opacity 1s ease; }
+    #schemaFx .glint.core { stroke-width: 1.2; opacity: .35; transform: translateY(-1px); }
+    #schemaFx .glint.sheen { stroke-width: 5; stroke-dasharray: 34 76; opacity: 0; }
+    #schemaFx .glint.beads { stroke-width: 2.4; stroke-dasharray: .01 14; opacity: 0; }
+    #schemaFx.running .glint.sheen:not(.inactive) { opacity: .22; animation: sheen 3.2s linear infinite; }
+    #schemaFx.running .glint.beads:not(.inactive) { opacity: .85; animation: beads 1.1s linear infinite; }
 
     /* Lüfter dreht sich im Betrieb */
     @keyframes spin { to { transform: rotate(360deg); } }
@@ -545,6 +547,7 @@
         <div class="row" id="tpEcoRow"><span>Absenkung</span><span class="step"><button class="btn" data-t="eco" data-d="-0.5">−</button><span id="tpEco">–</span><button class="btn" data-t="eco" data-d="0.5">+</button></span></div>
         <div class="row" style="justify-content:flex-end"><button class="btn" id="tpCancel">Abbrechen</button><button class="btn primary" id="tpSave">Übernehmen</button></div>
     </div>
+    <div class="schema-wrap">
     <svg id="schema" viewBox="0 0 440 232" preserveAspectRatio="xMidYMid meet">
         <!-- Wärmepumpe -->
         <rect class="unit-box" x="6" y="30" width="104" height="176" rx="10"/>
@@ -654,6 +657,9 @@
         <text class="small" x="160" y="230">Rücklauf</text>
         <text x="194" y="230" id="tReturn" style="font-weight:600">–</text>
     </svg>
+    <!-- eigene Ebene nur für die wandernden Lichtreflexe: neu gezeichnet wird nur diese, nicht das ganze Schema -->
+    <svg id="schemaFx" viewBox="0 0 440 232" preserveAspectRatio="xMidYMid meet" aria-hidden="true"></svg>
+    </div>
     </div>
 
     <div class="view" id="viewDaily" hidden>
@@ -1030,7 +1036,7 @@
         g.dataset.key = key;
         g.innerHTML = '';
         const t1 = top !== null ? top : bottom, t2 = bottom !== null ? bottom : top;
-        const steps = 60;
+        const steps = 24;
         // Ersatz für einen Clip-Pfad: schmale Streifen, in den Rundungen jeweils so weit eingerückt,
         // dass die äußere Kante des Streifens noch innerhalb der Rundung liegt
         const insetAt = (yy) => yy < y + r ? r - Math.sqrt(Math.max(0, r * r - (y + r - yy) ** 2))
@@ -2418,7 +2424,7 @@
     (function drawFbh() {
         const pts = [[372, 62], [428, 62], [428, 78], [380, 78], [380, 94], [428, 94], [428, 110],
                      [380, 110], [380, 126], [428, 126], [428, 142], [372, 142]];
-        const hot = [229, 72, 77], cold = [59, 130, 246], step = 4;
+        const hot = [229, 72, 77], cold = [59, 130, 246], step = 7;
         let total = 0;
         for (let i = 1; i < pts.length; i++) total += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
         let done = 0;
@@ -2451,7 +2457,7 @@
                 const pair = ['core', 'sheen', 'beads'].map(cls => {
                     const g = document.createElementNS(NS, 'path');
                     g.setAttribute('class', 'glint ' + cls);
-                    pipe.parentNode.insertBefore(g, pipe.nextSibling);
+                    $('schemaFx').appendChild(g);
                     return g;
                 });
                 glints.set(pipe, pair);
@@ -2661,6 +2667,7 @@
         // Betrieb erkennen: Pumpe/Volumenstrom -> Strömung, Leistung -> Lüfter
         const pumping = (n('FlowRate') || 0) > 0 || (n('PumpCP') || 0) > 0 || n('HC1Pump') === 1;
         $('schema').classList.toggle('running', pumping);
+        $('schemaFx').classList.toggle('running', pumping);
         $('schema').classList.toggle('heating', !!msg.heating);
         $('schema').classList.toggle('defrosting', defrosting);
         syncGlints();
