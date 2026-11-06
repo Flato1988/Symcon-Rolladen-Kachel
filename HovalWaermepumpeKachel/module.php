@@ -362,6 +362,10 @@ class HovalWaermepumpeKachel extends IPSModule
                 break;
 
             case VM_UPDATE:
+                // nur echte Änderungen verarbeiten – Modbus meldet jede Abfrage, auch wenn der Wert gleich bleibt
+                if (is_array($Data) && array_key_exists(1, $Data) && !$Data[1]) {
+                    break;
+                }
                 foreach (array_keys(self::DATAPOINTS) as $key) {
                     if ($SenderID === $this->GetVariableID($key)) {
                         $this->UpdateMirror($key);
@@ -379,7 +383,7 @@ class HovalWaermepumpeKachel extends IPSModule
                 }
                 $this->UpdateCalculations();
                 if ($this->GetTimerInterval('Push') === 0) {
-                    $this->SetTimerInterval('Push', 2000);
+                    $this->SetTimerInterval('Push', 5000);
                 }
                 break;
         }
@@ -389,7 +393,20 @@ class HovalWaermepumpeKachel extends IPSModule
     public function PushUpdate()
     {
         $this->SetTimerInterval('Push', 0);
-        $this->UpdateVisualizationValue($this->GetFullUpdateMessage());
+        $this->SendTileUpdate();
+    }
+
+    /** Vollständige Nachricht an die Kachel – nur wenn sich gegenüber der letzten etwas geändert hat */
+    private function SendTileUpdate(bool $force = false)
+    {
+        $message = $this->GetFullUpdateMessage();
+        // Zeitstempel nicht vergleichen, sonst wäre jede Nachricht „neu“
+        $hash = md5(preg_replace('/"now":\d+/', '', $message));
+        if (!$force && $this->GetBuffer('LastPush') === $hash) {
+            return;
+        }
+        $this->SetBuffer('LastPush', $hash);
+        $this->UpdateVisualizationValue($message);
     }
 
     public function RequestAction($Ident, $Value)
@@ -434,7 +451,7 @@ class HovalWaermepumpeKachel extends IPSModule
                 $result = $this->HandleControlAction(json_decode((string) $Value, true) ?: []);
                 $this->ControlTick(time());
                 $this->UpdateVisualizationValue(json_encode(['ctlResult' => $result]));
-                $this->UpdateVisualizationValue($this->GetFullUpdateMessage());
+                $this->SendTileUpdate(true);
                 break;
             default:
                 throw new Exception('Invalid Ident: ' . $Ident);
@@ -601,7 +618,7 @@ class HovalWaermepumpeKachel extends IPSModule
             $this->UpdateMirror($key);
         }
         $this->UpdateCalculations();
-        $this->UpdateVisualizationValue($this->GetFullUpdateMessage());
+        $this->SendTileUpdate();
         // nächster Lauf kurz nach dem Minutenwechsel, damit die Viertelstunden genau an :00/:15/:30/:45 enden
         $this->SetTimerInterval('Tick', $this->MillisecondsToNextMinute());
     }
@@ -646,7 +663,7 @@ class HovalWaermepumpeKachel extends IPSModule
         }
         $this->WriteAttributeFloat('HydEnergy', 0);
         $this->UpdateCalculations();
-        $this->UpdateVisualizationValue($this->GetFullUpdateMessage());
+        $this->SendTileUpdate(true);
         $this->ReloadForm();
     }
 

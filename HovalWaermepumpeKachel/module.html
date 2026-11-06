@@ -1013,6 +1013,10 @@
     // Speicher mit Schichtung zeichnen (oben -> unten); fehlt ein Fühler, wird der andere verwendet
     function drawTank(groupId, x, y, w, h, r, top, bottom) {
         const g = $(groupId);
+        // nur neu zeichnen, wenn sich die Temperaturen geändert haben (sonst ruckeln die Animationen)
+        const key = top + '|' + bottom;
+        if (g.dataset.key === key) return;
+        g.dataset.key = key;
         g.innerHTML = '';
         const t1 = top !== null ? top : bottom, t2 = bottom !== null ? bottom : top;
         const steps = 60;
@@ -2368,9 +2372,10 @@
                 });
                 glints.set(pipe, pair);
             }
+            const d = pipe.getAttribute('d'), off = pipe.classList.contains('inactive');
             glints.get(pipe).forEach(g => {
-                g.setAttribute('d', pipe.getAttribute('d'));
-                g.classList.toggle('inactive', pipe.classList.contains('inactive'));
+                if (g.getAttribute('d') !== d) g.setAttribute('d', d);
+                if (g.classList.contains('inactive') !== off) g.classList.toggle('inactive', off);
             });
         });
     }
@@ -2401,6 +2406,9 @@
         ctlSend({ a: 'temps', season: tp.season, comfort: tp.comfort, eco: tp.eco });
         $('tempPop').hidden = true;
     });
+
+    // Pfad nur ändern, wenn er sich wirklich ändert (ein neu gesetzter Pfad startet die Fließ-Animation neu)
+    const setD = (id, d) => { const e = $(id); if (e.getAttribute('d') !== d) e.setAttribute('d', d); };
 
     // Wird von IP-Symcon aufgerufen (Startwert + jede Änderung eines Datenpunkts)
     function handleMessage(data) {
@@ -2507,10 +2515,10 @@
         // ohne Puffer: Heizungszweig direkt vom Ventil zur FBH und von dort zurück
         $('bufferGroup').style.display = hasBuf ? '' : 'none';
         const heatPath = hasBuf ? 'M160 48 V16 H322 V40' : 'M160 48 V16 H372 V62';
-        $('pipeHeat').setAttribute('d', heatPath);
-        $('bgHeat').setAttribute('d', heatPath);
-        $('pipeRetHeat').setAttribute('d', hasBuf ? 'M322 176 V218 H224' : 'M372 142 H360 V218 H224');
-        $('bgRetHeat').setAttribute('d', hasBuf ? 'M322 176 V218 H58 V206' : 'M372 142 H360 V218 H58 V206');
+        setD('pipeHeat', heatPath);
+        setD('bgHeat', heatPath);
+        setD('pipeRetHeat', hasBuf ? 'M322 176 V218 H224' : 'M372 142 H360 V218 H224');
+        setD('bgRetHeat', hasBuf ? 'M322 176 V218 H58 V206' : 'M372 142 H360 V218 H58 V206');
         $('tHc1').textContent = has('HC1FlowTemp') ? 'VL ' + f('HC1FlowTemp') : '';
         // Räume: Ø Ist und Abweichung zum Soll (aus der Steuerung), sonst der Raum-Soll von Hoval
         const rsx = ctl && ctl.roomStats && ctl.roomStats.avgIst != null ? ctl.roomStats : null;
@@ -2531,6 +2539,9 @@
 
         // Vergleichstabelle: Abweichung grün < 10 %, orange < 25 %, sonst rot
         const tbody = document.querySelector('#cmp tbody');
+        const cmpKey = JSON.stringify(msg.rows || []);
+        if (tbody.dataset.key !== cmpKey) {
+        tbody.dataset.key = cmpKey;
         tbody.innerHTML = '';
         for (const [label, pump, own, src, dev] of msg.rows || []) {
             const tr = document.createElement('tr');
@@ -2543,6 +2554,7 @@
                 tr.appendChild(td);
             }
             tbody.appendChild(tr);
+        }
         }
         $('cmp').style.display = (msg.rows || []).length ? '' : 'none';
         $('cmpSince').textContent = msg.since ? 'Vergleich seit ' + msg.since : '';
