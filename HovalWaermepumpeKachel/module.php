@@ -241,6 +241,8 @@ class HovalWaermepumpeKachel extends IPSModule
         $this->RegisterAttributeString('DhwCharges', '[]');
 
         $this->RegisterTimer('Tick', 0, 'HWP_Tick($_IPS[\'TARGET\']);');
+        // Kachel-Aktualisierung bei Variablenänderungen sammeln: höchstens alle 2 s eine Nachricht statt einer je Modbus-Wert
+        $this->RegisterTimer('Push', 0, 'HWP_PushUpdate($_IPS[\'TARGET\']);');
 
         // Kachel über das HTML-SDK darstellen
         $this->SetVisualizationType(1);
@@ -373,9 +375,18 @@ class HovalWaermepumpeKachel extends IPSModule
                     }
                 }
                 $this->UpdateCalculations();
-                $this->UpdateVisualizationValue($this->GetFullUpdateMessage());
+                if ($this->GetTimerInterval('Push') === 0) {
+                    $this->SetTimerInterval('Push', 2000);
+                }
                 break;
         }
+    }
+
+    /** Gesammelte Aktualisierung an die Kachel senden (Timer „Push“) */
+    public function PushUpdate()
+    {
+        $this->SetTimerInterval('Push', 0);
+        $this->UpdateVisualizationValue($this->GetFullUpdateMessage());
     }
 
     public function RequestAction($Ident, $Value)
@@ -1612,6 +1623,9 @@ class HovalWaermepumpeKachel extends IPSModule
             return null;
         }
         $value = (float) GetValue($id);
+        if (!is_finite($value)) {
+            return null; // gestörter Wert (NAN/INF) wie „nicht vorhanden“ behandeln
+        }
         if (self::DATAPOINTS[$key][2] === 'temp') {
             $value += $this->ReadPropertyFloat('Offset' . $key);
         }
@@ -1906,7 +1920,7 @@ class HovalWaermepumpeKachel extends IPSModule
         }
 
         $error = $this->Value('ErrorCode');
-        return json_encode([
+        $message = [
             'values'  => $values,
             'rows'    => $rows,
             'valve'   => $this->GetValvePosition(),
@@ -1928,7 +1942,14 @@ class HovalWaermepumpeKachel extends IPSModule
             'monState' => $this->ReadAttributeString('MonState'),
             'view'     => json_decode($this->ReadAttributeString('ViewState'), true) ?: new stdClass(),
             'since'    => date('d.m.Y H:i', $c['since'])
-        ]);
+        ];
+        // nie eine leere Nachricht senden: ungültige Zahlen (NAN/INF, z.B. aus einem gestörten Modbus-Wert) werden zu 0,
+        // ungültige Zeichen ersetzt – sonst kommt bei der Kachel nur „false“ an und alle Werte verschwinden
+        $json = json_encode($message, JSON_PARTIAL_OUTPUT_ON_ERROR | JSON_INVALID_UTF8_SUBSTITUTE);
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            $this->SendDebug('Kachel', 'JSON-Fehler: ' . json_last_error_msg(), 0);
+        }
+        return $json;
     }
 
     private function GetDailySeries(): array
