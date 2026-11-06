@@ -238,6 +238,11 @@ Heizungsmenü: Verlauf Raum Ø Soll/Ist, Vorlauf und Außen (24 h / 7 Tage).
 bei Abweichung erneut geschrieben; übernimmt Hoval die Vorgabe dauerhaft nicht, erscheint ein Hinweis mit Ursache.
 **COP berechnet:** nur bei laufendem Verdichter (Drehzahl 31920, sonst Modulation), Abtauung ausgenommen; im Stillstand 0.
 
+**Warmwassersteuerung (eigener Schalter):** unabhängig von der Heizungssteuerung aktivierbar (beim Update wird der bisherige
+Zustand übernommen). Ladezeiten mit Stufe Komfort / Aufheizen / Eigene; Komfort- und Aufheiztemperatur zentral einstellbar,
+begrenzt durch die max. Warmwassertemperatur. Wochenübersicht der Ladezeiten. Verlauf Speicher oben / unten und Hoval-Soll
+(24 h / 7 Tage, ab Version 4.4 gesammelt).
+
 **Leistung – Temperaturen:** Im Leistungsdiagramm (Tag/Woche/Monat) zusätzlich je Viertelstunde bzw. Stunde/Tag gemittelt:
 Außen, Raum Ø Ist/Soll (Räume der Steuerung), Vorlauf Ist/Soll (18725/18724), Rücklauf Ist (1535) und Rücklauf-Soll
 (= VL-Soll − Soll-Spreizung aus der Instanz, da Hoval keinen RL-Sollwert liefert). Jede Linie ist per Antippen ein-/ausblendbar;

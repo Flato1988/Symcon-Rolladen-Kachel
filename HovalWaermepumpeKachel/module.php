@@ -1012,7 +1012,8 @@ class HovalWaermepumpeKachel extends IPSModule
         // Temperaturen der laufenden Viertelstunde sammeln: [Raum Ø Ist, Raum Ø Soll, Vorlauf Ist, Vorlauf Soll, Rücklauf]
         $rs = $this->GetCtlState()['roomStats'] ?? [];
         $acc = json_decode($this->ReadAttributeString('QTemps'), true) ?: [];
-        foreach ([$rs['avgIst'] ?? null, $rs['avgSoll'] ?? null, $this->Value('FlowTemp'), $this->Value('WEZSetpoint'), $this->Value('ReturnTemp')] as $i => $v) {
+        foreach ([$rs['avgIst'] ?? null, $rs['avgSoll'] ?? null, $this->Value('FlowTemp'), $this->Value('WEZSetpoint'), $this->Value('ReturnTemp'),
+                  $this->Value('StorageTop'), $this->Value('StorageBottom'), $this->Value('DHWSetpoint')] as $i => $v) {
             if ($v !== null) {
                 $acc[$i] = [($acc[$i][0] ?? 0) + $v, ($acc[$i][1] ?? 0) + 1];
             }
@@ -1030,7 +1031,7 @@ class HovalWaermepumpeKachel extends IPSModule
     {
         $acc = json_decode($this->ReadAttributeString('QTemps'), true) ?: [];
         $result = [];
-        for ($i = 0; $i < 5; $i++) {
+        for ($i = 0; $i < 8; $i++) {
             $result[] = isset($acc[$i]) && $acc[$i][1] > 0 ? round($acc[$i][0] / $acc[$i][1], 1) : null;
         }
         return array_filter($result, fn ($v) => $v !== null) ? $result : null;
@@ -1039,8 +1040,8 @@ class HovalWaermepumpeKachel extends IPSModule
     /** Mittelwert der Zusatztemperaturen über mehrere Viertelstunden */
     private static function MeanTemps(array $quarters): ?array
     {
-        $sum = array_fill(0, 5, 0.0);
-        $n = array_fill(0, 5, 0);
+        $sum = array_fill(0, 8, 0.0);
+        $n = array_fill(0, 8, 0);
         foreach ($quarters as $q) {
             foreach ($q[3] ?? [] as $i => $v) {
                 if ($v !== null) {
@@ -1050,7 +1051,7 @@ class HovalWaermepumpeKachel extends IPSModule
             }
         }
         $result = [];
-        for ($i = 0; $i < 5; $i++) {
+        for ($i = 0; $i < 8; $i++) {
             $result[] = $n[$i] > 0 ? round($sum[$i] / $n[$i], 1) : null;
         }
         return array_filter($result, fn ($v) => $v !== null) ? $result : null;
@@ -2149,6 +2150,7 @@ class HovalWaermepumpeKachel extends IPSModule
     private const SETTING_LIMITS = [
         'winterBelow' => [-10, 20], 'summerAbove' => [5, 30], 'ecoWinter' => [10, 25], 'ecoTransition' => [10, 25],
         'comfortWinter' => [10, 30], 'comfortTransition' => [10, 30], 'comfortSummer' => [10, 30],
+        'dhwComfort' => [30, 70], 'dhwBoost' => [30, 70],
         'roomHyst' => [0.1, 2], 'roomMin' => [0, 120], 'maxPeak' => [1, 100], 'margin' => [0, 5], 'minHP' => [0, 20], 'hpMax' => [0.5, 30],
         'pvStart' => [0.1, 30], 'pvStop' => [0, 30], 'pvStartMin' => [0, 60], 'pvStopMin' => [0, 60], 'pvMinRun' => [0, 240],
         'pvOffRoom' => [0, 12], 'pvOffDHW' => [0, 30], 'pvOffBuffer' => [0, 30]
@@ -2162,6 +2164,7 @@ class HovalWaermepumpeKachel extends IPSModule
             $defaults = [
                 'ctlOn' => $this->ReadPropertyBoolean('ControlEnabled'), 'roomsOn' => $this->ReadPropertyBoolean('RoomDemandEnabled'),
                 'limitOn' => $this->ReadPropertyBoolean('PowerLimitEnabled'), 'pvOn' => false,
+                'dhwComfort' => 50.0, 'dhwBoost' => 58.0,
                 'seasonMode' => $this->ReadPropertyInteger('SeasonMode'), 'winterBelow' => $this->ReadPropertyFloat('SeasonWinterBelow'),
                 'summerAbove' => $this->ReadPropertyFloat('SeasonSummerAbove'), 'ecoWinter' => $this->ReadPropertyFloat('EcoWinter'),
                 'ecoTransition' => $this->ReadPropertyFloat('EcoTransition'),
@@ -2175,7 +2178,10 @@ class HovalWaermepumpeKachel extends IPSModule
                 'pvStart' => 1.5, 'pvStop' => 0.5, 'pvStartMin' => 5, 'pvStopMin' => 10, 'pvMinRun' => 30,
                 'pvOffRoom' => 2.0, 'pvOffDHW' => 10.0, 'pvOffBuffer' => 0.0, 'monOn' => true
             ];
-            $this->settingsCache = (json_decode($this->ReadAttributeString('Settings'), true) ?: []) + $defaults;
+            $stored = json_decode($this->ReadAttributeString('Settings'), true) ?: [];
+            // Warmwassersteuerung war bis 4.3 Teil der Heizungssteuerung: beim ersten Mal deren Zustand übernehmen
+            $defaults['dhwOn'] = $stored['ctlOn'] ?? $defaults['ctlOn'];
+            $this->settingsCache = $stored + $defaults;
         }
         return $this->settingsCache;
     }
@@ -2193,7 +2199,7 @@ class HovalWaermepumpeKachel extends IPSModule
             if (isset(self::SETTING_LIMITS[$key])) {
                 [$min, $max] = self::SETTING_LIMITS[$key];
                 $settings[$key] = round(max($min, min($max, (float) $value)), 2);
-            } elseif (in_array($key, ['ctlOn', 'roomsOn', 'limitOn', 'pvOn', 'monOn'], true)) {
+            } elseif (in_array($key, ['ctlOn', 'dhwOn', 'roomsOn', 'limitOn', 'pvOn', 'monOn'], true)) {
                 $settings[$key] = (bool) $value;
             } elseif ($key === 'seasonMode') {
                 $settings[$key] = (int) $value === 0 ? 0 : 1;
@@ -2211,6 +2217,10 @@ class HovalWaermepumpeKachel extends IPSModule
                     }
                     $clean = ['Days' => isset(self::DAY_SETS[$row['Days'] ?? '']) ? $row['Days'] : 'mo-so', 'From' => $from, 'To' => $to,
                               'Temp' => round(max(10, min($key === 'heatPrograms' ? 30 : 70, (float) ($row['Temp'] ?? 20))) * 2) / 2];
+                    if ($key === 'dhwPrograms') {
+                        // Stufe: comfort / boost (Temperatur aus den Warmwasser-Einstellungen) oder custom (eigene Temperatur)
+                        $clean['Level'] = in_array($row['Level'] ?? '', ['comfort', 'boost', 'custom'], true) ? $row['Level'] : 'custom';
+                    }
                     if ($key === 'heatPrograms') {
                         $clean['Season'] = isset(self::SEASONS[$row['Season'] ?? '']) ? $row['Season'] : 'winter';
                         // Stufe: comfort / eco (Temperatur aus den Saison-Einstellungen) oder custom (eigene Temperatur)
@@ -2350,7 +2360,9 @@ class HovalWaermepumpeKachel extends IPSModule
         }
         foreach ($rows as $row) {
             if (self::InWindow($row, $ts)) {
-                return ['kind' => 'on', 'temp' => min((float) $row['Temp'], $this->ReadAttributeFloat('DHWMax'))];
+                $level = $row['Level'] ?? 'custom';
+                $temp = $level === 'comfort' ? (float) $this->Setting('dhwComfort') : ($level === 'boost' ? (float) $this->Setting('dhwBoost') : (float) $row['Temp']);
+                return ['kind' => $level === 'boost' ? 'boost' : 'on', 'level' => $level, 'temp' => min($temp, $this->ReadAttributeFloat('DHWMax'))];
             }
         }
         return ['kind' => 'off', 'temp' => null];
@@ -2499,6 +2511,7 @@ class HovalWaermepumpeKachel extends IPSModule
             }
         }
 
+        $dhwControl = (bool) $this->Setting('dhwOn');
         if ($control) {
             // ---- Heizkreis 1 ----
             if ($state['mode'] === 'frost' || ($state['mode'] === 'auto' && $program['kind'] === 'off') || !$demand) {
@@ -2508,7 +2521,14 @@ class HovalWaermepumpeKachel extends IPSModule
                 $this->WriteTo('WriteHC1Room', max(10, min(30, $target)), 0.01, 1800, empty($state['pvActive']) ? 'RoomSetpoint' : null);
                 $this->WriteTo('WriteHC1Mode', 4, 0.01, 1800, 'HC1Mode'); // Konstant mit Normal-Raumtemperatur
             }
-            // ---- Warmwasser ----
+            $state['ctlActive'] = true;
+        } elseif ($rooms) {
+            // nur Raumanforderung: zwischen Hoval-Programm und Standby umschalten
+            $this->WriteTo('WriteHC1Mode', $demand ? 1 : 0, 0.01, 1800, 'HC1Mode');
+            $state['roomsActive'] = true;
+        }
+        if ($dhwControl) {
+            // ---- Warmwasser (eigenständig aktivierbar) ----
             $boost = $state['boost'];
             if ($boost && $boost['until'] <= $now) {
                 $state['boost'] = $boost = null;
@@ -2519,7 +2539,7 @@ class HovalWaermepumpeKachel extends IPSModule
                 $this->WriteTo('WriteDHWTemp', min($boost['temp'], $this->ReadAttributeFloat('DHWMax')));
                 $this->WriteTo('WriteDHWMode', 4, 0.01, 1800, 'DHWMode');                    // Dauernd Normalbetrieb
             } elseif ($dhw !== null) {
-                if ($dhw['kind'] === 'on') {
+                if ($dhw['kind'] !== 'off') {
                     $this->WriteTo('WriteDHWTemp', $dhw['temp']);
                     $this->WriteTo('WriteDHWMode', 4, 0.01, 1800, 'DHWMode');
                 } else {
@@ -2529,19 +2549,23 @@ class HovalWaermepumpeKachel extends IPSModule
                 $this->WriteTo('WriteDHWMode', 1);                    // keine Programme: zurück an Hoval Woche 1
             }
             $state['dhwReturn'] = false;
-            $state['ctlActive'] = true;
-        } elseif ($rooms) {
-            // nur Raumanforderung: zwischen Hoval-Programm und Standby umschalten
-            $this->WriteTo('WriteHC1Mode', $demand ? 1 : 0, 0.01, 1800, 'HC1Mode');
-            $state['roomsActive'] = true;
+            $state['dhwActive'] = true;
         }
         if (!$control && !empty($state['ctlActive'])) {
-            // Heizungssteuerung wurde deaktiviert: Warmwasser (und Heizkreis, falls keine Raumanforderung) an Hoval zurückgeben
+            // Heizungssteuerung wurde deaktiviert: Heizkreis an Hoval zurückgeben (falls keine Raumanforderung)
             if (!$rooms) {
                 $this->WriteTo('WriteHC1Mode', 1, 0.01, 0);
             }
-            $this->WriteTo('WriteDHWMode', 1, 0.01, 0);
+            if (!isset($state['dhwActive'])) {
+                $this->WriteTo('WriteDHWMode', 1, 0.01, 0); // Stand vor der Trennung: Warmwasser hing an der Heizungssteuerung
+            }
             $state['ctlActive'] = false;
+        }
+        if (!$dhwControl && !empty($state['dhwActive'])) {
+            // Warmwassersteuerung wurde deaktiviert: Warmwasser an Hoval Woche 1
+            $this->WriteTo('WriteDHWMode', 1, 0.01, 0);
+            $state['dhwActive'] = false;
+            $state['boost'] = null;
         }
         if (!$control && !$rooms && !empty($state['roomsActive'])) {
             // Raumanforderung wurde deaktiviert: Heizkreis wieder an Hoval Woche 1
@@ -2569,7 +2593,7 @@ class HovalWaermepumpeKachel extends IPSModule
                 case 'unlock':
                     return ['ok' => true, 'msg' => 'Entsperrt', 'unlocked' => true];
                 case 'feature':
-                    $names = ['ctlOn' => 'Heizungssteuerung', 'roomsOn' => 'Raumanforderung', 'limitOn' => 'Leistungsbegrenzung', 'pvOn' => 'PV-Überschuss'];
+                    $names = ['ctlOn' => 'Heizungssteuerung', 'dhwOn' => 'Warmwassersteuerung', 'roomsOn' => 'Raumanforderung', 'limitOn' => 'Leistungsbegrenzung', 'pvOn' => 'PV-Überschuss'];
                     $key = $action['f'] ?? '';
                     if (!isset($names[$key])) {
                         return ['ok' => false, 'msg' => 'Unbekannte Funktion'];
@@ -2595,8 +2619,12 @@ class HovalWaermepumpeKachel extends IPSModule
             }
         }
 
-        // ---- tägliche Bedienung (ohne Passwort), nur bei aktiver Heizungssteuerung ----
-        if (!$this->Setting('ctlOn')) {
+        // ---- tägliche Bedienung (ohne Passwort): Warmwasser nur bei aktiver Warmwassersteuerung, sonst Heizungssteuerung ----
+        if (in_array($a, ['boost', 'boostStop'], true)) {
+            if (!$this->Setting('dhwOn')) {
+                return ['ok' => false, 'msg' => 'Warmwassersteuerung ist nicht aktiviert.'];
+            }
+        } elseif (!$this->Setting('ctlOn')) {
             return ['ok' => false, 'msg' => 'Heizungssteuerung ist nicht aktiviert.'];
         }
         $state = $this->GetCtlState();
@@ -2830,15 +2858,17 @@ class HovalWaermepumpeKachel extends IPSModule
     }
 
     /** Hinweise, wenn Vorgaben nicht ankommen: Schreib-Variable fehlt oder Hoval übernimmt den Wert nicht (Rückkontrolle) */
-    private function WriteIssues(bool $control, bool $rooms): array
+    private function WriteIssues(bool $control, bool $rooms, bool $dhw = false): array
     {
         $issues = [];
         $need = [];
         if ($control) {
-            $need = ['WriteHC1Mode' => ['Betriebswahl HK1', 1478, 'HC1Mode'], 'WriteHC1Room' => ['Normal-Raumtemperatur HK1', 1481, 'RoomSetpoint'],
-                     'WriteDHWMode' => ['Betriebswahl Warmwasser', 1496, 'DHWMode'], 'WriteDHWTemp' => ['Normal-Warmwassertemperatur', 1497, null]];
+            $need = ['WriteHC1Mode' => ['Betriebswahl HK1', 1478, 'HC1Mode'], 'WriteHC1Room' => ['Normal-Raumtemperatur HK1', 1481, 'RoomSetpoint']];
         } elseif ($rooms) {
             $need = ['WriteHC1Mode' => ['Betriebswahl HK1', 1478, 'HC1Mode']];
+        }
+        if ($dhw) {
+            $need += ['WriteDHWMode' => ['Betriebswahl Warmwasser', 1496, 'DHWMode'], 'WriteDHWTemp' => ['Normal-Warmwassertemperatur', 1497, null]];
         }
         $writes = json_decode($this->ReadAttributeString('CtlWrites'), true) ?: [];
         foreach ($need as $property => [$label, $register, $readKey]) {
@@ -2879,6 +2909,7 @@ class HovalWaermepumpeKachel extends IPSModule
         $editable = array_intersect_key($settings, self::SETTING_LIMITS + array_flip(['seasonMode', 'roomMode', 'heatPrograms', 'dhwPrograms']));
         return [
             'ctl'      => (bool) $settings['ctlOn'],
+            'dhwCtl'   => (bool) $settings['dhwOn'],
             'rooms'    => (bool) $settings['roomsOn'],
             'limit'    => $limit,
             'pv'       => (bool) $settings['pvOn'],
@@ -2899,6 +2930,9 @@ class HovalWaermepumpeKachel extends IPSModule
             ],
             'dhw'      => [
                 'boost'   => $state['boost'],
+                'comfort' => (float) $settings['dhwComfort'],
+                'boostT'  => (float) $settings['dhwBoost'],
+                'bottom'  => $this->Value('StorageBottom'),
                 'max'     => $this->ReadAttributeFloat('DHWMax'),
                 'prog'    => $dhw === null ? null : $dhw + ['until' => $this->NextChange(fn ($ts) => $this->DHWProgramAt($ts), $now)],
                 'status'  => $this->Value('DHWStatus') !== null ? $this->Format('DHWStatus') : null,
@@ -2908,7 +2942,7 @@ class HovalWaermepumpeKachel extends IPSModule
             'demand'    => $state['demand'],
             'roomList'  => $state['roomList'] ?? [],
             'roomStats' => $state['roomStats'] ?? null,
-            'writeIssues' => $this->WriteIssues((bool) $settings['ctlOn'], (bool) $settings['roomsOn']),
+            'writeIssues' => $this->WriteIssues((bool) $settings['ctlOn'], (bool) $settings['roomsOn'], (bool) $settings['dhwOn']),
             'pw'        => $limit ? $this->LimitCalculation($now) : null,
             'sgOn'      => !empty($state['sgOn']),
             'total15'   => $limit && @$this->GetIDForIdent('Total15') ? $this->GetValue('Total15') : null,
