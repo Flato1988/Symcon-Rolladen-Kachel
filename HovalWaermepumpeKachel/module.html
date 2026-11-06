@@ -225,6 +225,39 @@
     .avg b { display: block; font-size: 14px; font-weight: 500; font-variant-numeric: tabular-nums; }
     .avg b.ok { color: #30a46c; } .avg b.warn { color: #f2994a; } .avg b.bad { color: var(--hot); }
     .ed { border-top: 1px solid rgba(128, 128, 128, .2); padding-top: 6px; }
+    .temps { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; }
+    .temps b { font-weight: 600; }
+    .warnbox { border-radius: 8px; padding: 6px 10px; font-size: 11.5px; background: rgba(229, 72, 77, .12); color: var(--hot); display: flex; flex-direction: column; gap: 3px; }
+    #hcChart { flex: 1; width: 100%; min-height: 0; display: block; touch-action: pan-y; }
+    #hcChart text { fill: var(--fg); font-size: 10px; opacity: .65; }
+    #hcChart .grid { stroke: rgba(128, 128, 128, .22); stroke-width: 1; }
+    #hcChart .ln { fill: none; stroke-width: 1.8; stroke-linejoin: round; }
+    #hcChart .cursor { stroke: var(--fg); stroke-width: 1; opacity: .4; }
+    .legend i.dash { height: 0; border-top: 2px dashed currentColor; border-radius: 0; vertical-align: 3px; background: transparent; }
+    /* Zeitprogramm-Editor */
+    .stabs { display: flex; gap: 4px; flex-wrap: wrap; }
+    .stabs button { border: 1px solid rgba(128, 128, 128, .3); background: transparent; color: inherit; font: inherit; font-size: 11.5px; padding: 3px 12px; border-radius: 12px; cursor: pointer; }
+    .stabs button.on { background: var(--acc); border-color: var(--acc); color: #fff; }
+    .stabs button small { opacity: .75; }
+    .week { display: grid; grid-template-columns: 26px 1fr; gap: 3px 6px; align-items: center; font-size: 10.5px; }
+    .week .bar { position: relative; height: 14px; border-radius: 4px; background: rgba(59, 130, 246, .28); overflow: hidden; }
+    .week .bar.off { background: rgba(128, 128, 128, .15); }
+    .week .bar i { position: absolute; top: 0; bottom: 0; }
+    .week .bar i.comfort { background: var(--heat); }
+    .week .bar i.eco { background: rgba(59, 130, 246, .65); }
+    .week .bar i.custom { background: #9b6bd6; }
+    .week .scale { position: relative; height: 12px; opacity: .55; }
+    .week .scale span { position: absolute; transform: translateX(-50%); }
+    .lvl button.comfort.on { background: var(--heat); border-color: var(--heat); }
+    .lvl button.eco.on { background: var(--cold); border-color: var(--cold); }
+    .lvl button.custom.on { background: #9b6bd6; border-color: #9b6bd6; }
+    /* Schema: Raumtemperaturen antippen */
+    #roomTap { cursor: pointer; }
+    #tempPop { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 6; min-width: 240px; max-width: 92%;
+               background: var(--pop-bg, #fff); color: #1a1a1a; border-radius: 12px; box-shadow: 0 6px 30px rgba(0, 0, 0, .25); padding: 12px 14px;
+               display: flex; flex-direction: column; gap: 10px; font-size: 12.5px; }
+    #tempPop .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    #tempPop .step span { min-width: 70px; }
     .ed summary { cursor: pointer; font-size: 12.5px; font-weight: 600; padding: 3px 0; list-style-position: inside; }
     .edbody { display: flex; flex-direction: column; gap: 6px; padding-top: 6px; }
     .edbody .lockrow { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; padding: 6px 8px; border-radius: 8px; background: rgba(128, 128, 128, .1); }
@@ -503,7 +536,13 @@
     </div>
 
     <div id="body">
-    <div class="view" id="viewSchema">
+    <div class="view" id="viewSchema" style="position:relative">
+    <div id="tempPop" hidden>
+        <div class="row"><b id="tpTitle">Heizung</b><span class="hint" id="tpHint"></span></div>
+        <div class="row"><span>Komfort</span><span class="step"><button class="btn" data-t="comfort" data-d="-0.5">−</button><span id="tpComfort">–</span><button class="btn" data-t="comfort" data-d="0.5">+</button></span></div>
+        <div class="row" id="tpEcoRow"><span>Absenkung</span><span class="step"><button class="btn" data-t="eco" data-d="-0.5">−</button><span id="tpEco">–</span><button class="btn" data-t="eco" data-d="0.5">+</button></span></div>
+        <div class="row" style="justify-content:flex-end"><button class="btn" id="tpCancel">Abbrechen</button><button class="btn primary" id="tpSave">Übernehmen</button></div>
+    </div>
     <svg id="schema" viewBox="0 0 440 232" preserveAspectRatio="xMidYMid meet">
         <!-- Wärmepumpe -->
         <rect class="unit-box" x="6" y="30" width="104" height="176" rx="10"/>
@@ -585,7 +624,12 @@
         <path class="pipe fbh-flow" id="pipeFbh" d="M372 62 H428 V78 H380 V94 H428 V110 H380 V126 H428 V142 H372"/>
         <text class="title center" x="400" y="162">FBH</text>
         <text class="center" x="400" y="175" id="tHc1"></text>
-        <text class="small center" x="400" y="187" id="tRoom"></text>
+        <g id="roomTap">
+            <rect x="372" y="180" width="58" height="34" fill="transparent"/>
+            <text class="small center" x="400" y="187" id="tRoom"></text>
+            <text class="small center" x="400" y="198" id="tRoomDev" style="font-weight:600"></text>
+            <text class="small center" x="400" y="209" id="tRoomEdit"></text>
+        </g>
 
         <!-- gemeinsamer Rücklauf zur Wärmepumpe -->
         <path class="pipe-bg cold" id="bgRetHeat" d="M322 176 V218 H58 V206"/>
@@ -839,7 +883,16 @@
                     <button data-v="winter">Winter</button><button data-v="transition">Übergang</button><button data-v="summer">Sommer</button>
                 </span><span class="hint" id="cSeasonHint"></span></div>
                 <div class="state" id="cHeatState">–</div>
-                <details class="ed" data-sec="heat"><summary>⚙ Zeitprogramm, Saison und Absenkung</summary><div class="edbody"></div></details>
+                <div class="temps" id="cTemps"></div>
+                <div class="warnbox" id="cWriteIssues" hidden></div>
+                <details class="ed" id="cHeatChartBox"><summary>📈 Verlauf Raum Soll / Ist</summary>
+                    <div class="row" style="margin-top:6px"><span class="seg" id="hcRange"><button data-r="day" class="on">24 h</button><button data-r="week">7 Tage</button></span>
+                        <span class="legend" style="margin:0"><span><i style="background:#30a46c"></i>Raum Ø Ist</span><span><i class="dash" style="color:#30a46c"></i>Raum Ø Soll</span>
+                        <span><i style="background:var(--hot)"></i>Vorlauf</span><span><i style="background:var(--heat)"></i>Außen</span></span></div>
+                    <div class="chart-wrap" style="min-height:180px"><svg id="hcChart"></svg><div id="hcTip" class="tip"></div>
+                        <div id="hcEmpty" class="empty">Noch keine Werte – die Raumtemperaturen werden ab Version 4.1 je Viertelstunde gesammelt.</div></div>
+                </details>
+                <details class="ed" data-sec="heat"><summary>⚙ Zeitprogramm und Temperaturen</summary><div class="edbody"></div></details>
             </div>
             <div class="card" id="cDhw" data-page="dhw">
                 <h3>Warmwasser <small id="cDhwHoval"></small></h3>
@@ -1318,12 +1371,20 @@
         $('cConstRow').hidden = h.mode !== 'const';
         $('cConst').textContent = tTxt(h.constTemp);
         document.querySelectorAll('#cSeason button').forEach(b => { b.classList.toggle('on', b.dataset.v === h.season); b.disabled = h.seasonAuto; });
-        $('cSeasonHint').textContent = h.seasonAuto ? 'automatisch' + (h.tAvg !== null ? ` · Ø 24 h ${num(h.tAvg, 1)} °C` : '') : 'manuell';
+        const SN = { winter: 'Winter', transition: 'Übergang', summer: 'Sommer' };
+        $('cSeasonHint').textContent = (h.seasonAuto ? 'automatisch' : 'manuell') + (h.tAvg !== null ? ` · Ø 24 h außen ${num(h.tAvg, 1)} °C` : '')
+            + (h.detected ? ` · erkannt: ${SN[h.detected]}` : '');
+        $('cTemps').innerHTML = `<span>Saison <b>${SN[h.season]}</b></span><span>Komfort <b>${tTxt(h.comfort)}</b></span>`
+            + (h.eco !== null ? `<span>Absenkung <b>${tTxt(h.eco)}</b></span>` : '<span>außerhalb der Zeiten: <b>aus</b></span>');
+        const wi = ctl.writeIssues || [];
+        $('cWriteIssues').hidden = !wi.length;
+        $('cWriteIssues').innerHTML = wi.map(t => '⚠ ' + esc(t)).join('<br>');
+        if ($('cHeatChartBox').open) drawHeatChart();
         let st;
         if (h.mode === 'frost') st = '<b>Frostschutz</b> – Heizkreis im Standby';
         else if (h.mode === 'const') st = `<b>Dauerbetrieb</b> ${tTxt(h.constTemp)}`;
         else if (h.prog.kind === 'off') st = '<b>Heizung aus</b> (Sommer)' + (h.prog.until ? ` bis ${until(h.prog.until)}` : '');
-        else st = `<b>${h.prog.kind === 'comfort' ? 'Komfort' : 'Absenkung'}</b> ${tTxt(h.prog.temp)}` + (h.prog.until ? ` bis ${until(h.prog.until)}` : '');
+        else st = `<b>${{ comfort: 'Komfort', eco: 'Absenkung', custom: 'Eigene Temperatur' }[h.prog.kind] || 'Komfort'}</b> ${tTxt(h.prog.temp)}` + (h.prog.until ? ` bis ${until(h.prog.until)}` : '');
         if (ctl.rooms && !ctl.demand && h.mode !== 'frost') st += ' · <span class="hint">keine Raumanforderung → Standby</span>';
         $('cHeatState').innerHTML = st;
         $('cHeatHoval').textContent = h.hc1 ? `Hoval: ${h.hc1}${h.roomSet ? ' · ' + h.roomSet : ''}` : '';
@@ -1520,9 +1581,7 @@
     // Einstellungen direkt in der jeweiligen Unterseite: Entwurf bearbeiten, erst mit "Speichern" übernehmen (Passwort)
     const opt = (list, v, dis) => list.map(([k, t]) => `<option value="${k}"${k === v ? ' selected' : ''}>${t}</option>`).join('');
     const SEC = {
-        heat: { seg: ['seasonMode', 'Saison', [[0, 'manuell'], [1, 'automatisch (Ø 24 h Außen)']], true],
-                fields: 'winterBelow:Winter unter °C,summerAbove:Sommer über °C,ecoWinter:Absenkung Winter °C,ecoTransition:Absenkung Übergang °C',
-                prog: 'heatPrograms', hint: 'Komfortzeiten je Saison – außerhalb gilt die Absenkung, im Sommer ohne Zeiten ist die Heizung aus (Frostschutz).' },
+        heat: { custom: true, keys: ['seasonMode', 'winterBelow', 'summerAbove', 'ecoWinter', 'ecoTransition', 'comfortWinter', 'comfortTransition', 'comfortSummer', 'heatPrograms'] },
         dhw: { prog: 'dhwPrograms', hint: 'Außerhalb der Ladezeiten: Standby. Ohne Ladezeiten regelt Hoval das Warmwasser selbst.' },
         rooms: { seg: ['roomMode', 'Anforderung', [['any', 'ein Raum zu kalt'], ['avg', 'Durchschnitt zu kalt']], false],
                  fields: 'roomHyst:Hysterese K,roomMin:Mindestzeit zwischen Wechseln min' },
@@ -1530,7 +1589,7 @@
         pv: { fields: 'pvStart:Einschalten ab kW Überschuss,pvStartMin:… für mindestens min,pvStop:Ausschalten unter kW,pvStopMin:… für mindestens min,pvMinRun:Mindestlaufzeit min,pvOffRoom:Offset Raum HK1 K,pvOffDHW:Offset Warmwasser K,pvOffBuffer:Offset Puffer K',
               hint: 'Überschuss = Einspeisung + aktuelle WP-Leistung. Bei aktivem PV-Überschuss werden die Offsets über Smart Grid (Vorzugsbetrieb) gesetzt.' }
     };
-    const secKeys = (sec) => { const c = SEC[sec]; return [...(c.seg ? [c.seg[0]] : []), ...(c.fields ? c.fields.split(',').map(e => e.split(':')[0]) : []), ...(c.prog ? [c.prog] : [])]; };
+    const secKeys = (sec) => { const c = SEC[sec]; if (c.keys) return c.keys; return [...(c.seg ? [c.seg[0]] : []), ...(c.fields ? c.fields.split(',').map(e => e.split(':')[0]) : []), ...(c.prog ? [c.prog] : [])]; };
     function renderEd(sec) {
         const el = document.querySelector(`.ed[data-sec="${sec}"]`);
         if (!el || !ctl) return;
@@ -1542,6 +1601,7 @@
         }
         const d = drafts[sec], dis = unlocked ? '' : ' disabled';
         el.dataset.u = String(unlocked);
+        if (c.custom) { renderHeatEd(el, d); return; }
         let h = '';
         if (!unlocked) h += `<div class="lockrow"><span class="hint">🔒 Zum Ändern entsperren</span><input type="password" class="lpw" placeholder="Passwort" autocomplete="off" style="width:110px"><button class="btn primary" data-unlock>Entsperren</button></div>`;
         if (c.hint) h += `<div class="hint">${c.hint}</div>`;
@@ -1585,7 +1645,159 @@
             ctlSend({ a: 'settings', pw: pwMem, values: d });
         }));
     }
-    document.querySelectorAll('.ed').forEach(el => el.addEventListener('toggle', () => { if (el.open) renderEd(el.dataset.sec); }));
+    document.querySelectorAll('.ed[data-sec]').forEach(el => el.addEventListener('toggle', () => { if (el.open) renderEd(el.dataset.sec); }));
+
+    // ---------- Zeitprogramm Heizung: Saison wählen, Temperaturen je Saison, Wochenübersicht, Zeiten mit Stufe ----------
+    let edSeason = null;
+    const SEAS = [['winter', 'Winter'], ['transition', 'Übergang'], ['summer', 'Sommer']];
+    const LVL = [['comfort', 'Komfort'], ['eco', 'Absenkung'], ['custom', 'Eigene']];
+    const DAYSETS = { 'mo-so': [1, 2, 3, 4, 5, 6, 0], 'mo-fr': [1, 2, 3, 4, 5], 'sa-so': [6, 0], mo: [1], di: [2], mi: [3], do: [4], fr: [5], sa: [6], so: [0] };
+    const toMin = (t) => { const m = /^(\d\d):(\d\d)$/.exec(t || ''); return m ? Number(m[1]) * 60 + Number(m[2]) : null; };
+    function renderHeatEd(el, d) {
+        const body = el.querySelector('.edbody');
+        const dis = unlocked ? '' : ' disabled';
+        if (!edSeason) edSeason = (ctl.heat && ctl.heat.season) || 'winter';
+        const S = edSeason, cap = S.charAt(0).toUpperCase() + S.slice(1);
+        const ecoKey = S === 'winter' ? 'ecoWinter' : 'ecoTransition';
+        const rows = d.heatPrograms.map((r, i) => [r, i]).filter(([r]) => (r.Season || 'winter') === S);
+        const h = ctl.heat || {};
+        const SN = Object.fromEntries(SEAS);
+        let x = '';
+        if (!unlocked) x += `<div class="lockrow"><span class="hint">🔒 Zum Ändern entsperren</span><input type="password" class="lpw" placeholder="Passwort" autocomplete="off" style="width:110px"><button class="btn primary" data-unlock>Entsperren</button></div>`;
+        // Saisonwahl
+        x += `<div class="row"><span class="hint">Saison</span><span class="seg">` + [[0, 'manuell'], [1, 'automatisch']].map(([v, t]) => `<button data-sm="${v}" class="${Number(d.seasonMode) === v ? 'on' : ''}"${dis}>${t}</button>`).join('') + '</span>'
+            + `<span class="hint">Ø 24 h außen <b>${h.tAvg !== null && h.tAvg !== undefined ? num(h.tAvg, 1) + ' °C' : '–'}</b> → erkannt: <b>${h.detected ? SN[h.detected] : '–'}</b> · aktiv: <b>${SN[h.season] || '–'}</b></span></div>`;
+        x += `<div class="fields"><label>Winter unter °C (Ø 24 h)<input type="number" step="0.5" data-k="winterBelow" value="${d.winterBelow ?? ''}"${dis}></label>`
+            + `<label>Sommer über °C (Ø 24 h)<input type="number" step="0.5" data-k="summerAbove" value="${d.summerAbove ?? ''}"${dis}></label></div>`;
+        // Saison-Reiter für Temperaturen und Zeiten
+        x += '<div class="stabs">' + SEAS.map(([k, t]) => `<button data-es="${k}" class="${k === S ? 'on' : ''}">${t}${k === h.season ? ' <small>(aktiv)</small>' : ''}</button>`).join('') + '</div>';
+        x += `<div class="fields"><label>Komfort ${SN[S]} °C<input type="number" step="0.5" data-k="comfort${cap}" value="${d['comfort' + cap] ?? ''}"${dis}></label>`
+            + (S !== 'summer' ? `<label>Absenkung ${SN[S]} °C<input type="number" step="0.5" data-k="${ecoKey}" value="${d[ecoKey] ?? ''}"${dis}></label>` : '<label>außerhalb der Zeiten<span class="hint" style="padding:4px 0">Heizung aus (Frostschutz)</span></label>') + '</div>';
+        // Wochenübersicht der gewählten Saison
+        const tempOf = (r) => r.Level === 'comfort' ? d['comfort' + cap] : r.Level === 'eco' ? (S === 'summer' ? null : d[ecoKey]) : r.Temp;
+        x += '<div class="week"><span></span><div class="scale">' + [0, 6, 12, 18, 24].map(hh => `<span style="left:${hh / 24 * 100}%">${hh}</span>`).join('') + '</div>';
+        [[1, 'Mo'], [2, 'Di'], [3, 'Mi'], [4, 'Do'], [5, 'Fr'], [6, 'Sa'], [0, 'So']].forEach(([wd, label]) => {
+            const segs = rows.filter(([r]) => (DAYSETS[r.Days] || []).includes(wd)).map(([r]) => {
+                const a = toMin(r.From), b = toMin(r.To);
+                if (a === null || b === null) return '';
+                const lvl = r.Level || 'custom', parts = b > a ? [[a, b]] : [[a, 1440], [0, b]];
+                return parts.map(([p, q]) => `<i class="${lvl}" style="left:${p / 14.4}%;width:${(q - p) / 14.4}%" title="${r.From}–${r.To} ${LVL.find(l => l[0] === lvl)[1]} ${num(tempOf(r), 1)} °C"></i>`).join('');
+            }).join('');
+            x += `<span>${label}</span><div class="bar${S === 'summer' ? ' off' : ''}">${segs}</div>`;
+        });
+        x += '</div><div class="hint">Orange = Komfort · Blau = Absenkung · Lila = eigene Temperatur · Hintergrund = außerhalb der Zeiten (' + (S === 'summer' ? 'aus' : 'Absenkung') + ')</div>';
+        // Zeiten der Saison
+        x += '<div class="plist">' + (rows.length ? '' : `<span class="hint">Keine Zeiten für ${SN[S]} – ganztägig ${S === 'summer' ? 'aus' : 'Absenkung'}.</span>`)
+            + rows.map(([r, i]) => {
+                const lvl = r.Level || 'custom';
+                return `<div class="prow"><select data-i="${i}" data-c="Days"${dis}>${opt(DAYS, r.Days)}</select>`
+                    + `<span class="pt"><input type="time" data-i="${i}" data-c="From" value="${r.From}"${dis}>–<input type="time" data-i="${i}" data-c="To" value="${r.To}"${dis}></span>`
+                    + `<span class="seg lvl">` + LVL.filter(([k]) => !(S === 'summer' && k === 'eco')).map(([k, t]) => `<button class="${k}${lvl === k ? ' on' : ''}" data-lv="${k}" data-i="${i}"${dis}>${t}</button>`).join('') + '</span>'
+                    + (lvl === 'custom' ? `<span class="pt"><input type="number" step="0.5" data-i="${i}" data-c="Temp" value="${r.Temp}"${dis}>°C</span>` : `<span class="hint">${num(tempOf(r), 1)} °C</span>`)
+                    + (unlocked ? `<button class="btn del" data-i="${i}" title="löschen">✕</button>` : '') + '</div>';
+            }).join('') + '</div>';
+        if (unlocked) x += `<div><button class="btn" data-add>+ Zeit für ${SN[S]}</button></div>`
+            + '<div class="setbar"><span class="hint ed-msg"></span><button class="btn" data-reset>Zurücksetzen</button><button class="btn primary" data-save>Speichern</button></div>';
+        body.innerHTML = x;
+        const q = (sel) => body.querySelectorAll(sel);
+        const keep = () => q('input[data-k]').forEach(i => { if (i.value !== '') d[i.dataset.k] = Number(i.value); });
+        q('[data-unlock]').forEach(b => b.addEventListener('click', () => { const v = body.querySelector('.lpw').value; if (v) { pendingPw = v; ctlSend({ a: 'unlock', pw: v }); } }));
+        q('[data-es]').forEach(b => b.addEventListener('click', () => { keep(); edSeason = b.dataset.es; renderHeatEd(el, d); }));
+        q('[data-sm]').forEach(b => b.addEventListener('click', () => { keep(); d.seasonMode = Number(b.dataset.sm); renderHeatEd(el, d); }));
+        q('input[data-k]').forEach(i => i.addEventListener('change', () => { if (i.value !== '') { d[i.dataset.k] = Number(i.value); renderHeatEd(el, d); } }));
+        q('[data-c]').forEach(e => e.addEventListener('change', () => { const r = d.heatPrograms[Number(e.dataset.i)]; r[e.dataset.c] = e.dataset.c === 'Temp' ? Number(e.value) : e.value; keep(); renderHeatEd(el, d); }));
+        q('[data-lv]').forEach(b => b.addEventListener('click', () => {
+            const r = d.heatPrograms[Number(b.dataset.i)];
+            if (b.dataset.lv === 'custom' && r.Level !== 'custom') r.Temp = tempOf(r) ?? d['comfort' + cap];
+            r.Level = b.dataset.lv; keep(); renderHeatEd(el, d);
+        }));
+        q('.del').forEach(b => b.addEventListener('click', () => { keep(); d.heatPrograms.splice(Number(b.dataset.i), 1); renderHeatEd(el, d); }));
+        q('[data-add]').forEach(b => b.addEventListener('click', () => {
+            keep();
+            // neue Zeit schließt an die letzte dieser Saison an
+            const last = rows.length ? rows[rows.length - 1][0] : null;
+            const from = last && toMin(last.To) !== null && toMin(last.To) < 1439 ? last.To : '06:00';
+            const fm = toMin(from), to = String(Math.min(23, Math.floor(fm / 60) + 2)).padStart(2, '0') + ':' + String(fm % 60).padStart(2, '0');
+            d.heatPrograms.push({ Season: S, Days: last ? last.Days : 'mo-fr', From: from, To: to === from ? '23:59' : to, Level: 'comfort', Temp: d['comfort' + cap] ?? 21 });
+            renderHeatEd(el, d);
+        }));
+        q('[data-reset]').forEach(b => b.addEventListener('click', () => { delete drafts.heat; renderEd('heat'); }));
+        q('[data-save]').forEach(b => b.addEventListener('click', () => {
+            keep();
+            const msg = body.querySelector('.ed-msg');
+            if (d.heatPrograms.some(r => toMin(r.From) === null || toMin(r.To) === null)) { msg.textContent = 'Bitte alle Uhrzeiten ausfüllen.'; msg.className = 'hint ed-msg err-msg'; return; }
+            savingSec = 'heat'; msg.textContent = 'speichert …'; msg.className = 'hint ed-msg';
+            ctlSend({ a: 'settings', pw: pwMem, values: d });
+        }));
+    }
+
+    // ---------- Verlauf Raum Soll / Ist (aus den Viertelstundenwerten des Leistungsdiagramms) ----------
+    let hcRange = 'day', hcGeo = null;
+    document.querySelectorAll('#hcRange button').forEach(b => b.addEventListener('click', () => { hcRange = b.dataset.r; drawHeatChart(); }));
+    $('cHeatChartBox').addEventListener('toggle', () => { if ($('cHeatChartBox').open) drawHeatChart(); });
+    function drawHeatChart() {
+        document.querySelectorAll('#hcRange button').forEach(b => b.classList.toggle('on', b.dataset.r === hcRange));
+        const svg = $('hcChart'), W = svg.clientWidth, H = svg.clientHeight;
+        svg.innerHTML = '';
+        if (!pw) return;
+        const rows = hcRange === 'week' ? (pw.week || []).map(r => ({ t: r[0], o: r[3], ex: r[4] })) : (pw.series || []).map(r => ({ t: r[0], o: r[2], ex: r[3] }));
+        const S = [['Raum Ø Ist', '#30a46c', false, (r) => r.ex ? r.ex[0] : null], ['Raum Ø Soll', '#30a46c', true, (r) => r.ex ? r.ex[1] : null],
+                   ['Vorlauf', 'var(--hot)', false, (r) => r.ex ? r.ex[2] : null], ['Außen', 'var(--heat)', false, (r) => r.o]];
+        const has = rows.some(r => r.ex && (r.ex[0] !== null || r.ex[2] !== null));
+        $('hcEmpty').style.display = has ? 'none' : 'flex';
+        if (!has || W < 60 || H < 50) { hcGeo = null; return; }
+        svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+        const L = 30, R = 8, T = 8, B = 18;
+        const span = hcRange === 'week' ? 7 * 86400 : 86400, slot = hcRange === 'week' ? 3600 : 900;
+        const t1 = Math.ceil(Date.now() / 1000 / slot) * slot, t0 = t1 - span;
+        const vals = rows.flatMap(r => S.map(s => s[3](r))).filter(v => v !== null && v !== undefined);
+        let lo = Math.floor(Math.min(...vals) / 5) * 5, hi = Math.ceil(Math.max(...vals) / 5) * 5;
+        if (hi - lo < 10) hi = lo + 10;
+        hi = lo + Math.ceil((hi - lo) / 4) * 4;
+        const x = (t) => L + (t + slot / 2 - t0) / span * (W - L - R), y = (v) => H - B - (v - lo) / (hi - lo) * (H - T - B);
+        for (let i = 0; i <= 4; i++) {
+            const yy = T + i * (H - T - B) / 4;
+            svgEl('line', { x1: L, x2: W - R, y1: yy, y2: yy, class: 'grid' }, svg);
+            svgEl('text', { x: L - 4, y: yy + 3, 'text-anchor': 'end' }, svg).textContent = num(hi - i * (hi - lo) / 4, 0) + '°';
+        }
+        if (hcRange === 'week') {
+            const day = new Date(t0 * 1000); day.setHours(0, 0, 0, 0);
+            for (; day.getTime() / 1000 < t1; day.setDate(day.getDate() + 1)) {
+                const mid = day.getTime() / 1000 + 43200;
+                if (mid > t0) svgEl('text', { x: x(mid - slot / 2), y: H - 4, 'text-anchor': 'middle' }, svg).textContent = WD[day.getDay()];
+            }
+        } else {
+            for (let t = Math.ceil(t0 / 3600) * 3600; t <= t1; t += 3600) if (new Date(t * 1000).getHours() % 6 === 0) svgEl('text', { x: x(t - slot / 2), y: H - 4, 'text-anchor': 'middle' }, svg).textContent = hhmm(t).slice(0, 2) + ' h';
+        }
+        for (const [, color, dash, fn] of S) {
+            let d = '', prev = null;
+            for (const r of rows) {
+                const v = fn(r);
+                if (v === null || v === undefined || r.t < t0) { prev = null; continue; }
+                d += (prev === null || r.t - prev > slot * 2 ? 'M' : 'L') + x(r.t).toFixed(1) + ' ' + y(v).toFixed(1) + ' ';
+                prev = r.t;
+            }
+            if (d) svgEl('path', { d, class: 'ln', style: `stroke:${color}` + (dash ? ';stroke-dasharray:5 3' : '') }, svg);
+        }
+        hcGeo = { x, rows, S, T, B, H, t0 };
+    }
+    function showHcTip(e) {
+        if (!hcGeo) return;
+        const r = $('hcChart').getBoundingClientRect(), px = e.clientX - r.left;
+        let best = null;
+        for (const row of hcGeo.rows) { if (row.t < hcGeo.t0) continue; const dx = Math.abs(hcGeo.x(row.t) - px); if (!best || dx < best.dx) best = { dx, row }; }
+        $('hcChart').querySelectorAll('.cursor').forEach(c => c.remove());
+        const tip = $('hcTip');
+        if (!best || best.dx > 20) { tip.style.display = 'none'; return; }
+        const cx = hcGeo.x(best.row.t);
+        svgEl('line', { x1: cx, x2: cx, y1: hcGeo.T, y2: hcGeo.H - hcGeo.B, class: 'cursor' }, $('hcChart'));
+        tip.innerHTML = `<b>${hcRange === 'week' ? dtTxt(best.row.t) : hhmm(best.row.t)}</b><br>` + hcGeo.S.map(([label, , , fn]) => { const v = fn(best.row); return v === null || v === undefined ? null : `${label} ${num(v, 1)} °C`; }).filter(Boolean).join(' · ');
+        tip.style.display = 'block';
+        tip.style.left = Math.min(Math.max(0, cx - tip.offsetWidth / 2), r.width - tip.offsetWidth) + 'px';
+    }
+    $('hcChart').addEventListener('pointermove', showHcTip);
+    $('hcChart').addEventListener('pointerdown', showHcTip);
+    $('hcChart').addEventListener('pointerleave', () => { $('hcTip').style.display = 'none'; $('hcChart').querySelectorAll('.cursor').forEach(c => c.remove()); });
 
     // ---------- Leistung: aktuelle Leistung, 15-min-Mittel (24 h), Tagesspitzen ----------
     let pw = null, pwGeo = null;
@@ -2163,6 +2375,33 @@
         });
     }
 
+    // ---------- Komfort-/Absenktemperatur direkt im Anlagenschema (nur mit aktiver Heizungssteuerung) ----------
+    let tp = null;
+    $('roomTap').addEventListener('click', () => {
+        if (!ctl || !ctl.ctl || !ctl.heat) return;
+        const h = ctl.heat;
+        tp = { season: h.season, comfort: h.comfort, eco: h.eco };
+        $('tpTitle').textContent = 'Heizung · ' + { winter: 'Winter', transition: 'Übergang', summer: 'Sommer' }[h.season];
+        $('tpHint').textContent = h.prog && h.prog.temp !== null && h.prog.temp !== undefined ? `jetzt ${num(h.prog.temp, 1)} °C` : '';
+        drawTp();
+        $('tempPop').hidden = false;
+    });
+    function drawTp() {
+        $('tpComfort').textContent = tTxt(tp.comfort);
+        $('tpEco').textContent = tTxt(tp.eco);
+        $('tpEcoRow').hidden = tp.eco === null || tp.eco === undefined;
+    }
+    document.querySelectorAll('#tempPop .step .btn').forEach(b => b.addEventListener('click', () => {
+        const k = b.dataset.t;
+        tp[k] = Math.max(10, Math.min(30, (tp[k] || 20) + Number(b.dataset.d)));
+        drawTp();
+    }));
+    $('tpCancel').addEventListener('click', () => { $('tempPop').hidden = true; });
+    $('tpSave').addEventListener('click', () => {
+        ctlSend({ a: 'temps', season: tp.season, comfort: tp.comfort, eco: tp.eco });
+        $('tempPop').hidden = true;
+    });
+
     // Wird von IP-Symcon aufgerufen (Startwert + jede Änderung eines Datenpunkts)
     function handleMessage(data) {
         let msg;
@@ -2273,7 +2512,21 @@
         $('pipeRetHeat').setAttribute('d', hasBuf ? 'M322 176 V218 H224' : 'M372 142 H360 V218 H224');
         $('bgRetHeat').setAttribute('d', hasBuf ? 'M322 176 V218 H58 V206' : 'M372 142 H360 V218 H58 V206');
         $('tHc1').textContent = has('HC1FlowTemp') ? 'VL ' + f('HC1FlowTemp') : '';
-        $('tRoom').textContent = has('RoomSetpoint') ? 'Raum Soll ' + f('RoomSetpoint') : '';
+        // Räume: Ø Ist und Abweichung zum Soll (aus der Steuerung), sonst der Raum-Soll von Hoval
+        const rsx = ctl && ctl.roomStats && ctl.roomStats.avgIst != null ? ctl.roomStats : null;
+        if (rsx) {
+            const dk = rsx.avgIst - rsx.avgSoll;
+            $('tRoom').textContent = `Raum Ø ${num(rsx.avgIst, 1)} °C`;
+            $('tRoomDev').textContent = `Soll ${num(rsx.avgSoll, 1)} · ${dk > 0 ? '+' : ''}${num(dk, 1)} K`;
+            $('tRoomDev').style.fill = Math.abs(dk) <= 0.5 ? '#30a46c' : Math.abs(dk) <= 1.5 ? '#f2994a' : 'var(--hot)';
+        } else {
+            $('tRoom').textContent = has('RoomSetpoint') ? 'Raum Soll ' + f('RoomSetpoint') : '';
+            $('tRoomDev').textContent = '';
+        }
+        const canEdit = !!(ctl && ctl.ctl && ctl.heat);
+        $('tRoomEdit').textContent = canEdit ? '✎ Soll einstellen' : '';
+        $('tRoomEdit').style.fill = 'var(--acc)';
+        $('roomTap').style.cursor = canEdit ? 'pointer' : 'default';
         drawTank('tankSlices', 196, 34, 56, 162, 14, n('StorageTop'), n('StorageBottom'));
 
         // Vergleichstabelle: Abweichung grün < 10 %, orange < 25 %, sonst rot

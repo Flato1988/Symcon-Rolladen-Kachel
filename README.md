@@ -229,6 +229,15 @@ Nicht berücksichtigte Räume werden ausgegraut.
 **Verdichterstarts:** aus dem Hoval-Zähler Schaltzyklen (1518, U32, Funktion 3, in Symcon Datentyp DWord), sonst selbst
 erkannt. Anzeige der Starts heute und Ø Laufzeit je Start (Kältekreis), Starts je Zeitraum in der Auswertung und Prüfung in der Überwachung.
 
+**Heizung – Zeitprogramm:** Komfort- und Absenktemperatur je Saison (Winter/Übergang/Sommer) zentral einstellbar; jede Zeit
+wählt nur noch die Stufe Komfort / Absenkung / Eigene (eigene Temperatur). Saison-Reiter, Wochenübersicht (Balken je Wochentag),
+neue Zeiten schließen an die letzte an. Anzeige Ø 24 h Außentemperatur, erkannte und aktive Saison. Komfort/Absenkung auch per
+Antippen der Raumanzeige im Anlagenschema (bei aktiver Heizungssteuerung). Im Schema: Raum Ø Ist, Soll und Abweichung.
+Heizungsmenü: Verlauf Raum Ø Soll/Ist, Vorlauf und Außen (24 h / 7 Tage).
+**Rückkontrolle:** Betriebswahl HK1/WW und Raumtemperatur werden mit den gelesenen Hoval-Werten (1478, 1496, 1493) verglichen und
+bei Abweichung erneut geschrieben; übernimmt Hoval die Vorgabe dauerhaft nicht, erscheint ein Hinweis mit Ursache.
+**COP berechnet:** nur bei laufendem Verdichter (Drehzahl 31920, sonst Modulation), Abtauung ausgenommen; im Stillstand 0.
+
 **Leistung – Temperaturen:** Im Leistungsdiagramm (Tag/Woche/Monat) zusätzlich je Viertelstunde bzw. Stunde/Tag gemittelt:
 Außen, Raum Ø Ist/Soll (Räume der Steuerung), Vorlauf Ist/Soll (18725/18724), Rücklauf Ist (1535) und Rücklauf-Soll
 (= VL-Soll − Soll-Spreizung aus der Instanz, da Hoval keinen RL-Sollwert liefert). Jede Linie ist per Antippen ein-/ausblendbar;
