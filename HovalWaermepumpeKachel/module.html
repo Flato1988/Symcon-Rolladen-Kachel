@@ -57,6 +57,8 @@
     #cmp td.src { font-size: 10px; opacity: .55; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px; }
     #cmp td.dev { font-weight: 600; }
     #cmp .ok { color: var(--acc); }
+    #diag { flex: none; font: 10px/1.35 ui-monospace, Menlo, monospace; opacity: .75; white-space: normal; word-break: break-all;
+            padding: 3px 6px; border-radius: 6px; background: rgba(128, 128, 128, .12); }
     #cmp tfoot td { border-top: 1px solid rgba(128, 128, 128, .15); padding: 5px 8px 2px; text-align: left; white-space: normal; }
     .cmp-foot { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; font-size: 11px; }
     .cmp-foot #cmpSince { opacity: .6; flex: 1; }
@@ -865,10 +867,41 @@
     </table>
     </div>
     <div id="ctlToast"></div>
+    <div id="diag" hidden></div>
 </div>
 
 <script>
+    // ---------- Diagnose (Instanz: „Diagnosezeile anzeigen“): zeigt, was eine App mit der Kachel macht ----------
+    const DIAG = { msgs: 0, taps: 0, resizes: 0, err: '', last: '' };
+    window.addEventListener('error', (e) => { DIAG.err = (e.message || 'Fehler') + (e.lineno ? ' @' + e.lineno : ''); drawDiag(); });
+    function drawDiag() {
+        const el = document.getElementById('diag');
+        if (!el) return;
+        el.hidden = !window.HWP_DIAG;
+        if (!window.HWP_DIAG) return;
+        const t = document.getElementById('tile');
+        el.textContent = `Laden #${window.HWP_LOAD || '?'} · Fenster ${innerWidth}×${innerHeight} · Kachel ${t ? t.offsetHeight : '?'} · Inhalt ${document.documentElement.scrollHeight}`
+            + ` · Scroll ${Math.round(window.scrollY || 0)} · Nachr. ${DIAG.msgs} · Tipps ${DIAG.taps} · Größenänd. ${DIAG.resizes} · ${DIAG.last}`
+            + (DIAG.err ? ` · FEHLER: ${DIAG.err}` : '') + ` · ${navigator.userAgent.replace(/^Mozilla\/5\.0 /, '').slice(0, 90)}`;
+    }
+    document.addEventListener('pointerdown', (e) => { DIAG.taps++; DIAG.last = 'Tipp ' + (e.target.id || e.target.tagName.toLowerCase()); drawDiag(); }, true);
+
     const $ = (id) => document.getElementById(id);
+
+    // Höhe der Kachel einmal in Pixel festlegen: Apps, die die Ansicht nach der Inhaltshöhe bemessen, sonst ein Hin- und Herspringen
+    // (Inhalt passt sich an die Ansicht an, Ansicht an den Inhalt …); kleine Änderungen werden ignoriert
+    function fitHeight() {
+        const h = Math.round(window.innerHeight || document.documentElement.clientHeight || 0);
+        const use = h >= 200 ? h : 520;
+        const tile = $('tile');
+        if (!tile || Math.abs((tile._h || 0) - use) < 4) return;
+        tile._h = use;
+        tile.style.height = use + 'px';
+        tile.style.maxHeight = use + 'px';
+    }
+    let fitTimer = null;
+    window.addEventListener('resize', () => { DIAG.resizes++; clearTimeout(fitTimer); fitTimer = setTimeout(() => { fitHeight(); drawDiag(); }, 200); });
+    document.addEventListener('DOMContentLoaded', fitHeight);
     const NS = 'http://www.w3.org/2000/svg';
     let values = {};
 
@@ -2001,6 +2034,9 @@
     // Wird von IP-Symcon aufgerufen (Startwert + jede Änderung eines Datenpunkts)
     function handleMessage(data) {
         const msg = typeof data === 'string' ? JSON.parse(data) : data;
+        DIAG.msgs++;
+        if (!$('tile')._h) fitHeight();
+        setTimeout(drawDiag, 0);
         if (msg.refriHist) { // Antwort auf die Anforderung des Kältekreis-Verlaufs
             refriHist = msg.refriHist;
             drawRefriChart();

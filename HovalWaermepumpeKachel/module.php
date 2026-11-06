@@ -134,6 +134,8 @@ class HovalWaermepumpeKachel extends IPSModule
         parent::Create();
 
         $this->RegisterPropertyString('TileName', ''); // Bezeichnung = Titel der Kachel
+        $this->RegisterPropertyBoolean('ShowDiagnostics', false); // Diagnosezeile in der Kachel (Fehlersuche Apps)
+        $this->RegisterAttributeInteger('TileLoads', 0);
         foreach (self::DATAPOINTS as $key => [$caption, $register, $kind]) {
             $this->RegisterPropertyInteger($key . 'ID', 0);
             if ($kind === 'temp') {
@@ -422,6 +424,7 @@ class HovalWaermepumpeKachel extends IPSModule
     {
         $elements = [
             ['type' => 'ValidationTextBox', 'name' => 'TileName', 'caption' => 'Bezeichnung (Titel der Kachel, z.B. Wärmepumpe)'],
+            ['type' => 'CheckBox', 'name' => 'ShowDiagnostics', 'caption' => 'Diagnosezeile in der Kachel anzeigen (Fehlersuche, z.B. Symcon-App)'],
             ['type' => 'Label', 'caption' => 'Datenpunkte laut Hoval-Modbus-Liste (WFA, z.B. UltraSource). Alle Felder sind optional; in Klammern die Registeradresse.']
         ];
         foreach (self::GROUPS as $group => $keys) {
@@ -544,7 +547,11 @@ class HovalWaermepumpeKachel extends IPSModule
     public function GetVisualizationTile()
     {
         // Startwerte direkt beim Laden der Kachel übergeben
-        $initialHandling = '<script>handleMessage(' . json_encode($this->GetFullUpdateMessage()) . ');</script>';
+        // Ladezähler: zeigt in der Diagnosezeile, ob eine App die Kachel bei Bedienung neu lädt
+        $loads = $this->ReadAttributeInteger('TileLoads') + 1;
+        $this->WriteAttributeInteger('TileLoads', $loads);
+        $initialHandling = '<script>window.HWP_LOAD = ' . $loads . '; window.HWP_DIAG = ' . ($this->ReadPropertyBoolean('ShowDiagnostics') ? 'true' : 'false') . ';'
+            . 'handleMessage(' . json_encode($this->GetFullUpdateMessage()) . ');</script>';
         $module = file_get_contents(__DIR__ . '/module.html');
         return $module . $initialHandling;
     }

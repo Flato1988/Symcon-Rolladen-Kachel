@@ -251,6 +251,9 @@ el. Energie (Hoval und gemessen) und JAZ ab jetzt neu (mit Rückfrage), wie der 
 **Ansicht merken:** Reiter, Steuerungs-Unterseite, Auswertungsbereich und Leistungszeitraum werden im Modul gespeichert,
 damit die Kachel nach einem Neuladen (z.B. in der iOS-App) auf derselben Ansicht steht.
 
+**Diagnose:** Instanz → „Diagnosezeile in der Kachel anzeigen“ blendet unten eine Zeile mit Ladezähler, Fenster- und
+Kachelhöhe, Anzahl Nachrichten/Tipps und letztem JS-Fehler ein (Fehlersuche in Apps).
+
 **Kältekreis-Bewertung:** Überhitzung (3–10 K), Druckverhältnis (bis 6), Luft − Verdampfung (bis 10 K),
 Kondensator (bis 6 K) und Heißgas (bis 95 °C) werden bei laufendem Verdichter **grün** (Norm), orange (auffällig)
 oder rot hinterlegt.
