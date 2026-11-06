@@ -235,6 +235,10 @@ class HovalWaermepumpeKachel extends IPSModule
         // zuletzt gewählte Ansicht der Kachel {v: Reiter, c: Steuerung-Unterseite, s: Auswertungsbereich, r: Leistungszeitraum} –
         // bleibt erhalten, wenn die App die Kachel neu lädt (dort gibt es keinen Browser-Speicher)
         $this->RegisterAttributeString('ViewState', '{}');
+        // Warmwasserladungen: laufende Ladung, aufsummierter WW-Strom, letzte Ladungen [{ts, min, t0, t1, dk, kwh, out, df}]
+        $this->RegisterAttributeString('DhwCharge', '');
+        $this->RegisterAttributeFloat('DhwElecTotal', 0);
+        $this->RegisterAttributeString('DhwCharges', '[]');
 
         $this->RegisterTimer('Tick', 0, 'HWP_Tick($_IPS[\'TARGET\']);');
 
@@ -406,6 +410,9 @@ class HovalWaermepumpeKachel extends IPSModule
             case 'ResetCmp': // Vergleichszeitraum (Energie, JAZ) aus der Kachel neu starten
                 $this->ResetComparison();
                 break;
+            case 'Dhw': // Kachel fordert die Warmwasser-Auswertung an
+                $this->UpdateVisualizationValue(json_encode(['dhw' => $this->GetDhwView()]));
+                break;
             case 'Refri': // Kachel fordert den Kältekreis-Verlauf an
                 $this->UpdateVisualizationValue(json_encode(['refriHist' => json_decode($this->ReadAttributeString('RefHist'), true) ?: []]));
                 break;
@@ -573,6 +580,7 @@ class HovalWaermepumpeKachel extends IPSModule
         $this->UpdateQuarter($now);
         $this->ControlTick($now);
         $this->RecordRefrigerant($now);
+        $this->TrackDhwCharge($now);
         $this->UpdateDayStats($now);
         foreach (array_keys(self::DATAPOINTS) as $key) {
             $this->UpdateMirror($key);
@@ -901,6 +909,7 @@ class HovalWaermepumpeKachel extends IPSModule
             $day['eInt'] = ($day['eInt'] ?? 0) + $kWh;
             if ($state['mode'] === 'ww') {
                 $day['eDhw'] = ($day['eDhw'] ?? 0) + $kWh;
+                $this->WriteAttributeFloat('DhwElecTotal', $this->ReadAttributeFloat('DhwElecTotal') + $kWh);
             }
             $this->WriteAttributeString('DayStats', json_encode($day));
         }
@@ -1178,7 +1187,10 @@ class HovalWaermepumpeKachel extends IPSModule
         ['air', 'Ø Luft − Verdampfung', ' K', 1, true, 'high', 3, 5, 'abs', 10,
             'Sinkender Verdampfungsdruck – Kältemittelmangel, Vereisung oder verschmutzter Verdampfer.'],
         ['hot', 'Ø Heißgas', ' °C', 1, true, 'high', 8, 12, 'abs', 10,
-            'Steigende Heißgastemperatur – Kältemittelmangel oder Verdichterproblem.']
+            'Steigende Heißgastemperatur – Kältemittelmangel oder Verdichterproblem.'],
+        ['wwc', 'Warmwasser-Aufheizzeit je K', ' min/K', 2, true, 'high', 40, 75, 'rel', 8,
+            'Warmwasserbereitung dauert ungewöhnlich lange – mögliche Ursachen: verkalkter/verschmutzter Wärmetauscher im Speicher, '
+            . 'zu geringer Volumenstrom (Pumpe, Filter, Luft im System), Speicherfühler, Zapfung während der Ladung.']
     ];
 
     /** Wert einer Kennzahl für einen Tag (null = nicht verwertbar) */
@@ -1251,16 +1263,26 @@ class HovalWaermepumpeKachel extends IPSModule
         $rank = ['learn' => 0, 'nodata' => 0, 'ok' => 1, 'warn' => 2, 'alarm' => 3];
         foreach (self::MONITOR as [$key, $label, $unit, $digits, $tempDep, $dir, $warn, $alarm, $kind, $minRef, $hint]) {
             $series = [];
-            foreach ($days as $d) {
-                $value = self::MonitorValue($d, $key);
-                if ($value !== null) {
-                    $series[] = [$d['t'] ?? null, $value, $d['d']];
+            if ($key === 'wwc') {
+                // je Warmwasserladung statt je Tag: Minuten je Kelvin Temperaturanstieg im Speicher
+                foreach ($this->DhwCharges() as $c) {
+                    if (self::ChargeValid($c)) {
+                        $series[] = [$c['out'], $c['min'] / $c['dk'], date('Y-m-d H:i', $c['ts'])];
+                    }
+                }
+                $series = array_slice($series, -200);
+            } else {
+                foreach ($days as $d) {
+                    $value = self::MonitorValue($d, $key);
+                    if ($value !== null) {
+                        $series[] = [$d['t'] ?? null, $value, $d['d']];
+                    }
                 }
             }
             $recent = array_slice($series, -3);
             $ref = array_slice($series, 0, max(0, count($series) - 3));
             $check = ['key' => $key, 'label' => $label, 'unit' => $unit, 'digits' => $digits, 'hint' => $hint,
-                      'refDays' => count($ref), 'minRef' => $minRef];
+                      'refDays' => count($ref), 'minRef' => $minRef, 'refUnit' => $key === 'wwc' ? 'Ladungen' : 'Tagen'];
             if (count($series) === 0) {
                 $check['status'] = 'nodata';
             } elseif (count($ref) < $minRef || count($recent) < 2) {
@@ -1277,8 +1299,9 @@ class HovalWaermepumpeKachel extends IPSModule
                 if (!$act) {
                     $check['status'] = 'learn';
                 } else {
-                    $a = array_sum($act) / count($act);
-                    $e = array_sum($exp) / count($exp);
+                    // Warmwasser: Median der letzten 3 Ladungen – eine einzelne Ladung mit gleichzeitiger Zapfung löst keine Meldung aus
+                    $a = $key === 'wwc' ? self::Median($act) : array_sum($act) / count($act);
+                    $e = $key === 'wwc' ? self::Median($exp) : array_sum($exp) / count($exp);
                     $check['actual'] = round($a, 2);
                     $check['expected'] = round($e, 2);
                     $sign = $dir === 'high' ? 1 : -1;
@@ -1336,6 +1359,110 @@ class HovalWaermepumpeKachel extends IPSModule
                 $this->LogMessage('Wärmepumpe – Auffälligkeit: ' . $text, KL_WARNING);
             }
         }
+    }
+
+
+    // ---------------------------------------------------------------- Warmwasserladungen
+
+    private function DhwCharges(): array
+    {
+        return json_decode($this->ReadAttributeString('DhwCharges'), true) ?: [];
+    }
+
+    /** Für die Bewertung brauchbar: mind. 5 min, mind. 3 K Anstieg, ohne Abtauung dazwischen */
+    private static function ChargeValid(array $c): bool
+    {
+        return $c['min'] >= 5 && ($c['dk'] ?? 0) >= 3 && empty($c['df']) && ($c['out'] ?? null) !== null;
+    }
+
+    /**
+     * Jede Minute: Warmwasserladung erkennen (Y-Ventil auf Warmwasser bei laufender WP) und am Ende Dauer,
+     * Temperaturanstieg im Speicher, Strom und Ø Außentemperatur speichern. Eine Abtauung unterbricht die Ladung nicht.
+     */
+    private function TrackDhwCharge(int $now)
+    {
+        $st = json_decode($this->ReadAttributeString('DhwCharge'), true) ?: ['active' => false];
+        $defrost = @$this->GetIDForIdent('DefrostActive') && $this->GetValue('DefrostActive');
+        $charging = $this->GetValvePosition() === 'ww' && $this->IsRunning();
+        $temp = $this->Value('StorageTop') ?? $this->Value('StorageBottom');
+        $out = $this->Value('OutdoorTemp');
+
+        if (!empty($st['active']) && $now - ($st['last'] ?? $now) > 15 * 60) {
+            $st = ['active' => false]; // Lücke (Symcon aus): Ladung verwerfen
+        }
+        if ($charging && empty($st['active'])) {
+            $st = ['active' => true, 'start' => $now, 'last' => $now, 't0' => $temp, 't1' => $temp,
+                   'e0' => $this->ReadAttributeFloat('DhwElecTotal'), 'oSum' => 0, 'oN' => 0, 'df' => false];
+        }
+        if (!empty($st['active'])) {
+            if ($charging || $defrost) {
+                $st['last'] = $now;
+                $st['df'] = $st['df'] || $defrost;
+                if ($temp !== null) {
+                    $st['t0'] = $st['t0'] ?? $temp;
+                    $st['t1'] = max($st['t1'] ?? $temp, $temp);
+                }
+                if ($out !== null) {
+                    $st['oSum'] += $out;
+                    $st['oN']++;
+                }
+            } else {
+                // Ladung beendet
+                $minutes = round(($now - $st['start']) / 60, 1);
+                $charge = [
+                    'ts'  => $st['start'],
+                    'min' => $minutes,
+                    't0'  => $st['t0'] === null ? null : round($st['t0'], 1),
+                    't1'  => $st['t1'] === null ? null : round($st['t1'], 1),
+                    'dk'  => ($st['t0'] !== null && $st['t1'] !== null) ? round($st['t1'] - $st['t0'], 1) : null,
+                    'kwh' => round(max(0, $this->ReadAttributeFloat('DhwElecTotal') - $st['e0']), 2),
+                    'out' => $st['oN'] > 0 ? round($st['oSum'] / $st['oN'], 1) : $out,
+                    'df'  => $st['df']
+                ];
+                $st = ['active' => false];
+                if ($minutes >= 2) {
+                    $charges = $this->DhwCharges();
+                    $charges[] = $charge;
+                    $this->WriteAttributeString('DhwCharges', json_encode(array_slice($charges, -300)));
+                    $this->SendDebug('Warmwasserladung', json_encode($charge), 0);
+                    if (self::ChargeValid($charge)) {
+                        $this->UpdateMonitor(true); // gleich prüfen, nicht erst nach Mitternacht
+                    }
+                }
+            }
+        }
+        $this->WriteAttributeString('DhwCharge', json_encode($st));
+    }
+
+    /** Daten für die Auswertung „Warmwasser“ */
+    private function GetDhwView(): array
+    {
+        $charges = $this->DhwCharges();
+        $valid = array_values(array_filter($charges, [self::class, 'ChargeValid']));
+        $ref = array_map(fn ($c) => [$c['out'], $c['min'] / $c['dk']], array_slice($valid, 0, max(0, count($valid) - 3)));
+        $out = $this->Value('OutdoorTemp');
+        // Erwartung je Außentemperatur (für die Kurve im Diagramm) aus den Erfahrungswerten
+        $curve = [];
+        if (count($ref) >= 8) {
+            $temps = array_column($ref, 0);
+            for ($t = (int) floor(min($temps)); $t <= (int) ceil(max($temps)); $t++) {
+                $curve[] = [$t, round(self::Expected($ref, (float) $t, true), 3)];
+            }
+        }
+        $st = json_decode($this->ReadAttributeString('DhwCharge'), true) ?: [];
+        $today = strtotime('today');
+        $todayCharges = array_filter($charges, fn ($c) => $c['ts'] >= $today);
+        return [
+            'charges'  => array_slice($charges, -150),
+            'curve'    => $curve,
+            'expected' => (count($ref) >= 8 && $out !== null) ? round(self::Expected($ref, $out, true), 2) : null,
+            'out'      => $out,
+            'refN'     => count($ref),
+            'running'  => !empty($st['active']) ? ['since' => $st['start'], 't0' => $st['t0'], 't' => $this->Value('StorageTop') ?? $this->Value('StorageBottom')] : null,
+            'today'    => ['n' => count($todayCharges), 'min' => round(array_sum(array_column($todayCharges, 'min')), 0),
+                           'kwh' => round(array_sum(array_column($todayCharges, 'kwh')), 2)],
+            'price'    => $this->ReadPropertyFloat('PricePerKWh')
+        ];
     }
 
     // ---------------------------------------------------------------- Auswertung Tage / Wochen / Monate

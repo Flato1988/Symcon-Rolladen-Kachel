@@ -254,6 +254,13 @@ damit die Kachel nach einem Neuladen (z.B. in der iOS-App) auf derselben Ansicht
 **Diagnose:** Instanz → „Diagnosezeile in der Kachel anzeigen“ blendet unten eine Zeile mit Ladezähler, Fenster- und
 Kachelhöhe, Anzahl Nachrichten/Tipps und letztem JS-Fehler ein (Fehlersuche in Apps).
 
+**Warmwasser-Ladungen (Auswertung → Warmwasser):** jede Ladung (Y-Ventil auf Warmwasser bei laufender WP) wird erfasst:
+Dauer, Speichertemperatur oben vorher/nachher, Temperaturanstieg, Strom und Ø Außentemperatur. Kennzahl ist die
+**Aufheizzeit je K** (min/K), dargestellt über der Außentemperatur mit Erfahrungskurve. Die Überwachung meldet
+„Warmwasser-Aufheizzeit je K“, wenn der Median der letzten 3 Ladungen deutlich über dem Erfahrungswert bei ähnlicher
+Außentemperatur liegt (Hinweis auf verkalkten Wärmetauscher, zu wenig Volumenstrom, Fühlerproblem); geprüft wird direkt nach jeder Ladung.
+Die Spreizung (VL − RL) steht im Wärmepumpen-Symbol, im Betrieb farbig bewertet (grün 2,5–8 K).
+
 **Kältekreis-Bewertung:** Überhitzung (3–10 K), Druckverhältnis (bis 6), Luft − Verdampfung (bis 10 K),
 Kondensator (bis 6 K) und Heißgas (bis 95 °C) werden bei laufendem Verdichter **grün** (Norm), orange (auffällig)
 oder rot hinterlegt.
