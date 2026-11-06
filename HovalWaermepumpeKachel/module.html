@@ -379,11 +379,19 @@
     #pwChart .bar { fill: var(--acc); opacity: .85; }
     #pwChart .bar.peak { fill: var(--hot); opacity: 1; }
     #pwChart .temp { fill: none; stroke: var(--heat); stroke-width: 2; stroke-linejoin: round; }
+    #pwChart .tl { fill: none; stroke-width: 1.7; stroke-linejoin: round; }
+    .pw-series { display: flex; flex-wrap: wrap; gap: 4px; }
+    .pw-series button { border: 1px solid rgba(128, 128, 128, .3); background: transparent; color: inherit; font: inherit; font-size: 10.5px;
+                        padding: 2px 8px; border-radius: 10px; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; touch-action: manipulation; }
+    .pw-series button i { display: inline-block; width: 12px; height: 0; border-top: 2.5px solid currentColor; }
+    .pw-series button i.dash { border-top-style: dashed; }
+    .pw-series button.off { opacity: .4; }
+    .pw-series button.off span { text-decoration: line-through; }
     #pwChart .cursor { stroke: var(--fg); stroke-width: 1; opacity: .4; }
     #pwChart .pk { fill: var(--hot); }
     #tile.pw-long .pw-peaks { display: none; }
     #pwTip { position: absolute; top: 4px; padding: 4px 8px; border-radius: 6px; background: rgba(30, 30, 30, .85); color: #fff;
-             font-size: 11px; white-space: nowrap; pointer-events: none; display: none; }
+             font-size: 11px; white-space: normal; max-width: 92%; line-height: 1.4; pointer-events: none; display: none; }
     #pwEmpty { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; font-size: 12px; opacity: .6; text-align: center; }
     .pw-peaks-title { font-size: 11px; opacity: .65; margin: 4px 0; }
     #pwPeaks { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; align-items: end; }
@@ -706,9 +714,9 @@
             <span class="legend" style="margin:0">
                 <span><i class="l-pw"></i><span id="pwLegend">Leistung (kW, Ø 15 min)</span></span>
                 <span id="pwLegendPeak" hidden><i style="background:var(--hot)"></i>Spitze 15 min</span>
-                <span><i class="l-pwt"></i>Außentemperatur (°C)</span>
             </span>
         </div>
+        <div class="pw-series" id="pwSeries"></div>
         <div class="chart-wrap">
             <svg id="pwChart"></svg>
             <div id="pwTip"></div>
@@ -1071,7 +1079,7 @@
     function saveView() {
         if (viewRestoring || typeof requestAction !== 'function') return;
         clearTimeout(saveView.t);
-        saveView.t = setTimeout(() => requestAction('View', JSON.stringify({ v: curView, c: ctlPage, s: sMode, r: pwRange })), 300);
+        saveView.t = setTimeout(() => requestAction('View', JSON.stringify({ v: curView, c: ctlPage, s: sMode, r: pwRange, h: pwHidden || 'x' })), 300);
     }
     function showView(name) {
         curView = name;
@@ -1642,28 +1650,54 @@
             + (pwDay && pwDay.energy !== null ? ` · ${num(pwDay.energy, 1)} kWh` + (pwDay.cost !== null ? ` · ${num(pwDay.cost, 2)} €` : '') : '');
     }
 
-    // Daten des gewählten Zeitraums einheitlich aufbereiten: {t, slot, v (Balken), pk (Spitze), temp, tip, peak}
+    // Temperaturlinien im Leistungsdiagramm (rechte Achse), einzeln ein-/ausblendbar; ex = [Raum Ist, Raum Soll, VL Ist, VL Soll, RL Ist]
+    const PW_SERIES = [
+        ['a', 'Außen', 'var(--heat)', false, (it) => it.temp],
+        ['i', 'Raum Ø Ist', '#30a46c', false, (it) => it.ex ? it.ex[0] : null],
+        ['s', 'Raum Ø Soll', '#30a46c', true, (it) => it.ex ? it.ex[1] : null],
+        ['v', 'Vorlauf Ist', 'var(--hot)', false, (it) => it.ex ? it.ex[2] : null],
+        ['w', 'Vorlauf Soll', 'var(--hot)', true, (it) => it.ex ? it.ex[3] : null],
+        ['r', 'Rücklauf Ist', 'var(--cold)', false, (it) => it.ex ? it.ex[4] : null],
+        ['q', 'Rücklauf Soll', 'var(--cold)', true, (it) => it.ex && it.ex[3] !== null ? Math.round((it.ex[3] - (pw.rlSpread ?? 5)) * 10) / 10 : null]
+    ];
+    let pwHidden = '';
+    try { pwHidden = localStorage.getItem('hwpPwHidden') ?? ''; } catch (e) {}
+    function drawPwSeries(items) {
+        const has = (fn) => items.some(it => { const v = fn(it); return v !== null && v !== undefined; });
+        $('pwSeries').innerHTML = PW_SERIES.filter(([, , , , fn]) => has(fn)).map(([k, label, color, dash]) =>
+            `<button data-k="${k}" class="${pwHidden.includes(k) ? 'off' : ''}" style="color:${color}" title="${k === 'q' ? 'Hoval hat keinen Rücklauf-Sollwert: VL-Soll − ' + num(pw.rlSpread ?? 5, 1) + ' K (Instanz: Soll-Spreizung)' : 'ein-/ausblenden'}">`
+            + `<i class="${dash ? 'dash' : ''}"></i><span style="color:var(--fg)">${label}${k === 'q' ? ' *' : ''}</span></button>`).join('');
+        $('pwSeries').querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+            const k = b.dataset.k;
+            pwHidden = pwHidden.includes(k) ? pwHidden.replace(k, '') : pwHidden + k;
+            try { localStorage.setItem('hwpPwHidden', pwHidden); } catch (e) {}
+            saveView();
+            drawPowerChart();
+        }));
+    }
+
+    // Daten des gewählten Zeitraums einheitlich aufbereiten: {t, slot, v (Balken), pk (Spitze), temp, ex, tip, peak}
     function powerItems() {
         if (pwRange === 'week') {
             const max = Math.max(0, ...(pw.week || []).map(q => q[1]));
-            return (pw.week || []).map(([t, avg, mx, temp]) => ({
-                t, slot: 3600, v: avg, pk: null, temp, peak: avg === max && max > 0,
+            return (pw.week || []).map(([t, avg, mx, temp, ex]) => ({
+                t, slot: 3600, v: avg, pk: null, temp, ex: ex || null, peak: avg === max && max > 0,
                 tip: `${WD[new Date(t * 1000).getDay()]} ${ddmm(t)} ${hhmm(t)}–${hhmm(t + 3600)} · Ø ${num(avg, 2)} kW · max ${num(mx, 2)} kW · ${temp === null ? '–' : num(temp, 1)} °C`
             }));
         }
         if (pwRange === 'month') {
-            return (pw.month || []).map(([date, avg, pk, pkTs, temp]) => {
+            return (pw.month || []).map(([date, avg, pk, pkTs, temp, ex]) => {
                 const t = Math.floor(new Date(date + 'T00:00').getTime() / 1000);
                 return {
-                    t, slot: 86400, v: avg, pk, temp, peak: false,
+                    t, slot: 86400, v: avg, pk, temp, ex: ex || null, peak: false,
                     tip: `${WD[new Date(t * 1000).getDay()]} ${ddmm(t)} · Ø ${num(avg, 2)} kW · Spitze ${num(pk, 2)} kW${pkTs ? ' um ' + hhmm(pkTs) : ''} · ${temp === null ? '–' : num(temp, 1)} °C`
                 };
             });
         }
         const dayData = pwDayOff > 0 ? (pwDay || { series: [], peak: null }) : null;
         const peakStart = dayData ? (dayData.peak ? dayData.peak[1] : null) : pw.peak ? pw.peak[1] : null;
-        return ((dayData ? dayData.series : pw.series) || []).map(([t, kw, temp]) => ({
-            t, slot: 900, v: kw, pk: null, temp, peak: t === peakStart,
+        return ((dayData ? dayData.series : pw.series) || []).map(([t, kw, temp, ex]) => ({
+            t, slot: 900, v: kw, pk: null, temp, ex: ex || null, peak: t === peakStart,
             tip: `${hhmm(t)}–${hhmm(t + 900)} · ${num(kw, 2)} kW · ${temp === null ? '–' : num(temp, 1)} °C`
         }));
     }
@@ -1693,7 +1727,9 @@
         const span = tEnd - tStart;
         const x = (t) => L + (t - tStart) / span * (W - L - R);
         const pMax = niceCeil(Math.max(0.5, ...items.map(i => Math.max(i.v || 0, i.pk || 0))));
-        const temps = items.map(i => i.temp).filter(t => t !== null && t !== undefined);
+        drawPwSeries(items);
+        const shown = PW_SERIES.filter(([k]) => !pwHidden.includes(k));
+        const temps = items.flatMap(it => shown.map(([, , , , fn]) => fn(it))).filter(t => t !== null && t !== undefined);
         let tMin = temps.length ? Math.floor(Math.min(...temps) / 5) * 5 : -5;
         let tMax = temps.length ? Math.ceil(Math.max(...temps) / 5) * 5 : 15;
         if (tMax - tMin < 12) tMax = tMin + 12;
@@ -1731,13 +1767,16 @@
             svgEl('rect', { x: x(it.t) + off, y: yP(it.v), width: bw, height: Math.max(0, H - B - yP(it.v)), class: 'bar' + (it.peak ? ' peak' : '') }, svg);
             if (it.pk !== null && it.pk !== undefined) svgEl('rect', { x: x(it.t) + off - 1, y: yP(it.pk) - 1.5, width: bw + 2, height: 3, rx: 1.5, class: 'pk' }, svg);
         }
-        let d = '', prev = null;
-        for (const it of items) {
-            if (it.temp === null || it.temp === undefined) { prev = null; continue; }
-            d += (prev === null || it.t - prev > it.slot * 2 ? 'M' : 'L') + (x(it.t) + slotPx / 2).toFixed(1) + ' ' + yT(it.temp).toFixed(1) + ' ';
-            prev = it.t;
+        for (const [, , color, dash, fn] of shown) {
+            let d = '', prev = null;
+            for (const it of items) {
+                const v = fn(it);
+                if (v === null || v === undefined) { prev = null; continue; }
+                d += (prev === null || it.t - prev > it.slot * 2 ? 'M' : 'L') + (x(it.t) + slotPx / 2).toFixed(1) + ' ' + yT(v).toFixed(1) + ' ';
+                prev = it.t;
+            }
+            if (d) svgEl('path', { d, class: 'tl', style: `stroke:${color}` + (dash ? ';stroke-dasharray:5 3' : '') }, svg);
         }
-        if (d) svgEl('path', { d, class: 'temp' }, svg);
         pwGeo = { x, T, B, H, items, slotPx };
     }
 
@@ -1774,7 +1813,9 @@
         const cx = pwGeo.x(best.it.t) + pwGeo.slotPx / 2;
         svgEl('line', { x1: cx, x2: cx, y1: pwGeo.T, y2: pwGeo.H - pwGeo.B, class: 'cursor' }, $('pwChart'));
         const tip = $('pwTip');
-        tip.textContent = best.it.tip;
+        const extra = PW_SERIES.filter(([k]) => k !== 'a' && !pwHidden.includes(k))
+            .map(([, label, , , fn]) => { const v = fn(best.it); return v === null || v === undefined ? null : `${label} ${num(v, 1)} °C`; }).filter(Boolean);
+        tip.innerHTML = esc(best.it.tip) + (extra.length ? '<br>' + extra.join(' · ') : '');
         tip.style.display = 'block';
         tip.style.left = Math.min(Math.max(0, cx - tip.offsetWidth / 2), r.width - tip.offsetWidth) + 'px';
     }
@@ -2164,6 +2205,7 @@
             if (vs.c) ctlPage = vs.c;
             if (vs.s) sMode = vs.s;
             if (vs.r) pwRange = vs.r;
+            if (vs.h) pwHidden = vs.h === 'x' ? '' : vs.h;
             if (['schema', 'daily', 'stats', 'power', 'ctl', 'refri'].includes(vs.v)) pendingView = vs.v;
         }
         gotData = true;

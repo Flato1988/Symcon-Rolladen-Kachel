@@ -229,6 +229,11 @@ Nicht berücksichtigte Räume werden ausgegraut.
 **Verdichterstarts:** aus dem Hoval-Zähler Schaltzyklen (1518, U32, Funktion 3, in Symcon Datentyp DWord), sonst selbst
 erkannt. Anzeige der Starts heute und Ø Laufzeit je Start (Kältekreis), Starts je Zeitraum in der Auswertung und Prüfung in der Überwachung.
 
+**Leistung – Temperaturen:** Im Leistungsdiagramm (Tag/Woche/Monat) zusätzlich je Viertelstunde bzw. Stunde/Tag gemittelt:
+Außen, Raum Ø Ist/Soll (Räume der Steuerung), Vorlauf Ist/Soll (18725/18724), Rücklauf Ist (1535) und Rücklauf-Soll
+(= VL-Soll − Soll-Spreizung aus der Instanz, da Hoval keinen RL-Sollwert liefert). Jede Linie ist per Antippen ein-/ausblendbar;
+die Auswahl wird gemerkt. Die Temperaturen werden ab Version 4.1 gesammelt.
+
 **Leistung – Tagesauswahl:** Im Zeitraum „Tag“ blättert man mit ‹ › durch die 15-min-Werte der letzten 31 Tage
 (mit Energie und Kosten des Tages). Antippen eines Tages in „Höchste 15-min-Leistung je Tag“ oder eines Balkens in
 der Monatsansicht öffnet diesen Tag.

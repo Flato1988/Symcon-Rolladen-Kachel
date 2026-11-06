@@ -147,6 +147,7 @@ class HovalWaermepumpeKachel extends IPSModule
         $this->RegisterPropertyInteger('MeasuredPowerUnit', 0);  // 0 = W, 1 = kW
         $this->RegisterPropertyInteger('MeasuredEnergyUnit', 1); // 0 = Wh, 1 = kWh, 2 = MWh
         $this->RegisterPropertyFloat('PricePerKWh', 0.25);       // Strompreis (Wärmepumpentarif) in €/kWh
+        $this->RegisterPropertyFloat('ReturnSetSpread', 5.0);    // Soll-Spreizung: RL-Soll = VL-Soll − Spreizung (Hoval hat keinen RL-Sollwert)
         $this->RegisterPropertyString('Refrigerant', 'R32');     // Kältemittel für Verdampfungs-/Kondensationstemperatur aus den Drücken
 
         // ---- Heizungssteuerung (schreibt in die Wärmepumpe, nur wenn aktiviert) ----
@@ -216,6 +217,8 @@ class HovalWaermepumpeKachel extends IPSModule
         $this->RegisterAttributeFloat('QEnergy', 0);
         $this->RegisterAttributeFloat('QTempSum', 0);
         $this->RegisterAttributeInteger('QTempCount', 0);
+        // Temperaturen je Viertelstunde (Summe, Anzahl) für das Leistungsdiagramm: Raum Ø Ist/Soll, Vorlauf Ist/Soll, Rücklauf
+        $this->RegisterAttributeString('QTemps', '{}');
         $this->RegisterAttributeString('QHistory', '[]');
         $this->RegisterAttributeString('QPeaks', '{}');
         // aus der gemessenen Leistung aufsummierte Energie (ersetzt einen fehlenden kWh-Zählerstand des externen Zählers)
@@ -414,7 +417,7 @@ class HovalWaermepumpeKachel extends IPSModule
             case 'View': // Kachel merkt sich die gewählte Ansicht (kein Neuzeichnen nötig)
                 $state = json_decode((string) $Value, true);
                 if (is_array($state)) {
-                    $clean = array_map(fn ($v) => substr(preg_replace('/[^a-z]/', '', (string) $v), 0, 12), array_intersect_key($state, array_flip(['v', 'c', 's', 'r'])));
+                    $clean = array_map(fn ($v) => substr(preg_replace('/[^a-z]/', '', (string) $v), 0, 12), array_intersect_key($state, array_flip(['v', 'c', 's', 'r', 'h'])));
                     $this->WriteAttributeString('ViewState', json_encode($clean));
                 }
                 break;
@@ -468,6 +471,7 @@ class HovalWaermepumpeKachel extends IPSModule
                     break;
                 case 'Externer Zähler':
                     $items[] = ['type' => 'NumberSpinner', 'name' => 'PricePerKWh', 'caption' => 'Strompreis (Wärmepumpentarif)', 'suffix' => '€/kWh', 'digits' => 4, 'minimum' => 0];
+                    $items[] = ['type' => 'NumberSpinner', 'name' => 'ReturnSetSpread', 'caption' => 'Soll-Spreizung für „RL-Soll“ im Leistungsdiagramm (RL-Soll = VL-Soll − Spreizung)', 'suffix' => 'K', 'digits' => 1, 'minimum' => 0];
                     $items[] = ['type' => 'Select', 'name' => 'MeasuredPowerUnit', 'caption' => 'Einheit Leistung', 'options' => [
                         ['caption' => 'W', 'value' => 0], ['caption' => 'kW', 'value' => 1]]];
                     $items[] = ['type' => 'Select', 'name' => 'MeasuredEnergyUnit', 'caption' => 'Einheit Energie', 'options' => [
@@ -954,7 +958,7 @@ class HovalWaermepumpeKachel extends IPSModule
                 $temperature = $count > 0 ? round($this->ReadAttributeFloat('QTempSum') / $count, 1) : $this->Value('OutdoorTemp');
 
                 $history = json_decode($this->ReadAttributeString('QHistory'), true) ?: [];
-                $history[] = [$start, $kW, $temperature];
+                $history[] = [$start, $kW, $temperature, $this->QuarterTemps()];
                 $history = array_values(array_filter($history, fn ($q) => $q[0] >= $boundary - 32 * 86400)); // 31 Tage für die Tagesauswahl
                 $this->WriteAttributeString('QHistory', json_encode($history));
                 $this->SetValue('Power15', $kW);
@@ -986,12 +990,53 @@ class HovalWaermepumpeKachel extends IPSModule
             $this->WriteAttributeFloat('QHouseEnergy', 0);
             $this->WriteAttributeFloat('QTempSum', 0);
             $this->WriteAttributeInteger('QTempCount', 0);
+            $this->WriteAttributeString('QTemps', '{}');
         }
+        // Temperaturen der laufenden Viertelstunde sammeln: [Raum Ø Ist, Raum Ø Soll, Vorlauf Ist, Vorlauf Soll, Rücklauf]
+        $rs = $this->GetCtlState()['roomStats'] ?? [];
+        $acc = json_decode($this->ReadAttributeString('QTemps'), true) ?: [];
+        foreach ([$rs['avgIst'] ?? null, $rs['avgSoll'] ?? null, $this->Value('FlowTemp'), $this->Value('WEZSetpoint'), $this->Value('ReturnTemp')] as $i => $v) {
+            if ($v !== null) {
+                $acc[$i] = [($acc[$i][0] ?? 0) + $v, ($acc[$i][1] ?? 0) + 1];
+            }
+        }
+        $this->WriteAttributeString('QTemps', json_encode($acc));
         $temperature = $this->Value('OutdoorTemp');
         if ($temperature !== null) {
             $this->WriteAttributeFloat('QTempSum', $this->ReadAttributeFloat('QTempSum') + $temperature);
             $this->WriteAttributeInteger('QTempCount', $this->ReadAttributeInteger('QTempCount') + 1);
         }
+    }
+
+    /** Mittelwerte der Temperaturen der abgelaufenen Viertelstunde [Raum Ist, Raum Soll, VL Ist, VL Soll, RL Ist] (null = keine Werte) */
+    private function QuarterTemps(): ?array
+    {
+        $acc = json_decode($this->ReadAttributeString('QTemps'), true) ?: [];
+        $result = [];
+        for ($i = 0; $i < 5; $i++) {
+            $result[] = isset($acc[$i]) && $acc[$i][1] > 0 ? round($acc[$i][0] / $acc[$i][1], 1) : null;
+        }
+        return array_filter($result, fn ($v) => $v !== null) ? $result : null;
+    }
+
+    /** Mittelwert der Zusatztemperaturen über mehrere Viertelstunden */
+    private static function MeanTemps(array $quarters): ?array
+    {
+        $sum = array_fill(0, 5, 0.0);
+        $n = array_fill(0, 5, 0);
+        foreach ($quarters as $q) {
+            foreach ($q[3] ?? [] as $i => $v) {
+                if ($v !== null) {
+                    $sum[$i] += $v;
+                    $n[$i]++;
+                }
+            }
+        }
+        $result = [];
+        for ($i = 0; $i < 5; $i++) {
+            $result[] = $n[$i] > 0 ? round($sum[$i] / $n[$i], 1) : null;
+        }
+        return array_filter($result, fn ($v) => $v !== null) ? $result : null;
     }
 
     /** Daten für die Ansicht "Leistung": aktuelle Leistung, Kennzahlen, 24-h-Verlauf, Spitzen der letzten 7 Tage */
@@ -1021,7 +1066,8 @@ class HovalWaermepumpeKachel extends IPSModule
             'oldest'  => count($history) > 0 ? $history[0][0] : $now,
             'peaks'   => $peakList,
             'week'    => $this->GetPowerWeek($history, $now),
-            'month'   => $this->GetPowerMonth($peaks, $now)
+            'month'   => $this->GetPowerMonth($peaks, $now, $history),
+            'rlSpread' => $this->ReadPropertyFloat('ReturnSetSpread')
         ];
     }
 
@@ -1029,11 +1075,13 @@ class HovalWaermepumpeKachel extends IPSModule
     private function GetPowerWeek(array $history, int $now): array
     {
         $hours = [];
-        foreach ($history as [$start, $kW, $temp]) {
+        foreach ($history as $q) {
+            [$start, $kW, $temp] = $q;
             if ($start < $now - 7 * 86400) {
                 continue;
             }
             $h = intdiv($start, 3600) * 3600;
+            $hours[$h]['q'][] = $q;
             $hours[$h]['kw'][] = $kW;
             if ($temp !== null) {
                 $hours[$h]['t'][] = $temp;
@@ -1043,14 +1091,18 @@ class HovalWaermepumpeKachel extends IPSModule
         $result = [];
         foreach ($hours as $h => $v) {
             $result[] = [$h, round(array_sum($v['kw']) / count($v['kw']), 3), max($v['kw']),
-                         isset($v['t']) ? round(array_sum($v['t']) / count($v['t']), 1) : null];
+                         isset($v['t']) ? round(array_sum($v['t']) / count($v['t']), 1) : null, self::MeanTemps($v['q'])];
         }
         return $result;
     }
 
     /** Monat: je Tag (31 Tage) [Datum, Ø kW (Tagesenergie ÷ Stunden), 15-min-Spitze kW, Zeitpunkt Spitze, Ø °C] */
-    private function GetPowerMonth(array $peaks, int $now): array
+    private function GetPowerMonth(array $peaks, int $now, array $history = []): array
     {
+        $byDate = [];
+        foreach ($history as $q) {
+            $byDate[date('Y-m-d', $q[0])][] = $q;
+        }
         $days = [];
         foreach (json_decode($this->ReadAttributeString('DailyHistory'), true) ?: [] as $d) {
             $days[$d['d']] = $d;
@@ -1065,7 +1117,8 @@ class HovalWaermepumpeKachel extends IPSModule
             $d = $days[$date] ?? null;
             $hours = ($d && !empty($d['p'])) ? max(1, ($now - strtotime($date)) / 3600) : 24;
             $result[] = [$date, ($d && $d['e'] !== null) ? round($d['e'] / $hours, 3) : null,
-                         $peaks[$date][0] ?? null, $peaks[$date][1] ?? null, $d['t'] ?? null];
+                         $peaks[$date][0] ?? null, $peaks[$date][1] ?? null, $d['t'] ?? null,
+                         isset($byDate[$date]) ? self::MeanTemps($byDate[$date]) : null];
         }
         return $result;
     }
