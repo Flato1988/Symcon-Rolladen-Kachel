@@ -260,7 +260,9 @@
     .lvl button.eco.on { background: var(--cold); border-color: var(--cold); }
     .lvl button.custom.on { background: #9b6bd6; border-color: #9b6bd6; }
     /* Schema: Raumtemperaturen antippen */
-    #roomTap, #dhwTap { cursor: pointer; }
+    #roomTap, #dhwTap, #fbhInfo { cursor: pointer; }
+    #schema .sinfo circle { fill: none; stroke: var(--fg); stroke-opacity: .5; stroke-width: .8; }
+    #schema .sinfo text { font-size: 6.5px; font-weight: 700; opacity: .7; }
     #schema .sbtn rect { fill: var(--acc); fill-opacity: .14; stroke: var(--acc); stroke-width: .9; }
     #schema .sbtn text { fill: var(--acc); font-size: 6.6px; font-weight: 600; }
     #schema .sbtn.on rect { fill: var(--hot); fill-opacity: .18; stroke: var(--hot); }
@@ -566,12 +568,12 @@
     <div id="body">
     <div class="view" id="viewSchema" style="position:relative">
     <div id="tempPop" class="pop" hidden>
-        <div class="row"><b id="tpTitle">Heizung</b><span class="hint" id="tpHint"></span></div>
+        <div class="row"><b id="tpTitle">Raumtemperatur</b><span class="hint" id="tpHint"></span></div>
         <div class="row"><span>Komfort</span><span class="step"><button class="btn" data-t="comfort" data-d="-0.5">−</button><span id="tpComfort">–</span><button class="btn" data-t="comfort" data-d="0.5">+</button></span></div>
         <div class="row" id="tpEcoRow"><span>Absenkung</span><span class="step"><button class="btn" data-t="eco" data-d="-0.5">−</button><span id="tpEco">–</span><button class="btn" data-t="eco" data-d="0.5">+</button></span></div>
         <div class="row" style="justify-content:flex-end"><button class="btn" id="tpCancel">Abbrechen</button><button class="btn primary" id="tpSave">Übernehmen</button></div>
         <div class="hint">Gilt für die aktive Saison. Zeitprogramm, Saison, Heizkurve und alle weiteren Einstellungen:</div>
-        <button class="linkbtn" id="tpGoto">→ Steuerung › Heizung öffnen</button>
+        <button class="linkbtn" id="tpGoto">→ Steuerung › Heizung öffnen (Zeitprogramm, Saison, Heizkurve)</button>
     </div>
     <div id="dhwPop" class="pop" hidden>
         <div class="row"><b>Warmwasser aufheizen</b><span class="hint" id="dpNow"></span></div>
@@ -663,16 +665,20 @@
         </g>
         <g id="fbhSegs"></g>
         <path class="pipe fbh-flow" id="pipeFbh" d="M372 62 H428 V78 H380 V94 H428 V110 H380 V126 H428 V142 H372"/>
-        <text class="title center" x="400" y="162">FBH</text>
-        <text class="center" x="400" y="175" id="tHc1"></text>
+        <!-- über der FBH: Titel, Info und Knopf zum Ändern der Raumtemperatur -->
+        <text class="title center" x="396" y="30">FBH</text>
+        <g id="fbhInfo" class="sinfo"><circle cx="420" cy="27" r="5"/><text class="center" x="420" y="29.4">i</text></g>
         <g id="roomTap">
-            <rect x="372" y="180" width="58" height="22" fill="transparent"/>
-            <text class="small center" x="400" y="187" id="tRoom"></text>
-            <text class="small center" x="400" y="198" id="tRoomDev" style="font-weight:600"></text>
             <g id="roomBtn" class="sbtn">
-                <rect x="373" y="203" width="56" height="12" rx="6"/>
-                <text class="center" x="401" y="211.5">✎ Soll ändern</text>
+                <rect x="374" y="37" width="64" height="13" rx="6.5"/>
+                <text class="center" x="406" y="45.8" textLength="58" lengthAdjust="spacingAndGlyphs">✎ Raumtemperatur ändern</text>
             </g>
+        </g>
+        <!-- unter der FBH: Vorlauf, Raum Ø, Soll und Abweichung -->
+        <text class="center" x="400" y="162" id="tHc1"></text>
+        <g id="roomVals">
+            <text class="small center" x="400" y="175" id="tRoom"></text>
+            <text class="small center" x="400" y="187" id="tRoomDev" style="font-weight:600"></text>
         </g>
         <!-- Warmwasser aufheizen (bei aktiver Warmwassersteuerung), zwischen Speicher und Puffer -->
         <g id="dhwTap" class="sbtn">
@@ -1069,6 +1075,7 @@
     <div id="infoPop" class="pop" hidden>
         <div class="row"><b id="ipTitle">Info</b><button class="btn" id="ipClose">✕</button></div>
         <div class="itext" id="ipText"></div>
+        <button class="linkbtn" id="ipGoto" hidden>→ zur Einstellungsseite</button>
     </div>
     <div id="diag" hidden></div>
 </div>
@@ -1132,8 +1139,8 @@
         const g = $(groupId);
         // nur neu zeichnen, wenn sich die Temperaturen geändert haben (sonst ruckeln die Animationen)
         const key = top + '|' + bottom;
-        if (g.dataset.key === key) return;
-        g.dataset.key = key;
+        if (g.getAttribute('data-key') === key) return;
+        g.setAttribute('data-key', key);
         g.innerHTML = '';
         const t1 = top !== null ? top : bottom, t2 = bottom !== null ? bottom : top;
         // Farbverlauf aus waagrechten Bändern; jedes Band ist ein Pfad, dessen linke und rechte Kante exakt der
@@ -2926,6 +2933,7 @@
 
     // ---------- Erklärungen (ℹ) zu allen Regeleinstellungen ----------
     const INFO = {
+        'schema-room': ['Raumtemperatur', '„Raumtemperatur ändern“ stellt die Komfort- und die Absenktemperatur der aktiven Saison ein – sofort wirksam, ohne Passwort.\n\nUnter der Fußbodenheizung: Vorlauf, Ø Raumtemperatur der berücksichtigten Räume, Soll und Abweichung (grün bis ±0,5 K, orange bis ±1,5 K).\n\nZeitprogramm, Saison, Heizkurve und Räume findest du unter Steuerung › Heizung bzw. › Räume.', 'heat'],
         func: ['Funktionen', 'Hier werden die Steuerungsfunktionen mit dem Passwort ein- und ausgeschaltet.\n\nHeizungssteuerung: Symcon übernimmt Betriebsart, Zeitprogramm und Raum-Soll von Heizkreis 1.\nWarmwassersteuerung: Symcon übernimmt Ladezeiten und Temperaturen.\nRaumanforderung: Heizkreis nur freigeben, wenn ein Raum (oder der Durchschnitt) zu kalt ist.\nLeistungsbegrenzung: hält die 15-min-Spitze von Haus + WP unter dem Grenzwert.\nPV-Überschuss: nutzt Solarstrom-Überschuss als Wärme.\n\nAusschalten gibt die jeweilige Funktion an das Hoval-Programm „Woche 1“ zurück.'],
         holiday: ['Urlaub', 'Senkt während der Abwesenheit ab und endet automatisch.\n\nHeizung: „Absenkung“ = Absenktemperatur der aktuellen Saison, „Frostschutz“ = Heizkreis im Standby.\nWarmwasser: „aus“ = Standby (Hoval-Frostschutz bleibt aktiv), „40 °C“ = niedrige Temperatur.\n\nPlanbar im Voraus (Beginn in der Zukunft).'],
         heat: ['Heizung', 'Automatik: Zeitprogramm der Saison (Komfort, Absenkung oder eigene Temperatur je Zeit).\nFrostschutz: Heizkreis im Standby.\nDauer: feste Raumtemperatur ohne Zeitprogramm.\n\nSaison: Winter / Übergang / Sommer – manuell oder automatisch nach Ø 24 h Außentemperatur. Im Sommer heizt die Anlage nur in eigenen Zeiten.\n\nKomfort- und Absenktemperatur lassen sich auch direkt im Anlagenschema über „Soll ändern“ einstellen.'],
@@ -2946,6 +2954,8 @@
         if (!i) return;
         $('ipTitle').textContent = i[0];
         $('ipText').textContent = i[1];
+        $('ipGoto').hidden = !i[2];
+        $('ipGoto').dataset.page = i[2] || '';
         $('infoPop').hidden = false;
     }
     document.addEventListener('click', (e) => {
@@ -2956,6 +2966,8 @@
         showInfo(b.dataset.info);
     }, true);
     $('ipClose').addEventListener('click', () => { $('infoPop').hidden = true; });
+    $('ipGoto').addEventListener('click', () => { $('infoPop').hidden = true; gotoCtl($('ipGoto').dataset.page); });
+    $('fbhInfo').addEventListener('click', () => showInfo('schema-room'));
 
     // ---------- Komfort-/Absenktemperatur direkt im Anlagenschema (nur mit aktiver Heizungssteuerung) ----------
     let tp = null;
@@ -2963,7 +2975,7 @@
         if (!ctl || !ctl.ctl || !ctl.heat) return;
         const h = ctl.heat;
         tp = { season: h.season, comfort: h.comfort, eco: h.eco };
-        $('tpTitle').textContent = 'Heizung · ' + { winter: 'Winter', transition: 'Übergang', summer: 'Sommer' }[h.season];
+        $('tpTitle').textContent = 'Raumtemperatur · ' + { winter: 'Winter', transition: 'Übergang', summer: 'Sommer' }[h.season];
         $('tpHint').textContent = h.prog && h.prog.temp !== null && h.prog.temp !== undefined ? `jetzt ${num(h.prog.temp, 1)} °C` : '';
         drawTp();
         $('tempPop').hidden = false;
@@ -2990,8 +3002,8 @@
 
     // SVG-Text in eine Breite einpassen: erst zweizeilig (Umbruch an Leerzeichen, „-“ oder „/“), dann kleiner
     function fitSvgText(el, text, maxW) {
-        if (el.dataset.text === text) return;
-        el.dataset.text = text;
+        if (el.getAttribute('data-text') === text) return;
+        el.setAttribute('data-text', text);
         el.removeAttribute('font-size');
         el.removeAttribute('dy');
         el.textContent = text;

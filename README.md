@@ -280,6 +280,9 @@ Dauer, Speichertemperatur oben vorher/nachher, Temperaturanstieg, Strom und Ø A
 Außentemperatur liegt (Hinweis auf verkalkten Wärmetauscher, zu wenig Volumenstrom, Fühlerproblem); geprüft wird direkt nach jeder Ladung.
 Die Spreizung (VL − RL) steht im Wärmepumpen-Symbol, im Betrieb farbig bewertet (grün 2,5–8 K).
 
+**Version 4.9:** FBH-Titel, ℹ (mit Sprung zur Einstellungsseite) und „✎ Raumtemperatur ändern“ über der Fußbodenheizung;
+Vorlauf, Raum Ø und Abweichung darunter. Speicherdarstellung für Safari robuster.
+
 **Version 4.8:**
 - Warmwasser-Stufen heißen jetzt „Absenken“ / „Aufheizen“ / „Eigene“.
 - Anlagenschema: Knopf „🔥 Aufheizen“ zwischen Speicher und Puffer (bei aktiver Warmwassersteuerung; zeigt laufendes Aufheizen),
