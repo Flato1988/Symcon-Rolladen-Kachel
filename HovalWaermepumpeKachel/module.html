@@ -666,12 +666,12 @@
         <g id="fbhSegs"></g>
         <path class="pipe fbh-flow" id="pipeFbh" d="M372 62 H428 V78 H380 V94 H428 V110 H380 V126 H428 V142 H372"/>
         <!-- über der FBH: Titel, Info und Knopf zum Ändern der Raumtemperatur -->
-        <text class="title center" x="396" y="30">FBH</text>
-        <g id="fbhInfo" class="sinfo"><circle cx="420" cy="27" r="5"/><text class="center" x="420" y="29.4">i</text></g>
+        <text class="title center" x="400" y="30">FBH</text>
+        <g id="fbhInfo" class="sinfo"><circle cx="424" cy="27" r="5"/><text class="center" x="424" y="29.4">i</text></g>
         <g id="roomTap">
             <g id="roomBtn" class="sbtn">
-                <rect x="374" y="37" width="64" height="13" rx="6.5"/>
-                <text class="center" x="406" y="45.8" textLength="58" lengthAdjust="spacingAndGlyphs">✎ Raumtemperatur ändern</text>
+                <rect x="376" y="37" width="62" height="13" rx="6.5"/>
+                <text class="center" x="407" y="45.8" textLength="56" lengthAdjust="spacingAndGlyphs">✎ Raumtemperatur ändern</text>
             </g>
         </g>
         <!-- unter der FBH: Vorlauf, Raum Ø, Soll und Abweichung -->
@@ -3147,7 +3147,8 @@
         drawTank('bufferSlices', 296, 40, 52, 136, 12, bufTop, bufBottom);
         // ohne Puffer: Heizungszweig direkt vom Ventil zur FBH und von dort zurück
         $('bufferGroup').style.display = hasBuf ? '' : 'none';
-        const heatPath = hasBuf ? 'M160 48 V16 H322 V40' : 'M160 48 V16 H372 V62';
+        // ohne Puffer: Vorlauf links an der FBH herunter (Abstand zum Knopf „Raumtemperatur ändern“)
+        const heatPath = hasBuf ? 'M160 48 V16 H322 V40' : 'M160 48 V16 H358 V62 H372';
         setD('pipeHeat', heatPath);
         setD('bgHeat', heatPath);
         setD('pipeRetHeat', hasBuf ? 'M322 176 V218 H224' : 'M372 142 H360 V218 H224');
