@@ -260,7 +260,21 @@
     .lvl button.eco.on { background: var(--cold); border-color: var(--cold); }
     .lvl button.custom.on { background: #9b6bd6; border-color: #9b6bd6; }
     /* Schema: Raumtemperaturen antippen */
-    #roomTap { cursor: pointer; }
+    #roomTap, #dhwTap { cursor: pointer; }
+    #schema .sbtn rect { fill: var(--acc); fill-opacity: .14; stroke: var(--acc); stroke-width: .9; }
+    #schema .sbtn text { fill: var(--acc); font-size: 6.6px; font-weight: 600; }
+    #schema .sbtn.on rect { fill: var(--hot); fill-opacity: .18; stroke: var(--hot); }
+    #schema .sbtn.on text { fill: var(--hot); }
+    .pop { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 6; min-width: 250px; max-width: 92%;
+           background: var(--pop-bg, #fff); color: #1a1a1a; border-radius: 12px; box-shadow: 0 6px 30px rgba(0, 0, 0, .25); padding: 12px 14px;
+           display: flex; flex-direction: column; gap: 10px; font-size: 12.5px; }
+    .pop .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+    .pop .hint { font-size: 11px; opacity: .65; }
+    .pop .linkbtn { border: 0; background: none; color: var(--acc); font: inherit; font-size: 11.5px; padding: 0; cursor: pointer; text-align: left; }
+    .info { border: 1px solid rgba(128, 128, 128, .35); background: transparent; color: inherit; font: inherit; font-size: 10.5px; font-weight: 600;
+            width: 18px; height: 18px; border-radius: 50%; padding: 0; cursor: pointer; opacity: .7; margin-left: 6px; vertical-align: 1px; line-height: 16px; }
+    #infoPop { max-width: min(420px, 92%); }
+    #infoPop .itext { font-size: 12px; line-height: 1.45; white-space: pre-line; }
     #tempPop { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 6; min-width: 240px; max-width: 92%;
                background: var(--pop-bg, #fff); color: #1a1a1a; border-radius: 12px; box-shadow: 0 6px 30px rgba(0, 0, 0, .25); padding: 12px 14px;
                display: flex; flex-direction: column; gap: 10px; font-size: 12.5px; }
@@ -551,11 +565,23 @@
 
     <div id="body">
     <div class="view" id="viewSchema" style="position:relative">
-    <div id="tempPop" hidden>
+    <div id="tempPop" class="pop" hidden>
         <div class="row"><b id="tpTitle">Heizung</b><span class="hint" id="tpHint"></span></div>
         <div class="row"><span>Komfort</span><span class="step"><button class="btn" data-t="comfort" data-d="-0.5">−</button><span id="tpComfort">–</span><button class="btn" data-t="comfort" data-d="0.5">+</button></span></div>
         <div class="row" id="tpEcoRow"><span>Absenkung</span><span class="step"><button class="btn" data-t="eco" data-d="-0.5">−</button><span id="tpEco">–</span><button class="btn" data-t="eco" data-d="0.5">+</button></span></div>
         <div class="row" style="justify-content:flex-end"><button class="btn" id="tpCancel">Abbrechen</button><button class="btn primary" id="tpSave">Übernehmen</button></div>
+        <div class="hint">Gilt für die aktive Saison. Zeitprogramm, Saison, Heizkurve und alle weiteren Einstellungen:</div>
+        <button class="linkbtn" id="tpGoto">→ Steuerung › Heizung öffnen</button>
+    </div>
+    <div id="dhwPop" class="pop" hidden>
+        <div class="row"><b>Warmwasser aufheizen</b><span class="hint" id="dpNow"></span></div>
+        <div id="dpRun" class="row" hidden><span id="dpRunText"></span><button class="btn warn" id="dpStop">Beenden</button></div>
+        <div id="dpSet">
+            <div class="row"><span>für</span><span class="seg" id="dpH"><button data-h="1">1 h</button><button data-h="2">2 h</button><button data-h="3">3 h</button><button data-h="4">4 h</button><button data-h="6">6 h</button></span></div>
+            <div class="row"><span>auf</span><span class="step"><button class="btn" data-d="-1">−</button><span id="dpT">–</span><button class="btn" data-d="1">+</button></span></div>
+        </div>
+        <div class="row" style="justify-content:flex-end"><button class="btn" id="dpCancel">Schließen</button><button class="btn primary" id="dpGo">Aufheizen</button></div>
+        <button class="linkbtn" id="dpGoto">→ Ladezeiten und Temperaturen: Steuerung › Warmwasser</button>
     </div>
     <div class="schema-wrap">
     <svg id="schema" viewBox="0 0 440 232" preserveAspectRatio="xMidYMid meet">
@@ -640,10 +666,19 @@
         <text class="title center" x="400" y="162">FBH</text>
         <text class="center" x="400" y="175" id="tHc1"></text>
         <g id="roomTap">
-            <rect x="372" y="180" width="58" height="34" fill="transparent"/>
+            <rect x="372" y="180" width="58" height="22" fill="transparent"/>
             <text class="small center" x="400" y="187" id="tRoom"></text>
             <text class="small center" x="400" y="198" id="tRoomDev" style="font-weight:600"></text>
-            <text class="small center" x="400" y="209" id="tRoomEdit"></text>
+            <g id="roomBtn" class="sbtn">
+                <rect x="373" y="203" width="56" height="12" rx="6"/>
+                <text class="center" x="401" y="211.5">✎ Soll ändern</text>
+            </g>
+        </g>
+        <!-- Warmwasser aufheizen (bei aktiver Warmwassersteuerung), zwischen Speicher und Puffer -->
+        <g id="dhwTap" class="sbtn">
+            <rect x="254" y="94" width="40" height="30" rx="7"/>
+            <text class="center" x="274" y="106" id="tDhwBtn1">🔥</text>
+            <text class="center" x="274" y="117" id="tDhwBtn2">Aufheizen</text>
         </g>
 
         <!-- gemeinsamer Rücklauf zur Wärmepumpe -->
@@ -896,7 +931,7 @@
                 <div class="sum" id="cSumList"></div>
             </div>
             <div class="card" id="cHoliday" data-page="main">
-                <h3>🏖 Urlaub <span class="badge" id="hBadge">aus</span></h3>
+                <h3>🏖 Urlaub <button class="info" data-info="holiday" title="Erklärung">i</button><span class="badge" id="hBadge">aus</span></h3>
                 <div class="state" id="hState"></div>
                 <div id="hForm">
                     <div class="fields">
@@ -910,7 +945,7 @@
                 <div class="setbar" id="hStopRow" hidden><button class="btn warn" id="hStop">Urlaub beenden</button></div>
             </div>
             <div class="card" id="cFunc" data-page="main">
-                <h3>Funktionen <span class="badge" id="cLock">🔒 gesperrt</span></h3>
+                <h3>Funktionen <button class="info" data-info="func" title="Erklärung">i</button><span class="badge" id="cLock">🔒 gesperrt</span></h3>
                 <div class="func">
                     <label class="sw"><input type="checkbox" data-f="ctlOn"><i></i></label><span>Heizungssteuerung</span><span class="hint">Zeitprogramm Heizkreis</span>
                     <label class="sw"><input type="checkbox" data-f="dhwOn"><i></i></label><span>Warmwassersteuerung</span><span class="hint">Ladezeiten, Aufheizen</span>
@@ -929,7 +964,7 @@
                 <div class="hint" id="cNoPw" hidden>In der Instanz ist kein Passwort hinterlegt – ohne Passwort ist keine Aktivierung möglich.</div>
             </div>
             <div class="card" id="cHeat" data-page="heat">
-                <h3>Heizung <small id="cHeatHoval"></small></h3>
+                <h3>Heizung <button class="info" data-info="heat" title="Erklärung">i</button><small id="cHeatHoval"></small></h3>
                 <div class="row"><span class="seg" id="cMode">
                     <button data-v="auto">Automatik</button><button data-v="frost">Frostschutz</button><button data-v="const">Dauer</button>
                 </span></div>
@@ -947,10 +982,10 @@
                     <div class="chart-wrap" style="min-height:180px"><svg id="hcChart" class="tchart"></svg><div id="hcTip" class="tip"></div>
                         <div id="hcEmpty" class="empty">Noch keine Werte – die Raumtemperaturen werden ab Version 4.1 je Viertelstunde gesammelt.</div></div>
                 </details>
-                <details class="ed" data-sec="heat"><summary>⚙ Zeitprogramm und Temperaturen</summary><div class="edbody"></div></details>
+                <details class="ed" data-sec="heat"><summary>⚙ Zeitprogramm und Temperaturen <button class="info" data-info="ed-heat" title="Erklärung">i</button></summary><div class="edbody"></div></details>
             </div>
             <div class="card" id="cCurve" data-page="heat">
-                <h3>Heizkurve <span class="badge" id="cvBadge">–</span></h3>
+                <h3>Heizkurve <button class="info" data-info="curve" title="Erklärung">i</button><span class="badge" id="cvBadge">–</span></h3>
                 <div class="row"><span class="seg" id="cvMode"><button data-v="hoval">Hoval</button><button data-v="symcon">Symcon (selbstlernend)</button></span>
                     <span class="hint" id="cvLockHint"></span></div>
                 <div class="state" id="cvState"></div>
@@ -962,10 +997,10 @@
                 <div class="setbar" id="cvButtons"><button class="btn" id="cvBackup">Originalwerte sichern</button><button class="btn" id="cvLearnReset">Lernwerte zurücksetzen</button>
                     <button class="btn warn" id="cvRestore">Auf Hoval-Werte zurücksetzen</button></div>
                 <div class="warnbox" id="cvMissing" hidden></div>
-                <details class="ed" data-sec="curve"><summary>⚙ Symcon-Heizkurve einstellen</summary><div class="edbody"></div></details>
+                <details class="ed" data-sec="curve"><summary>⚙ Symcon-Heizkurve einstellen <button class="info" data-info="ed-curve" title="Erklärung">i</button></summary><div class="edbody"></div></details>
             </div>
             <div class="card" id="cDhw" data-page="dhw">
-                <h3>Warmwasser <small id="cDhwHoval"></small></h3>
+                <h3>Warmwasser <button class="info" data-info="dhw" title="Erklärung">i</button><small id="cDhwHoval"></small></h3>
                 <div class="state" id="cDhwState">–</div>
                 <div class="row" id="cBoostRun" hidden><span id="cBoostText"></span><button class="btn warn" id="cBoostStop">Beenden</button></div>
                 <div id="cBoostSet">
@@ -989,34 +1024,34 @@
                     <div class="chart-wrap" style="min-height:180px"><svg id="dcChart" class="tchart"></svg><div id="dcTip" class="tip"></div>
                         <div id="dcEmpty" class="empty">Noch keine Werte – die Speichertemperaturen werden ab Version 4.4 je Viertelstunde gesammelt.</div></div>
                 </details>
-                <details class="ed" data-sec="dhw"><summary>⚙ Ladezeiten und Temperaturen</summary><div class="edbody"></div></details>
+                <details class="ed" data-sec="dhw"><summary>⚙ Ladezeiten und Temperaturen <button class="info" data-info="ed-dhw" title="Erklärung">i</button></summary><div class="edbody"></div></details>
             </div>
             <div class="card" id="cRooms" data-page="rooms">
-                <h3>Räume <span class="badge" id="cDemand">–</span></h3>
+                <h3>Räume <button class="info" data-info="rooms" title="Erklärung">i</button><span class="badge" id="cDemand">–</span></h3>
                 <div class="avg">
                     <div>Ø Ist<b id="cAvgIst">–</b></div><div>Ø Soll<b id="cAvgSoll">–</b></div><div>Abweichung<b id="cAvgDev">–</b></div>
                 </div>
                 <div class="hint" id="cRoomMode"></div>
                 <div class="rooms sel" id="cRoomList"></div>
-                <details class="ed" data-sec="rooms"><summary>⚙ Verfahren und Hysterese</summary><div class="edbody"></div></details>
+                <details class="ed" data-sec="rooms"><summary>⚙ Verfahren und Hysterese <button class="info" data-info="ed-rooms" title="Erklärung">i</button></summary><div class="edbody"></div></details>
             </div>
             <div class="card" id="cLimit" data-page="limit">
-                <h3>Leistungsbegrenzung <small id="cLimEnd"></small></h3>
+                <h3>Leistungsbegrenzung <button class="info" data-info="limit" title="Erklärung">i</button><small id="cLimEnd"></small></h3>
                 <div class="lim-bar" id="cLimBar"><div class="used" id="cLimUsed"></div><div class="fc" id="cLimFc"></div></div>
                 <div class="row hint" id="cLimText"></div>
                 <div class="lim-vals">
                     <div>Haus<b id="cLimHouse">–</b></div><div>Wärmepumpe<b id="cLimHp">–</b></div><div>WP erlaubt<b id="cLimAllowed">–</b></div>
                     <div>Letzte ¼ h gesamt<b id="cLimLast">–</b></div><div>Spitze heute<b id="cLimPeak">–</b></div><div>Grenze<b id="cLimMax">–</b></div>
                 </div>
-                <details class="ed" data-sec="limit"><summary>⚙ Grenzwerte</summary><div class="edbody"></div></details>
+                <details class="ed" data-sec="limit"><summary>⚙ Grenzwerte <button class="info" data-info="ed-limit" title="Erklärung">i</button></summary><div class="edbody"></div></details>
             </div>
             <div class="card" id="cPv" data-page="pv">
-                <h3>PV-Überschuss <span class="badge" id="cPvBadge">–</span></h3>
+                <h3>PV-Überschuss <button class="info" data-info="pv" title="Erklärung">i</button><span class="badge" id="cPvBadge">–</span></h3>
                 <div class="lim-vals">
                     <div>Überschuss verfügbar<b id="cPvAvail">–</b></div><div>Einschalten ab<b id="cPvStart">–</b></div><div>Ausschalten unter<b id="cPvStop">–</b></div>
                 </div>
                 <div class="row hint" id="cPvText"></div>
-                <details class="ed" data-sec="pv"><summary>⚙ Schwellen, Zeiten und Offsets</summary><div class="edbody"></div></details>
+                <details class="ed" data-sec="pv"><summary>⚙ Schwellen, Zeiten und Offsets <button class="info" data-info="ed-pv" title="Erklärung">i</button></summary><div class="edbody"></div></details>
             </div>
         </div>
     </div>
@@ -1031,6 +1066,10 @@
     </table>
     </div>
     <div id="ctlToast"></div>
+    <div id="infoPop" class="pop" hidden>
+        <div class="row"><b id="ipTitle">Info</b><button class="btn" id="ipClose">✕</button></div>
+        <div class="itext" id="ipText"></div>
+    </div>
     <div id="diag" hidden></div>
 </div>
 
@@ -1534,10 +1573,10 @@
         let ws;
         if (d.boost) ws = `<b>Aufheizen</b> ${tTxt(d.boost.temp)}`;
         else if (!d.prog) ws = '<b>Hoval-Programm</b> <span class="hint">(keine eigenen Ladezeiten)</span>';
-        else if (d.prog.kind !== 'off') ws = `<b>${{ comfort: 'Laden Komfort', boost: 'Aufheizen', custom: 'Laden' }[d.prog.level] || 'Laden'}</b> ${tTxt(d.prog.temp)}` + (d.prog.until ? ` bis ${until(d.prog.until)}` : '');
+        else if (d.prog.kind !== 'off') ws = `<b>${{ comfort: 'Laden (abgesenkt)', boost: 'Aufheizen', custom: 'Laden' }[d.prog.level] || 'Laden'}</b> ${tTxt(d.prog.temp)}` + (d.prog.until ? ` bis ${until(d.prog.until)}` : '');
         else ws = '<b>Standby</b>' + (d.prog.until ? ` bis ${until(d.prog.until)}` : '');
         $('cDhwState').innerHTML = ws + (d.top !== null ? ` <span class="hint">· oben ${tTxt(d.top)}${d.bottom !== null && d.bottom !== undefined ? ' · unten ' + tTxt(d.bottom) : ''}</span>` : '');
-        $('cDhwTemps').innerHTML = `<span>Komfort <b>${tTxt(d.comfort)}</b></span><span>Aufheizen <b>${tTxt(d.boostT)}</b></span><span>max. <b>${tTxt(d.max)}</b></span>`;
+        $('cDhwTemps').innerHTML = `<span>Absenken <b>${tTxt(d.comfort)}</b></span><span>Aufheizen <b>${tTxt(d.boostT)}</b></span><span>max. <b>${tTxt(d.max)}</b></span>`;
         if ($('dcChartBox').open) drawDhwChart();
         $('cDhwHoval').textContent = d.status ? `Hoval: ${d.status}${d.set !== null ? ' · Soll ' + tTxt(d.set) : ''}` : '';
 
@@ -1986,7 +2025,7 @@
     }
 
     // ---------- Warmwasser-Ladezeiten: Komfort- und Aufheiztemperatur zentral, je Zeit nur die Stufe ----------
-    const DLVL = [['comfort', 'Komfort'], ['boost', 'Aufheizen'], ['custom', 'Eigene']];
+    const DLVL = [['comfort', 'Absenken'], ['boost', 'Aufheizen'], ['custom', 'Eigene']];
     function renderDhwEd(el, d) {
         const body = el.querySelector('.edbody');
         const dis = unlocked ? '' : ' disabled';
@@ -1994,7 +2033,7 @@
         const tempOf = (r) => Math.min(max, r.Level === 'comfort' ? d.dhwComfort : r.Level === 'boost' ? d.dhwBoost : r.Temp);
         let x = '';
         if (!unlocked) x += `<div class="lockrow"><span class="hint">🔒 Zum Ändern entsperren</span><input type="password" class="lpw" placeholder="Passwort" autocomplete="off" style="width:110px"><button class="btn primary" data-unlock>Entsperren</button></div>`;
-        x += `<div class="fields"><label>Komfort °C<input type="number" step="0.5" data-k="dhwComfort" value="${d.dhwComfort ?? ''}"${dis}></label>`
+        x += `<div class="fields"><label>Absenken °C<input type="number" step="0.5" data-k="dhwComfort" value="${d.dhwComfort ?? ''}"${dis}></label>`
             + `<label>Aufheizen °C<input type="number" step="0.5" data-k="dhwBoost" value="${d.dhwBoost ?? ''}"${dis}></label>`
             + `<label>max. (Passwort, oben)<span class="hint" style="padding:4px 0">${tTxt(max)} – höhere Werte werden begrenzt</span></label></div>`;
         x += '<div class="week"><span></span><div class="scale">' + [0, 6, 12, 18, 24].map(hh => `<span style="left:${hh / 24 * 100}%">${hh}</span>`).join('') + '</div>';
@@ -2007,7 +2046,7 @@
             }).join('');
             x += `<span>${label}</span><div class="bar off">${segs}</div>`;
         });
-        x += '</div><div class="hint">Orange = Komfort · Rot = Aufheizen · Lila = eigene Temperatur · grau = Standby (keine Ladung). Ohne Ladezeiten regelt Hoval das Warmwasser selbst.</div>';
+        x += '</div><div class="hint">Orange = Absenken · Rot = Aufheizen · Lila = eigene Temperatur · grau = Standby (keine Ladung). Ohne Ladezeiten regelt Hoval das Warmwasser selbst.</div>';
         x += '<div class="plist">' + (d.dhwPrograms.length ? '' : '<span class="hint">Keine Ladezeiten – Warmwasser bleibt beim Hoval-Programm.</span>')
             + d.dhwPrograms.map((r, i) => {
                 const lvl = r.Level || 'custom';
@@ -2862,6 +2901,62 @@
         });
     }
 
+    // ---------- Warmwasser aufheizen direkt im Anlagenschema ----------
+    let dpH = 2, dpT = null;
+    function drawDhwPop() {
+        const d = ctl.dhw, b = d.boost;
+        if (dpT === null || dpT > d.max) dpT = Math.min(d.max, d.boostT || d.max);
+        $('dpNow').textContent = d.top !== null ? 'oben ' + tTxt(d.top) : '';
+        $('dpRun').hidden = !b;
+        $('dpSet').hidden = !!b;
+        $('dpGo').hidden = !!b;
+        if (b) $('dpRunText').innerHTML = `läuft: <b>${tTxt(b.temp)}</b> bis ${until(b.until)}`;
+        document.querySelectorAll('#dpH button').forEach(x => x.classList.toggle('on', Number(x.dataset.h) === dpH));
+        $('dpT').textContent = tTxt(dpT) + ` (max. ${num(d.max, 0)})`;
+    }
+    $('dhwTap').addEventListener('click', () => { if (!ctl || !ctl.dhwCtl) return; drawDhwPop(); $('dhwPop').hidden = false; });
+    document.querySelectorAll('#dpH button').forEach(x => x.addEventListener('click', () => { dpH = Number(x.dataset.h); drawDhwPop(); }));
+    document.querySelectorAll('#dpSet .step .btn').forEach(x => x.addEventListener('click', () => { dpT = Math.max(30, Math.min(ctl.dhw.max, dpT + Number(x.dataset.d))); drawDhwPop(); }));
+    $('dpGo').addEventListener('click', () => { ctlSend({ a: 'boost', h: dpH, t: dpT }); $('dhwPop').hidden = true; });
+    $('dpStop').addEventListener('click', () => { ctlSend({ a: 'boostStop' }); $('dhwPop').hidden = true; });
+    $('dpCancel').addEventListener('click', () => { $('dhwPop').hidden = true; });
+    const gotoCtl = (page) => { $('tempPop').hidden = true; $('dhwPop').hidden = true; showView('ctl'); showCtlPage(page); };
+    $('dpGoto').addEventListener('click', () => gotoCtl('dhw'));
+    $('tpGoto').addEventListener('click', () => gotoCtl('heat'));
+
+    // ---------- Erklärungen (ℹ) zu allen Regeleinstellungen ----------
+    const INFO = {
+        func: ['Funktionen', 'Hier werden die Steuerungsfunktionen mit dem Passwort ein- und ausgeschaltet.\n\nHeizungssteuerung: Symcon übernimmt Betriebsart, Zeitprogramm und Raum-Soll von Heizkreis 1.\nWarmwassersteuerung: Symcon übernimmt Ladezeiten und Temperaturen.\nRaumanforderung: Heizkreis nur freigeben, wenn ein Raum (oder der Durchschnitt) zu kalt ist.\nLeistungsbegrenzung: hält die 15-min-Spitze von Haus + WP unter dem Grenzwert.\nPV-Überschuss: nutzt Solarstrom-Überschuss als Wärme.\n\nAusschalten gibt die jeweilige Funktion an das Hoval-Programm „Woche 1“ zurück.'],
+        holiday: ['Urlaub', 'Senkt während der Abwesenheit ab und endet automatisch.\n\nHeizung: „Absenkung“ = Absenktemperatur der aktuellen Saison, „Frostschutz“ = Heizkreis im Standby.\nWarmwasser: „aus“ = Standby (Hoval-Frostschutz bleibt aktiv), „40 °C“ = niedrige Temperatur.\n\nPlanbar im Voraus (Beginn in der Zukunft).'],
+        heat: ['Heizung', 'Automatik: Zeitprogramm der Saison (Komfort, Absenkung oder eigene Temperatur je Zeit).\nFrostschutz: Heizkreis im Standby.\nDauer: feste Raumtemperatur ohne Zeitprogramm.\n\nSaison: Winter / Übergang / Sommer – manuell oder automatisch nach Ø 24 h Außentemperatur. Im Sommer heizt die Anlage nur in eigenen Zeiten.\n\nKomfort- und Absenktemperatur lassen sich auch direkt im Anlagenschema über „Soll ändern“ einstellen.'],
+        'ed-heat': ['Zeitprogramm', 'Je Saison stellst du die Komfort- und Absenktemperatur einmal ein. Jede Zeit wählt dann nur die Stufe:\nKomfort / Absenkung / Eigene (eigene Temperatur nur für diese Zeit).\n\nAußerhalb der Zeiten gilt die Absenkung (im Sommer: aus).\nDie Wochenübersicht zeigt je Tag, was gilt.\n\nSaison automatisch: Winter unter X °C, Sommer über Y °C (Ø der letzten 24 h, mit 1 K Hysterese).'],
+        curve: ['Heizkurve', 'Hoval: Die Wärmepumpe berechnet den Vorlauf selbst aus ihrer Heizkurve.\n\nSymcon (selbstlernend): Hoval wird auf Konstantregelung gestellt, Symcon gibt den Vorlauf-Soll vor:\nGrundkurve (Fuß-/Auslegepunkt) + Verschiebung durch das Raum-Soll + gelernter Anteil je Außentemperatur.\nIst es im Schnitt zu kalt, hebt Symcon die Kurve bei dieser Außentemperatur langsam an (max. 0,3 K/h), ist es zu warm, senkt es sie ab.\n\nDie Hoval-Originalwerte werden vorher gesichert – „Auf Hoval-Werte zurücksetzen“ stellt alles wieder her.'],
+        'ed-curve': ['Symcon-Heizkurve', 'Fußpunkt: Vorlauf bei 20 °C außen (für 20 °C Raum).\nAuslegepunkt: Vorlauf bei der Auslegungs-Außentemperatur (z.B. −12 °C).\nVorlauf min/max: Grenzen für den Sollwert.\nRaumsoll-Einfluss: um wie viel K der Vorlauf je 1 K höherem Raum-Soll steigt (Fußbodenheizung ca. 1,5).\nLernen: aus = feste Kurve ohne Anpassung.'],
+        dhw: ['Warmwasser', 'Zeigt den aktuellen Zustand (Laden, Standby, Aufheizen).\n\nAufheizen: einmalig für 1–6 Stunden auf eine höhere Temperatur (z.B. vor dem Baden oder für den Legionellenschutz). Danach gilt wieder das Programm.\n\nDie maximale Warmwassertemperatur begrenzt alle Werte und ist nur mit Passwort änderbar.\n\nAufheizen geht auch direkt im Anlagenschema (Knopf neben dem Speicher).'],
+        'ed-dhw': ['Ladezeiten', 'Absenken: die normale (niedrigere) Ladetemperatur.\nAufheizen: die höhere Temperatur für bestimmte Zeiten.\nJede Ladezeit wählt Absenken, Aufheizen oder eine eigene Temperatur.\n\nAußerhalb der Ladezeiten: Standby (keine Ladung).\nOhne Ladezeiten regelt Hoval das Warmwasser selbst.'],
+        rooms: ['Räume', 'Ø Ist / Ø Soll / Abweichung der berücksichtigten Räume.\nMit dem Schalter je Raum nimmst du einen Raum aus der Bewertung (z.B. Kaminzimmer).\n\nMit aktiver Raumanforderung wird der Heizkreis nur freigegeben, wenn Wärme gebraucht wird.'],
+        'ed-rooms': ['Raumanforderung', '„Ein Raum zu kalt“: Anforderung, sobald irgendein Raum unter Soll − Hysterese liegt.\n„Durchschnitt zu kalt“: Anforderung nach dem Mittel aller berücksichtigten Räume – ruhiger, ein einzelner kalter Raum schaltet nicht.\n\nHysterese: Schaltabstand in K. Mindestzeit: so lange bleibt der Zustand mindestens bestehen.'],
+        limit: ['Leistungsbegrenzung', 'Rechnet laufend die Energie der aktuellen Viertelstunde (Haus + WP) mit und gibt der WP über Smart Grid (27536) nur so viel Leistung frei, dass die 15-min-Spitze unter dem Grenzwert bleibt.'],
+        'ed-limit': ['Grenzwerte', 'max. 15-min-Spitze: Grenze für Haus + WP.\nSicherheitsabstand: Reserve unter der Grenze.\nWP mindestens: darunter wird nie begrenzt.\nWP max. elektrisch: Leistung, bei der keine Begrenzung nötig ist.'],
+        pv: ['PV-Überschuss', 'Überschuss = Einspeisung + aktuelle WP-Leistung.\nLiegt er die eingestellte Zeit über der Einschaltschwelle, wird die WP stärker genutzt; nach Mindestlaufzeit und Ausschaltverzögerung endet es wieder.'],
+        'ed-pv': ['PV-Einstellungen', 'Smart Grid: Offsets für Raum, Warmwasser und Puffer + Vorzugsbetrieb (Hoval-Anwendungsfall 8).\nVorlauf anheben: ohne Smart Grid, nur mit der Symcon-Heizkurve. Ohne Puffer +1…3 K, mit Puffer bis zum Maximalwert, bis der Puffer unten durchgewärmt ist.\n\nSchwellen in kW, Zeiten in Minuten.']
+    };
+    function showInfo(key) {
+        const i = INFO[key];
+        if (!i) return;
+        $('ipTitle').textContent = i[0];
+        $('ipText').textContent = i[1];
+        $('infoPop').hidden = false;
+    }
+    document.addEventListener('click', (e) => {
+        const b = e.target.closest('.info');
+        if (!b) return;
+        e.preventDefault();
+        e.stopPropagation();
+        showInfo(b.dataset.info);
+    }, true);
+    $('ipClose').addEventListener('click', () => { $('infoPop').hidden = true; });
+
     // ---------- Komfort-/Absenktemperatur direkt im Anlagenschema (nur mit aktiver Heizungssteuerung) ----------
     let tp = null;
     $('roomTap').addEventListener('click', () => {
@@ -3058,8 +3153,17 @@
             $('tRoomDev').textContent = '';
         }
         const canEdit = !!(ctl && ctl.ctl && ctl.heat);
-        $('tRoomEdit').textContent = canEdit ? '✎ Soll einstellen' : '';
-        $('tRoomEdit').style.fill = 'var(--acc)';
+        $('roomBtn').style.display = canEdit ? '' : 'none';
+        // Warmwasser aufheizen: Knopf zwischen Speicher und Puffer (nur mit Warmwassersteuerung)
+        const dctl = ctl && ctl.dhwCtl && ctl.dhw;
+        $('dhwTap').style.display = dctl ? '' : 'none';
+        if (dctl) {
+            const bst = ctl.dhw.boost;
+            $('dhwTap').classList.toggle('on', !!bst);
+            $('tDhwBtn1').textContent = bst ? '🔥 ' + num(bst.temp, 0) + '°' : '🔥';
+            $('tDhwBtn2').textContent = bst ? 'bis ' + hhmm(bst.until) : 'Aufheizen';
+            if (!$('dhwPop').hidden) drawDhwPop();
+        }
         $('roomTap').style.cursor = canEdit ? 'pointer' : 'default';
         drawTank('tankSlices', 196, 34, 56, 162, 14, n('StorageTop'), n('StorageBottom'));
 

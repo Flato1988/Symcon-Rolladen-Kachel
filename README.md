@@ -280,6 +280,12 @@ Dauer, Speichertemperatur oben vorher/nachher, Temperaturanstieg, Strom und Ø A
 Außentemperatur liegt (Hinweis auf verkalkten Wärmetauscher, zu wenig Volumenstrom, Fühlerproblem); geprüft wird direkt nach jeder Ladung.
 Die Spreizung (VL − RL) steht im Wärmepumpen-Symbol, im Betrieb farbig bewertet (grün 2,5–8 K).
 
+**Version 4.8:**
+- Warmwasser-Stufen heißen jetzt „Absenken“ / „Aufheizen“ / „Eigene“.
+- Anlagenschema: Knopf „🔥 Aufheizen“ zwischen Speicher und Puffer (bei aktiver Warmwassersteuerung; zeigt laufendes Aufheizen),
+  Knopf „✎ Soll ändern“ an der FBH deutlich hervorgehoben; beide Fenster mit Sprung zu den weiteren Einstellungen.
+- ℹ-Knöpfe mit Erklärungen an allen Regelungskarten und Einstellungsbereichen.
+
 **Version 4.7:**
 - Heizkurve umschaltbar (Steuerung → Heizung → Heizkurve, mit Passwort): **Hoval** (Hoval rechnet selbst) oder **Symcon (selbstlernend)**:
   Hoval wird auf Konstantregelung gestellt (27510 = 3), Symcon schreibt den Vorlauf-Soll (1490) aus Grundkurve (Fuß-/Auslegepunkt,
