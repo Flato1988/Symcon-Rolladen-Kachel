@@ -124,8 +124,10 @@
     /* ---------- Kältekreis ---------- */
     #tile.refri-view #cmp { display: none !important; }
     #viewRefri { gap: 6px; }
-    #rSchema { width: 100%; flex: .7 1 0; min-height: 120px; max-height: 32vh; display: block; }
-    #viewRefri .chart-wrap { flex: 1.8 1 0; min-height: 240px; }
+    #rSchema { width: 100%; flex: .8 1 0; min-height: 150px; max-height: 40vh; display: block; }
+    #viewRefri .chart-wrap { flex: 1.8 1 0; min-height: 300px; }
+    .rnav { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; }
+    #rWin { min-width: 96px; text-align: center; }
     #rSchema text { fill: var(--fg); font-size: 8.5px; }
     #rSchema .t { font-size: 9.5px; font-weight: 600; }
     #rSchema .s { font-size: 7.5px; opacity: .65; }
@@ -227,6 +229,8 @@
     .avg b { display: block; font-size: 14px; font-weight: 500; font-variant-numeric: tabular-nums; }
     .avg b.ok { color: #30a46c; } .avg b.warn { color: #f2994a; } .avg b.bad { color: var(--hot); }
     .ed { border-top: 1px solid rgba(128, 128, 128, .2); padding-top: 6px; }
+    #hForm input[type=datetime-local] { font: inherit; font-size: 12px; padding: 3px 6px; border-radius: 6px; border: 1px solid rgba(128, 128, 128, .4);
+                                         background: transparent; color: inherit; width: 100%; box-sizing: border-box; }
     .temps { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; }
     .temps b { font-weight: 600; }
     .warnbox { border-radius: 8px; padding: 6px 10px; font-size: 11.5px; background: rgba(229, 72, 77, .12); color: var(--hot); display: flex; flex-direction: column; gap: 3px; }
@@ -438,6 +442,9 @@
     #pwPeaks .d { font-size: 10px; opacity: .6; }
     #pwPeaks .day { cursor: pointer; }
     #pwPeaks .sel .b { outline: 2px solid var(--fg); outline-offset: 1px; }
+    .cal { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 22px; border-radius: 11px;
+           border: 1px solid rgba(128, 128, 128, .3); font-size: 12px; cursor: pointer; overflow: hidden; }
+    .cal input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
     #pwDayNav { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; }
     #pwDLabel { min-width: 92px; text-align: center; font-variant-numeric: tabular-nums; }
     .pw-peaks-title .hint { opacity: .7; }
@@ -518,7 +525,7 @@
 
 <div id="tile">
     <div class="kpis">
-        <div class="kpi" data-key="OutdoorTemp"><div class="label">Außen</div><div class="value">–</div></div>
+        <div class="kpi" data-key="OutdoorTemp"><div class="label">Außen</div><div class="value">–</div><div class="sub" id="kOutSub"></div></div>
         <div class="kpi" data-key="Humidity"><div class="label">Luftfeuchte</div><div class="value">–</div></div>
         <div class="kpi" data-key="OperatingMode"><div class="label">Betriebswahl</div><div class="value">–</div></div>
         <div class="kpi" data-key="WEZStatus"><div class="label">Wärmeerzeuger</div><div class="value">–</div></div>
@@ -676,7 +683,7 @@
     </div>
 
     <div class="view" id="viewStats" hidden>
-        <div class="subnav" id="sMode"><button data-m="energy" class="on">Energie</button><button data-m="cost">Kosten</button><button data-m="dhw">Warmwasser</button><button data-m="mon">Überwachung <span id="sMonDot"></span></button></div>
+        <div class="subnav" id="sMode"><button data-m="energy" class="on">Energie</button><button data-m="cost">Kosten</button><button data-m="dhw">Warmwasser</button><button data-m="mon">Überwachung <span id="sMonDot"></span></button><button data-m="tips">💡 Tipps</button></div>
         <div class="smode" id="sModeEnergy">
         <div class="stats-bar">
             <span class="seg" id="sPeriod">
@@ -684,6 +691,7 @@
             </span>
             <button class="nav" id="sPrev" title="früher">‹</button>
             <button class="nav" id="sNext" title="später">›</button>
+            <label class="cal" title="Tag im Kalender wählen">📅<input type="date" id="sDate"></label>
             <span id="sRange"></span>
         </div>
         <div class="legend">
@@ -727,6 +735,13 @@
                 werden angezeigt, aber nicht bewertet. Steigt der Wert bei gleicher Außentemperatur deutlich, meldet die Überwachung
                 „Warmwasser-Aufheizzeit je K“ (z.B. verkalkter Wärmetauscher, zu wenig Volumenstrom).</div>
         </div>
+        <div class="smode" id="sModeTips" hidden>
+            <div class="hint">Einsparempfehlungen aus den eigenen Messwerten (Raumtemperaturen, Laufzeiten, Warmwasser). Nach dem Umsetzen „Erledigt“ antippen –
+                nach einigen Heiztagen wird geprüft, ob sich die Werte verbessert haben (Meldung auch per Push).</div>
+            <div class="mon-list" id="tList"></div>
+            <div class="sec-title" id="tDoneTitle" hidden>Umgesetzt</div>
+            <div class="mon-list" id="tDone"></div>
+        </div>
         <div class="smode" id="sModeMon" hidden>
             <div class="mon-head">
                 <label class="sw"><input type="checkbox" id="mOn"><i></i></label><b>Überwachung</b><span class="badge" id="mBadge">–</span>
@@ -752,17 +767,18 @@
                 </svg>
             </div>
             <div class="pw-kpis">
-                <div class="kpi p"><div class="label">Leistung Ø 15 min</div><div class="value" id="pwAvg">–</div></div>
-                <div class="kpi t"><div class="label">Außentemperatur</div><div class="value" id="pwTemp">–</div></div>
-                <div class="kpi"><div class="label">Heute</div><div class="value" id="pwEnergy">–</div><div class="sub" id="pwCost"></div></div>
-                <div class="kpi pk"><div class="label">Spitze heute</div><div class="value" id="pwPeak">–</div><div class="sub" id="pwPeakTime"></div></div>
+                <div class="kpi p"><div class="label" id="pwAvgLabel">Leistung Ø 15 min</div><div class="value" id="pwAvg">–</div><div class="sub" id="pwAvgSub"></div></div>
+                <div class="kpi t"><div class="label" id="pwTempLabel">Außentemperatur</div><div class="value" id="pwTemp">–</div><div class="sub" id="pwTempSub"></div></div>
+                <div class="kpi"><div class="label" id="pwELabel">Heute</div><div class="value" id="pwEnergy">–</div><div class="sub" id="pwCost"></div></div>
+                <div class="kpi pk"><div class="label" id="pwPkLabel">Spitze heute</div><div class="value" id="pwPeak">–</div><div class="sub" id="pwPeakTime"></div></div>
             </div>
         </div>
         <div class="stats-bar">
             <span class="seg" id="pwRange">
                 <button data-r="day" class="on">Tag</button><button data-r="week">Woche</button><button data-r="month">Monat</button>
             </span>
-            <span id="pwDayNav"><button class="nav" id="pwDPrev" title="Tag davor">‹</button> <span id="pwDLabel">letzte 24 h</span> <button class="nav" id="pwDNext" title="Tag danach">›</button></span>
+            <span id="pwDayNav"><button class="nav" id="pwDPrev" title="Tag davor">‹</button> <span id="pwDLabel">letzte 24 h</span> <button class="nav" id="pwDNext" title="Tag danach">›</button>
+                <label class="cal" title="Tag im Kalender wählen">📅<input type="date" id="pwDate"></label></span>
             <span class="legend" style="margin:0">
                 <span><i class="l-pw"></i><span id="pwLegend">Leistung (kW, Ø 15 min)</span></span>
                 <span id="pwLegendPeak" hidden><i style="background:var(--hot)"></i>Spitze 15 min</span>
@@ -845,6 +861,8 @@
         </svg>
         <div class="stats-bar">
             <span class="seg" id="rRange"><button data-r="p" class="on">Drücke</button><button data-r="t">Temperaturen</button><button data-r="sh">Überhitzung</button></span>
+            <span class="seg" id="rSpan"><button data-h="6" class="on">6 h</button><button data-h="24">24 h</button><button data-h="72">3 Tage</button><button data-h="168">7 Tage</button></span>
+            <span class="rnav"><button class="nav" id="rPrev" title="früher">‹</button><span id="rWin">jetzt</span><button class="nav" id="rNext" title="später">›</button></span>
             <span class="legend" id="rLegend" style="margin:0"></span>
         </div>
         <div class="chart-wrap">
@@ -862,6 +880,20 @@
             <div class="card" id="cSum" data-page="main">
                 <h3>Status</h3>
                 <div class="sum" id="cSumList"></div>
+            </div>
+            <div class="card" id="cHoliday" data-page="main">
+                <h3>🏖 Urlaub <span class="badge" id="hBadge">aus</span></h3>
+                <div class="state" id="hState"></div>
+                <div id="hForm">
+                    <div class="fields">
+                        <label>Ab<input type="datetime-local" id="hFrom"></label>
+                        <label>Bis<input type="datetime-local" id="hUntil"></label>
+                    </div>
+                    <div class="row"><span class="hint">Heizung</span><span class="seg" id="hHeat"><button data-v="eco" class="on">Absenkung</button><button data-v="frost">Frostschutz</button></span></div>
+                    <div class="row"><span class="hint">Warmwasser</span><span class="seg" id="hDhw"><button data-v="off" class="on">aus</button><button data-v="low">40 °C</button></span></div>
+                    <div class="setbar"><button class="btn primary" id="hGo">Urlaub aktivieren</button></div>
+                </div>
+                <div class="setbar" id="hStopRow" hidden><button class="btn warn" id="hStop">Urlaub beenden</button></div>
             </div>
             <div class="card" id="cFunc" data-page="main">
                 <h3>Funktionen <span class="badge" id="cLock">🔒 gesperrt</span></h3>
@@ -1198,7 +1230,35 @@
     let gotData = false; // erst nach der ersten Nachricht vom Modul wissen wir, welche Reiter es gibt
     let refri = null, refriHist = [], rRange = 'p', rLast = 0, rGeo = null;
     try { rRange = localStorage.getItem('hwpRRange') || 'p'; } catch (e) {}
-    function requestRefri() { rLast = Date.now(); requestAction('Refri', ''); }
+    // Zeitraum des Verlaufs: rSpanH Stunden, Ende rEnd (0 = jetzt); ‹ › bzw. Wischen verschiebt um den halben Zeitraum
+    let rSpanH = 6, rEnd = 0, rMeta = null;
+    function requestRefri() { rLast = Date.now(); requestAction('Refri', JSON.stringify({ r: rSpanH, e: rEnd })); }
+    function shiftRefri(dir) {
+        const now = Math.floor(Date.now() / 1000), end = rEnd || now;
+        let e = end + dir * rSpanH * 1800;
+        if (e >= now - 60) e = 0;
+        rEnd = e;
+        requestRefri();
+        drawRefriNav();
+    }
+    function drawRefriNav() {
+        document.querySelectorAll('#rSpan button').forEach(b => b.classList.toggle('on', Number(b.dataset.h) === rSpanH));
+        $('rNext').disabled = rEnd === 0;
+        const e = rEnd || Math.floor(Date.now() / 1000), sday = (t) => new Date(t * 1000).toDateString() === new Date().toDateString() ? hhmm(t) : WD[new Date(t * 1000).getDay()] + ' ' + hhmm(t);
+        $('rWin').textContent = rEnd === 0 ? 'bis jetzt' : sday(e - rSpanH * 3600) + ' – ' + sday(e);
+    }
+    document.querySelectorAll('#rSpan button').forEach(b => b.addEventListener('click', () => { rSpanH = Number(b.dataset.h); rEnd = 0; refriHist = []; drawRefriChart(); requestRefri(); drawRefriNav(); }));
+    $('rPrev').addEventListener('click', () => shiftRefri(-1));
+    $('rNext').addEventListener('click', () => shiftRefri(1));
+    // Wischen im Diagramm verschiebt die Zeitachse
+    let rSwipe = null;
+    $('rChart').addEventListener('pointerdown', (e) => { rSwipe = { x: e.clientX, t: Date.now() }; });
+    $('rChart').addEventListener('pointerup', (e) => {
+        if (!rSwipe) return;
+        const dx = e.clientX - rSwipe.x;
+        rSwipe = null;
+        if (Math.abs(dx) > 50) shiftRefri(dx > 0 ? -1 : 1);
+    });
     document.querySelectorAll('#rRange button').forEach(b => b.addEventListener('click', () => {
         rRange = b.dataset.r;
         try { localStorage.setItem('hwpRRange', rRange); } catch (e) {}
@@ -1249,7 +1309,7 @@
         // Ventilator läuft bei der Luft-WP mit dem Verdichter (eigene Drehzahl gibt es per Modbus nicht)
         $('rSchema').classList.toggle('fan', !!refri.running || (v.FanSpeed || 0) > 0);
         drawRefriChart();
-        if (Date.now() - rLast > 60000) requestRefri(); // Verlauf höchstens einmal pro Minute nachladen
+        if (rEnd === 0 && Date.now() - rLast > (rSpanH > 6 ? 300000 : 60000)) requestRefri(); // Verlauf nachladen (live: 1 min, sonst 5 min)
     }
 
     // Reihen je Auswahl: [Index im Minutenwert, Bezeichnung, Farbe, gestrichelt]
@@ -1266,14 +1326,15 @@
         const cfg = R_SERIES[rRange];
         $('rLegend').innerHTML = cfg.lines.map(([, label, color, dash]) => `<span style="color:${color}"><i class="${dash ? 'dash' : ''}" style="background:${dash ? 'transparent' : color}"></i><span style="color:var(--fg)">${label}</span></span>`).join('')
             + '<span><i style="background:var(--cold);opacity:.25"></i>Abtauung</span><span><i style="background:rgba(128,128,128,.3)"></i>Verdichter aus</span>'
-            + (refriHist.some((d, k) => k && d[0] - refriHist[k - 1][0] > 300) ? '<span><i style="background:rgba(128,128,128,.55)"></i>keine Daten</span>' : '');
+            + (refriHist.some((d, k) => k && d[0] - refriHist[k - 1][0] > Math.max(300, (rMeta && rMeta.step ? rMeta.step : 60) * 2.5)) ? '<span><i style="background:rgba(128,128,128,.55)"></i>keine Daten</span>' : '');
         if (W < 60 || H < 40) return;
         svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
         const data = refriHist;
         $('rEmpty').style.display = data.length > 1 ? 'none' : 'flex';
         if (data.length < 2) return;
         const L = 34, R = 10, T = 6, B = 18;
-        const t1 = data[data.length - 1][0], t0 = t1 - 6 * 3600;
+        const rStep = rMeta && rMeta.step ? rMeta.step : 60, gapT = Math.max(300, rStep * 2.5);
+        const t1 = rMeta ? rMeta.end : data[data.length - 1][0], t0 = rMeta ? rMeta.start : t1 - 6 * 3600;
         const x = (t) => L + (t - t0) / (t1 - t0) * (W - L - R);
         // Linien laufen auch im Stillstand weiter (grau hinterlegt); die Überhitzung ist dann nur blass gezeichnet,
         // weil sie ohne Kältemittelstrom nicht aussagekräftig ist und die Achse nicht bestimmen soll
@@ -1289,7 +1350,7 @@
         const y = (v) => H - B - (v - lo) / (hi - lo) * (H - T - B);
         // Datenlücken (> 5 min ohne Minutenwert, z.B. Symcon neu gestartet) schraffiert hinterlegen
         for (let k = 1; k < data.length; k++) {
-            if (data[k][0] - data[k - 1][0] > 300) svgEl('rect', { x: x(data[k - 1][0]), y: T, width: Math.max(1, x(data[k][0]) - x(data[k - 1][0])), height: H - T - B, class: 'gap' }, svg);
+            if (data[k][0] - data[k - 1][0] > gapT) svgEl('rect', { x: x(data[k - 1][0]), y: T, width: Math.max(1, x(data[k][0]) - x(data[k - 1][0])), height: H - T - B, class: 'gap' }, svg);
         }
         // Stillstand des Verdichters grau hinterlegen
         let offStart = null;
@@ -1316,8 +1377,14 @@
             svgEl('line', { x1: L, x2: W - R, y1: yy, y2: yy, class: 'grid' }, svg);
             svgEl('text', { x: L - 4, y: yy + 3, 'text-anchor': 'end' }, svg).textContent = num(hi - i * (hi - lo) / 4, cfg.d);
         }
-        for (let t = Math.ceil(t0 / 3600) * 3600; t <= t1; t += 3600) {
-            svgEl('text', { x: x(t), y: H - 4, 'text-anchor': 'middle' }, svg).textContent = hhmm(t);
+        // Zeitachse: Abstand der Beschriftung je nach Zeitraum (1 h … 1 Tag), über mehrere Tage mit Wochentag
+        const span = t1 - t0, tick = span <= 8 * 3600 ? 3600 : span <= 26 * 3600 ? 3 * 3600 : span <= 80 * 3600 ? 12 * 3600 : 86400;
+        const tz = new Date().getTimezoneOffset() * 60;
+        for (let t = Math.ceil((t0 - tz) / tick) * tick + tz; t <= t1; t += tick) {
+            const dt = new Date(t * 1000);
+            const label = tick >= 86400 ? WD[dt.getDay()] + ' ' + ddmm(t) : tick >= 12 * 3600 ? WD[dt.getDay()] + ' ' + hhmm(t).slice(0, 2) + ' h' : hhmm(t);
+            if (tick >= 12 * 3600) svgEl('line', { x1: x(t), x2: x(t), y1: T, y2: H - B, class: 'grid' }, svg);
+            svgEl('text', { x: x(t), y: H - 4, 'text-anchor': 'middle' }, svg).textContent = label;
         }
         const clampY = (v) => y(Math.max(lo, Math.min(hi, v)));
         for (const [i, , color, dash] of cfg.lines) {
@@ -1327,7 +1394,7 @@
                 let d = '', prev = null;
                 for (const row of data) {
                     if (!valid(row, i) || (want !== null && running(row) !== want)) { prev = null; continue; }
-                    d += (prev === null || row[0] - prev > 300 ? 'M' : 'L') + x(row[0]).toFixed(1) + ' ' + clampY(row[i]).toFixed(1) + ' ';
+                    d += (prev === null || row[0] - prev > gapT ? 'M' : 'L') + x(row[0]).toFixed(1) + ' ' + clampY(row[i]).toFixed(1) + ' ';
                     prev = row[0];
                 }
                 if (d) svgEl('path', { d, class: 'ln' + cls, style: `stroke:${color}` + (dash ? ';stroke-dasharray:4 3' : '') }, svg);
@@ -1345,7 +1412,7 @@
         const d = best.d, cx = rGeo.x(d[0]);
         svgEl('line', { x1: cx, x2: cx, y1: rGeo.T, y2: rGeo.H - rGeo.B, class: 'cursor' }, $('rChart'));
         const tip = $('rTip');
-        tip.innerHTML = `<b>${hhmm(d[0])}</b>${d[10] ? ' · ❄ Abtauung' : !(d[8] > 0) ? ' · Verdichter aus' : ''}<br>` + rGeo.cfg.lines.map(([i, label]) => `${label}: ${vTxt(d[i], 1, rGeo.cfg.unit)}`).join('<br>')
+        tip.innerHTML = `<b>${rSpanH > 24 ? WD[new Date(d[0] * 1000).getDay()] + ' ' : ''}${hhmm(d[0])}</b>${d[10] ? ' · ❄ Abtauung' : !(d[8] > 0) ? ' · Verdichter aus' : ''}<br>` + rGeo.cfg.lines.map(([i, label]) => `${label}: ${vTxt(d[i], 1, rGeo.cfg.unit)}`).join('<br>')
             + `<br>Verdichter ${vTxt(d[8], 0, ' %')}` + ((d[9] || 0) > 0 ? ` · Ventilator ${vTxt(d[9], 0, ' %')}` : '');
         tip.style.display = 'block';
         tip.style.left = Math.min(Math.max(0, cx - tip.offsetWidth / 2), r.width - tip.offsetWidth) + 'px';
@@ -1383,6 +1450,7 @@
         document.querySelectorAll('#cNav button').forEach(b => { b.hidden = !avail[b.dataset.p]; b.classList.toggle('on', b.dataset.p === ctlPage); });
         document.querySelectorAll('#viewCtl .card[data-page]').forEach(c => { c.hidden = c.dataset.page !== ctlPage; });
         drawFunc();
+        drawHoliday();
         // offene Einstellungen nur neu aufbauen, wenn kein Entwurf läuft oder sich der Sperrzustand geändert hat
         document.querySelectorAll('.ed[open]').forEach(el => { if (!drafts[el.dataset.sec] || el.dataset.u !== String(unlocked)) renderEd(el.dataset.sec); });
 
@@ -1396,7 +1464,8 @@
         $('cSeasonHint').textContent = (h.seasonAuto ? 'automatisch' : 'manuell') + (h.tAvg !== null ? ` · Ø 24 h außen ${num(h.tAvg, 1)} °C` : '')
             + (h.detected ? ` · erkannt: ${SN[h.detected]}` : '');
         $('cTemps').innerHTML = `<span>Saison <b>${SN[h.season]}</b></span><span>Komfort <b>${tTxt(h.comfort)}</b></span>`
-            + (h.eco !== null ? `<span>Absenkung <b>${tTxt(h.eco)}</b></span>` : '<span>außerhalb der Zeiten: <b>aus</b></span>');
+            + (h.eco !== null ? `<span>Absenkung <b>${tTxt(h.eco)}</b></span>` : '<span>außerhalb der Zeiten: <b>aus</b></span>')
+            + (ctl.strategy ? `<span>Hoval-Regelung <b>${esc(ctl.strategy)}</b></span>` : '');
         const wi = ctl.writeIssues || [];
         $('cWriteIssues').hidden = !wi.length;
         $('cWriteIssues').innerHTML = wi.map(t => '⚠ ' + esc(t)).join('<br>');
@@ -1537,6 +1606,7 @@
         if (ctl.ctl) {
             items.push(['heat', '🔥', 'Heizung', plain('cHeatState')]);
         } else items.push(['main', '🔥', 'Heizungssteuerung', 'aus – Hoval regelt selbst', true]);
+        if (ctl.holiday) items.unshift(['main', '🏖', 'Urlaub', (ctl.holiday.from <= Date.now() / 1000 ? 'aktiv' : 'geplant ab ' + dtLong(ctl.holiday.from)) + ' bis ' + dtLong(ctl.holiday.until)]);
         if (ctl.dhwCtl) items.push(['dhw', '🚿', 'Warmwasser', plain('cDhwState')]);
         else items.push(['main', '🚿', 'Warmwassersteuerung', 'aus – Hoval regelt selbst', true]);
         if (avail.rooms) {
@@ -1670,6 +1740,37 @@
         }));
     }
     document.querySelectorAll('.ed[data-sec]').forEach(el => el.addEventListener('toggle', () => { if (el.open) renderEd(el.dataset.sec); }));
+
+    // ---------- Urlaub: Heizung abgesenkt bzw. Frostschutz, Warmwasser aus bzw. 40 °C; endet automatisch ----------
+    let hHeat = 'eco', hDhw = 'off';
+    const toLocal = (ts) => { const d = new Date(ts * 1000 - new Date(ts * 1000).getTimezoneOffset() * 60000); return d.toISOString().slice(0, 16); };
+    const dtLong = (ts) => { const d = new Date(ts * 1000); return WD[d.getDay()] + ' ' + ddmm(ts) + ' ' + hhmm(ts); };
+    function drawHoliday() {
+        $('cHoliday').hidden = $('cHoliday').hidden || !(ctl.ctl || ctl.dhwCtl);
+        const h = ctl.holiday, now = Date.now() / 1000;
+        const active = h && h.from <= now, planned = h && h.from > now;
+        $('hBadge').textContent = active ? 'aktiv' : planned ? 'geplant' : 'aus';
+        $('hBadge').className = 'badge' + (active ? ' on' : planned ? ' ok' : '');
+        $('hState').innerHTML = h ? `${active ? 'Läuft' : 'Geplant ab ' + dtLong(h.from)} bis <b>${dtLong(h.until)}</b> · Heizung ${h.heat === 'frost' ? 'Frostschutz' : 'Absenkung'} · Warmwasser ${h.dhw === 'low' ? '40 °C' : 'aus'}`
+            : '<span class="hint">Heizung und Warmwasser während der Abwesenheit absenken – endet automatisch.</span>';
+        $('hForm').hidden = !!h;
+        $('hStopRow').hidden = !h;
+        if (!h && !$('hUntil').value) {
+            $('hFrom').value = toLocal(Math.floor(now / 60) * 60);
+            $('hUntil').value = toLocal(Math.floor(now / 3600) * 3600 + 7 * 86400);
+        }
+        document.querySelectorAll('#hHeat button').forEach(b => b.classList.toggle('on', b.dataset.v === hHeat));
+        document.querySelectorAll('#hDhw button').forEach(b => b.classList.toggle('on', b.dataset.v === hDhw));
+    }
+    document.querySelectorAll('#hHeat button').forEach(b => b.addEventListener('click', () => { hHeat = b.dataset.v; drawHoliday(); }));
+    document.querySelectorAll('#hDhw button').forEach(b => b.addEventListener('click', () => { hDhw = b.dataset.v; drawHoliday(); }));
+    $('hGo').addEventListener('click', () => {
+        const from = Math.floor(new Date($('hFrom').value).getTime() / 1000) || Math.floor(Date.now() / 1000);
+        const until = Math.floor(new Date($('hUntil').value).getTime() / 1000);
+        if (!until || until <= from) { toast('Bitte ein Ende nach dem Beginn wählen', true); return; }
+        ctlSend({ a: 'holiday', from, until, heat: hHeat, dhw: hDhw });
+    });
+    $('hStop').addEventListener('click', () => ctlSend({ a: 'holidayEnd' }));
 
     // ---------- Zeitprogramm Heizung: Saison wählen, Temperaturen je Saison, Wochenübersicht, Zeiten mit Stufe ----------
     let edSeason = null;
@@ -1906,6 +2007,26 @@
         $('pwCost').textContent = pw.cost === null ? '' : num(pw.cost, 2) + ' €';
         $('pwPeak').textContent = pw.peak ? unitTxt(pw.peak[0], 2, 'kW') : '–';
         $('pwPeakTime').textContent = pw.peak ? 'Ø 15 min · ' + hhmm(pw.peak[1]) + ' Uhr' : '';
+        $('pwAvgLabel').textContent = 'Leistung Ø 15 min'; $('pwAvgSub').textContent = '';
+        $('pwTempLabel').textContent = 'Außentemperatur';
+        $('pwTempSub').textContent = msg0Today ? `↓${num(msg0Today.min, 1)} ↑${num(msg0Today.max, 1)} · Ø ${num(msg0Today.avg, 1)} °C` : '';
+        $('pwELabel').textContent = 'Heute'; $('pwPkLabel').textContent = 'Spitze heute';
+        // anderer Tag gewählt: Kennzahlen dieses Tages statt „heute“
+        const dd = pwRange === 'day' && pwDayOff > 0 && pwDay ? pwDay.day : null;
+        if (pwRange === 'day' && pwDayOff > 0 && pwDay) {
+            const dl = WD[new Date(pwDay.date + 'T12:00').getDay()] + ' ' + ddmm(new Date(pwDay.date + 'T12:00').getTime() / 1000);
+            $('pwELabel').textContent = dl; $('pwPkLabel').textContent = 'Spitze ' + dl;
+            $('pwEnergy').textContent = unitTxt(dd ? dd.e : pwDay.energy, 1, 'kWh');
+            $('pwCost').textContent = dd && dd.c !== null ? num(dd.c, 2) + ' €' : pwDay.cost !== null ? num(pwDay.cost, 2) + ' €' : '';
+            $('pwPeak').textContent = pwDay.peak ? unitTxt(pwDay.peak[0], 2, 'kW') : '–';
+            $('pwPeakTime').textContent = pwDay.peak ? 'Ø 15 min · ' + hhmm(pwDay.peak[1]) + ' Uhr' : '';
+            $('pwTempLabel').textContent = 'Außen ' + dl;
+            $('pwTemp').textContent = unitTxt(dd ? dd.t : pwDay.temp, 1, '°C');
+            $('pwTempSub').textContent = dd && dd.tmin !== null ? `↓${num(dd.tmin, 1)} ↑${num(dd.tmax, 1)} °C` : '';
+            $('pwAvgLabel').textContent = 'Starts · Abtauungen';
+            $('pwAvg').textContent = dd ? `${dd.st ?? '–'} · ${dd.df ?? '–'} ❄` : '–';
+            $('pwAvgSub').textContent = dd && dd.st && dd.run ? `Ø ${Math.round(dd.run / dd.st)} min je Start` : (dd && dd.h ? `Wärme ${num(dd.h, 1)} kWh` : '');
+        }
         // Rundanzeige: Skala bis zur höchsten Leistung der letzten Tage
         const max = niceCeil(Math.max(1, pw.current || 0, ...(pw.series || []).map(q => q[1]), ...(pw.peaks || []).map(q => q[1] || 0)));
         const p = pw.current === null ? 0 : Math.min(100, pw.current / max * 100);
@@ -1931,7 +2052,7 @@
     const ddmm = (ts) => { const d = new Date(ts * 1000); return d.getDate() + '.' + (d.getMonth() + 1) + '.'; };
 
     // Tagesauswahl: 0 = letzte 24 h, 1 = gestern, 2 = vorgestern … (15-min-Werte der letzten 31 Tage, beim Modul angefordert)
-    let pwDayOff = 0, pwDay = null;
+    let pwDayOff = 0, pwDay = null, msg0Today = null;
     const isoDate = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
     const dayOffDate = (off) => { const d = new Date(); d.setHours(12, 0, 0, 0); d.setDate(d.getDate() - off); return isoDate(d); };
     function setPowerDay(off) {
@@ -1942,6 +2063,8 @@
         drawPower();
     }
     $('pwDPrev').addEventListener('click', () => setPowerDay(pwDayOff + 1));
+    const daysBack = (iso) => { const a = new Date(iso + 'T12:00'), b = new Date(); b.setHours(12, 0, 0, 0); return Math.round((b - a) / 86400000); };
+    $('pwDate').addEventListener('change', () => { if ($('pwDate').value) setPowerDay(Math.max(0, daysBack($('pwDate').value))); });
     $('pwDNext').addEventListener('click', () => setPowerDay(pwDayOff - 1));
     function drawPowerDayNav() {
         $('pwDayNav').hidden = pwRange !== 'day';
@@ -1950,6 +2073,9 @@
         const prevDate = new Date(dayOffDate(pwDayOff + 1) + 'T12:00');
         $('pwDPrev').disabled = pwDayOff >= 31 || prevDate < oldest;
         $('pwDNext').disabled = pwDayOff === 0;
+        $('pwDate').max = dayOffDate(0);
+        $('pwDate').min = isoDate(oldest);
+        $('pwDate').value = dayOffDate(pwDayOff);
         if (pwDayOff === 0) { $('pwDLabel').textContent = 'letzte 24 h'; return; }
         const d = new Date(dayOffDate(pwDayOff) + 'T12:00');
         $('pwDLabel').textContent = (pwDayOff === 1 ? 'gestern' : WD[d.getDay()]) + ' ' + ddmm(d.getTime() / 1000)
@@ -2069,7 +2195,7 @@
         const bw = Math.max(1, slotPx * (pwRange === 'month' ? 0.6 : 1) - (pwRange === 'month' ? 0 : 1));
         const off = (slotPx - bw) / 2;
         for (const it of items) {
-            if (it.v === null) continue;
+            if (it.v === null || it.t < tStart || it.t >= tEnd) continue;
             svgEl('rect', { x: x(it.t) + off, y: yP(it.v), width: bw, height: Math.max(0, H - B - yP(it.v)), class: 'bar' + (it.peak ? ' peak' : '') }, svg);
             if (it.pk !== null && it.pk !== undefined) svgEl('rect', { x: x(it.t) + off - 1, y: yP(it.pk) - 1.5, width: bw + 2, height: 3, rx: 1.5, class: 'pk' }, svg);
         }
@@ -2159,6 +2285,14 @@
         requestStats();
     }));
     $('sPrev').addEventListener('click', () => { sPage++; sSel = null; requestStats(); });
+    // Kalender: Tag wählen → passende Seite der Tagesansicht laden und den Tag markieren
+    $('sDate').addEventListener('change', () => {
+        const v = $('sDate').value;
+        if (!v) return;
+        const k = Math.max(0, daysBack(v));
+        sPeriod = 'day'; sPage = Math.floor(k / 14); sSel = 13 - (k % 14);
+        requestStats();
+    });
     $('sNext').addEventListener('click', () => { if (sPage > 0) { sPage--; sSel = null; requestStats(); } });
 
     function renderStats(stats) {
@@ -2239,6 +2373,8 @@
         $('sModeCost').hidden = m !== 'cost';
         $('sModeMon').hidden = m !== 'mon';
         $('sModeDhw').hidden = m !== 'dhw';
+        $('sModeTips').hidden = m !== 'tips';
+        if (m === 'tips') { drawTips(); requestAction('Advice', JSON.stringify({ a: 'list' })); }
         if (m === 'dhw') { drawDhw(); requestAction('Dhw', ''); }
         if (m === 'energy') requestStats();
         if (m === 'cost') { drawCost(); requestAction('Cost', ''); }
@@ -2344,6 +2480,42 @@
     $('dhwChart').addEventListener('pointerdown', showDhwTip);
     $('dhwChart').addEventListener('pointerleave', () => { $('dhwTip').style.display = 'none'; });
     window.addEventListener('resize', () => { if (!$('sModeDhw').hidden) drawDhw(); });
+
+    // ---------- Einsparempfehlungen ----------
+    let tipsData = null;
+    const fK = (v) => (v > 0 ? '+' : '') + num(v, 1) + ' K';
+    function drawTips() {
+        if (!tipsData || $('sModeTips').hidden) return;
+        const t = tipsData;
+        $('tList').innerHTML = t.open.length ? t.open.map(i => {
+            let curve = '';
+            if (i.curve) {
+                const c = i.curve;
+                curve = `<div class="vals">Fußpunkt ${c.foot !== null ? num(c.foot, 1) + ' → ' + num(c.foot + c.dFoot, 1) + ' °C' : fK(c.dFoot)}`
+                    + ` · Auslegepunkt ${c.design !== null ? num(c.design, 1) + ' → ' + num(c.design + c.dDesign, 1) + ' °C' : fK(c.dDesign)}`
+                    + ` <span class="hint">(Abweichung mild ${fK(c.devWarm)}, kalt ${fK(c.devCold)})</span></div>`
+                    + (c.canApply ? `<div class="pwbox"><input type="password" class="tpw" placeholder="Passwort" autocomplete="off"><button class="btn primary" data-apply="${esc(i.id)}">Heizkurve übernehmen</button></div>`
+                                  : '<div class="hint">Zum Übernehmen per Knopf: Heizkurve lesen/schreiben in der Instanz eintragen – sonst am Hoval-Bedienteil einstellen.</div>');
+            }
+            return `<div class="mon-item warn"><div class="top"><b>${i.icon} ${esc(i.title)}</b></div><div class="hint">${esc(i.text)}</div>${curve}`
+                + `<div class="setbar"><button class="btn" data-dismiss="${esc(i.id)}">Ausblenden</button><button class="btn primary" data-done="${esc(i.id)}">Erledigt</button></div></div>`;
+        }).join('') : `<div class="mon-item ok"><b>${t.days < t.needDays ? 'Sammelt noch Daten' : 'Keine Empfehlungen'}</b><div class="hint">${t.days < t.needDays
+            ? `Es werden ${t.needDays} vollständige Heiztage mit Raumwerten gebraucht (bisher ${t.days}).` : 'Alles im grünen Bereich – Räume, Laufzeiten und Warmwasser sind unauffällig.'}</div></div>`;
+        $('tDoneTitle').hidden = !t.done.length;
+        $('tDone').innerHTML = t.done.map(d => {
+            const st = d.result === 'better' ? ['ok', '✓ verbessert'] : d.result === 'same' ? ['warn', 'keine deutliche Verbesserung'] : ['', 'wird beobachtet seit ' + ddmm(d.ts)];
+            return `<div class="mon-item ${st[0]}"><div class="top"><b>${esc(d.title)}</b><span class="st ${st[0]}">${st[1]}</span></div>`
+                + (d.msg ? `<div class="hint">${esc(d.msg)}</div>` : '') + `<div class="setbar"><button class="btn" data-forget="${esc(d.id)}">Entfernen</button></div></div>`;
+        }).join('');
+        const send = (o) => requestAction('Advice', JSON.stringify(o));
+        document.querySelectorAll('#sModeTips [data-done]').forEach(b => b.addEventListener('click', () => send({ a: 'done', id: b.dataset.done })));
+        document.querySelectorAll('#sModeTips [data-dismiss]').forEach(b => b.addEventListener('click', () => send({ a: 'dismiss', id: b.dataset.dismiss })));
+        document.querySelectorAll('#sModeTips [data-forget]').forEach(b => b.addEventListener('click', () => send({ a: 'forget', id: b.dataset.forget })));
+        document.querySelectorAll('#sModeTips [data-apply]').forEach(b => b.addEventListener('click', () => {
+            const pw = b.parentElement.querySelector('.tpw').value;
+            if (pw) send({ a: 'applyCurve', id: b.dataset.apply, pw });
+        }));
+    }
 
     const MON_TXT = { ok: 'unauffällig', warn: 'auffällig', alarm: 'deutlich auffällig', learn: 'lernt noch', nodata: 'keine Daten', off: 'aus' };
     function drawMonState(state) {
@@ -2509,7 +2681,10 @@
         if (!$('tile')._h) fitHeight();
         setTimeout(drawDiag, 0);
         if (msg.refriHist) { // Antwort auf die Anforderung des Kältekreis-Verlaufs
+            if (msg.hours && (msg.hours !== rSpanH || (rEnd !== 0 && Math.abs(msg.end - rEnd) > 120))) return; // veraltete Antwort
             refriHist = msg.refriHist;
+            rMeta = msg.hours ? msg : null;
+            drawRefriNav();
             drawRefriChart();
             return;
         }
@@ -2520,6 +2695,7 @@
         }
         if (msg.cost) { costData = msg.cost; drawCost(); return; }
         if (msg.dhw) { dhwData = msg.dhw; drawDhw(); return; }
+        if (msg.advice) { tipsData = msg.advice; drawTips(); return; }
         if (msg.monitor) { monData = msg.monitor; drawMonitor(); return; }
         if (msg.powerDay) { // Antwort: 15-min-Werte eines Tages
             if (pwDayOff > 0 && msg.powerDay.date === dayOffDate(pwDayOff)) { pwDay = msg.powerDay; drawPower(); }
@@ -2536,6 +2712,7 @@
             return;
         }
         values = msg.values;
+        msg0Today = msg.today || null;
         if (!gotData && msg.view && msg.view.v) {
             // erste Nachricht: zuletzt gewählte Ansicht aus dem Modul wiederherstellen
             const vs = msg.view;
@@ -2553,6 +2730,9 @@
             k.querySelector('.value').textContent = f(k.dataset.key);
         });
 
+        const td0 = msg.today;
+        $('kOutSub').textContent = td0 ? `↓${num(td0.min, 1)} ↑${num(td0.max, 1)} · Ø ${num(td0.avg, 1)}` : '';
+        $('kOutSub').title = td0 ? `heute: Tiefstwert ${num(td0.min, 1)} °C, Höchstwert ${num(td0.max, 1)} °C, Mittel ${num(td0.avg, 1)} °C` : '';
         const defrosting = n('WEZStatus') === 8 || !!(msg.defrost && msg.defrost.active);
         $('tStatus').textContent = defrosting ? f('WEZStatus') : has('WFAStatus') ? f('WFAStatus') : has('WEZStatus') ? f('WEZStatus') : '';
         $('tWezSoll').textContent = f('WEZSetpoint');

@@ -280,6 +280,20 @@ Dauer, Speichertemperatur oben vorher/nachher, Temperaturanstieg, Strom und Ø A
 Außentemperatur liegt (Hinweis auf verkalkten Wärmetauscher, zu wenig Volumenstrom, Fühlerproblem); geprüft wird direkt nach jeder Ladung.
 Die Spreizung (VL − RL) steht im Wärmepumpen-Symbol, im Betrieb farbig bewertet (grün 2,5–8 K).
 
+**Version 4.6:**
+- Externer Zähler: Korrektur in % (Abgleich mit dem Netzbetreiber); Tages- und Vergleichsstartwerte werden beim Ändern mitskaliert.
+- Außentemperatur oben mit Tiefst-/Höchst-/Mittelwert des Tages.
+- Leistung: Tag per Kalender wählbar; oben dann die Werte dieses Tages (Energie, Kosten, Spitze, Außen Ø/min/max, Starts, Abtauungen).
+  Auswertung: Kalender zur Tagesauswahl.
+- Kältekreis: Zeitraum 6 h / 24 h / 3 Tage / 7 Tage aus dem Symcon-Archiv, mit ‹ › oder Wischen verschiebbar; Schema und Diagramm größer.
+  Überwachung zusätzlich mit Ø Druckverhältnis.
+- Urlaubsmodus (Steuerung → Übersicht): Heizung Absenkung oder Frostschutz, Warmwasser aus oder 40 °C, endet automatisch.
+- Einsparempfehlungen (Auswertung → Tipps): Räume zu warm/kalt, Heizkurve (mit Vorschlag Fuß-/Auslegepunkt und optionaler
+  Übernahme per Passwort), Takten, Warmwassertemperatur; „Erledigt“ startet die Nachverfolgung mit Ergebnis-Meldung.
+- Push-Benachrichtigungen über eine Visualisierung (Störung, Überwachung, Steuerung, Empfehlungen) mit Testknopf.
+- Optionale Datenpunkte: Regelstrategie HK1 (27510), Heizkurve Fußpunkt (30618), Auslegepunkt (30615) und dessen Außentemperatur (30612).
+- Instanz: Knopf „Speicherbedarf der Aufzeichnungen berechnen“.
+
 **Kältekreis-Bewertung:** Überhitzung (3–10 K), Druckverhältnis (bis 6), Luft − Verdampfung (bis 10 K),
 Kondensator (bis 6 K) und Heißgas (bis 95 °C) werden bei laufendem Verdichter **grün** (Norm), orange (auffällig)
 oder rot hinterlegt.
