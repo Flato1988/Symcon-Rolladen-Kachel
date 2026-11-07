@@ -280,6 +280,18 @@ Dauer, Speichertemperatur oben vorher/nachher, Temperaturanstieg, Strom und Ø A
 Außentemperatur liegt (Hinweis auf verkalkten Wärmetauscher, zu wenig Volumenstrom, Fühlerproblem); geprüft wird direkt nach jeder Ladung.
 Die Spreizung (VL − RL) steht im Wärmepumpen-Symbol, im Betrieb farbig bewertet (grün 2,5–8 K).
 
+**Version 4.7:**
+- Heizkurve umschaltbar (Steuerung → Heizung → Heizkurve, mit Passwort): **Hoval** (Hoval rechnet selbst) oder **Symcon (selbstlernend)**:
+  Hoval wird auf Konstantregelung gestellt (27510 = 3), Symcon schreibt den Vorlauf-Soll (1490) aus Grundkurve (Fuß-/Auslegepunkt,
+  beim ersten Einschalten von Hoval übernommen) + Raumsoll-Verschiebung + gelerntem Anteil je Außentemperatur (−15…15 °C).
+  Gelernt wird stündlich aus der Raumabweichung (0,15 K je K, max. 0,3 K/h, ±6 K), nicht nach Sollwertwechseln (3 h), bei PV, Urlaub, Sommer.
+  Außentemperatur gedämpft (Ø 3 h). Hoval-Originalwerte (27510, 1490, 30618, 30615, 30612) werden gesichert; „Auf Hoval-Werte zurücksetzen“.
+- PV-Überschuss wahlweise per **Vorlauf-Anhebung** (ohne Smart Grid): ohne Puffer +1…3 K, mit Puffer bis zum Maximalwert, bis der Puffer durchgewärmt ist.
+- EVU-/Energieerzeuger-Sperre (WFA 3/17, WEZ 3): Zeiträume grau in Leistung und Kältekreis, Dauer je Tag/Zeitraum in der Auswertung.
+- Tageswerte nach einstellbarer Zeit (Standard 3 Jahre) zu Monatswerten zusammengefasst (unbegrenzt); neuer **Jahresvergleich** (Monate je Jahr).
+- WW-Speicher mit glatt gerundeter Füllung; lange Statustexte im WP-Symbol zweizeilig; Lüfter/Pumpe auf eigener Grafikebene.
+- Korrektur: Klartexte des Wärmeerzeuger-Status ab Code 15 waren durch einen Kommentar verdeckt.
+
 **Version 4.6:**
 - Externer Zähler: Korrektur in % (Abgleich mit dem Netzbetreiber); Tages- und Vergleichsstartwerte werden beim Ändern mitskaliert.
 - Außentemperatur oben mit Tiefst-/Höchst-/Mittelwert des Tages.

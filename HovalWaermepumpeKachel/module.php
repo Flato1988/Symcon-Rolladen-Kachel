@@ -68,7 +68,8 @@ class HovalWaermepumpeKachel extends IPSModule
         'ControlStrategy' => ['Regelstrategie Heizkreis 1', 27510, 'map:strategy'],
         'CurveFoot'       => ['Heizkurve Fußpunkt VL-Temperatur', 30618, 'setp'],
         'CurveDesign'     => ['Heizkurve Auslegepunkt VL-Temperatur', 30615, 'setp'],
-        'CurveDesignAT'   => ['Heizkurve Auslegepunkt Außentemperatur', 30612, 'setp']
+        'CurveDesignAT'   => ['Heizkurve Auslegepunkt Außentemperatur', 30612, 'setp'],
+        'FlowConst'       => ['Vorlauf-Soll Konstantanforderung Heizen HK1', 1490, 'setp']
     ];
 
     private const GROUPS = [
@@ -81,7 +82,7 @@ class HovalWaermepumpeKachel extends IPSModule
         'Pufferspeicher'                 => ['BufferTemp', 'BufferTop', 'BufferBottom', 'BufferSetpoint', 'BufferStatus'],
         'Kältekreis (Gateway ab V2.38)'  => ['AirIntake', 'SuctionGas', 'HotGas', 'Superheat', 'LowPressure', 'HighPressure',
                                              'CompressorSpeed', 'FanSpeed', 'HPFlowTemp', 'HPReturnTemp'],
-        'Heizkurve / Regelung (optional)'  => ['ControlStrategy', 'CurveFoot', 'CurveDesign', 'CurveDesignAT'],
+        'Heizkurve / Regelung (optional)'  => ['ControlStrategy', 'CurveFoot', 'CurveDesign', 'CurveDesignAT', 'FlowConst'],
         'Sonstiges (nicht in Hoval-Liste)' => ['Humidity', 'WaterPressure']
     ];
 
@@ -90,7 +91,8 @@ class HovalWaermepumpeKachel extends IPSModule
         'onoff'  => [0 => 'Aus', 1 => 'An'],
         'mode'   => [0 => 'Wärmeerzeuger aus', 1 => 'Automatikbetrieb', 4 => 'Manueller Heizbetrieb', 5 => 'Manueller Kühlbetrieb'],
         'wez'    => [0 => 'Abgeschaltet', 1 => 'Heizbetrieb', 2 => 'Vorlaufzeit Heizbetrieb', 3 => 'Extern gesperrt', 4 => 'Kühlbetrieb',
-                     5 => 'Vorlaufzeit Kühlbetrieb', 8 => 'Abtauvorgang', // 8 fehlt in der Hoval-Liste, von der Anlage gemeldet 15 => 'Alarm', 16 => 'Störung', 17 => 'Blockiert', 21 => 'WFmax Abschaltung',
+                     5 => 'Vorlaufzeit Kühlbetrieb', 8 => 'Abtauvorgang', // 8 fehlt in der Hoval-Liste, wird von der Anlage gemeldet
+                     15 => 'Alarm', 16 => 'Störung', 17 => 'Blockiert', 21 => 'WFmax Abschaltung',
                      22 => 'WFsoll Abschaltung', 26 => 'Bivalenzabschaltung', 27 => 'Warmwasser Ladesperre', 28 => 'Minimale Auszeit',
                      29 => 'Minimale Einzeit', 32 => 'Nachlauf', 33 => 'Verzögerung Folge WEZ', 34 => 'Betrieb Übertemperatur',
                      42 => 'Handbetrieb Heizen', 43 => 'Handbetrieb Warmwasser', 44 => 'Handbetrieb Kühlen'],
@@ -154,10 +156,14 @@ class HovalWaermepumpeKachel extends IPSModule
         $this->RegisterPropertyInteger('HovalEnergyUnit', 1);    // 0 = kWh, 1 = MWh (Hoval)
         $this->RegisterPropertyInteger('MeasuredPowerUnit', 0);  // 0 = W, 1 = kW
         $this->RegisterPropertyInteger('MeasuredEnergyUnit', 1); // 0 = Wh, 1 = kWh, 2 = MWh
-        $this->RegisterPropertyFloat('MeasuredCorrection', 0.0); // Korrektur des externen Zählers in % (Abgleich mit dem Netzbetreiber)
+        $this->RegisterPropertyFloat('MeasuredCorrection', 0.0);
+        $this->RegisterPropertyInteger('DayRetentionYears', 3); // Tageswerte so lange aufheben, danach nur Monatswerte // Korrektur des externen Zählers in % (Abgleich mit dem Netzbetreiber)
         // Heizkurve schreiben (Funktion 6): 30618 Fußpunkt, 30615 Auslegepunkt – für die Übernahme von Heizkurven-Vorschlägen
         $this->RegisterPropertyInteger('WriteCurveFoot', 0);
         $this->RegisterPropertyInteger('WriteCurveDesign', 0);
+        // Symcon-Heizkurve: Hoval auf Konstantregelung (27510 = 3), Symcon gibt den Vorlauf-Soll vor (1490)
+        $this->RegisterPropertyInteger('WriteStrategy', 0);
+        $this->RegisterPropertyInteger('WriteFlowConst', 0);
         // Push-Benachrichtigungen über eine Visualisierung (Kachel-Visualisierung oder WebFront)
         $this->RegisterPropertyInteger('NotifyVisuID', 0);
         $this->RegisterPropertyBoolean('NotifyError', true);
@@ -261,6 +267,15 @@ class HovalWaermepumpeKachel extends IPSModule
         $this->RegisterAttributeString('NotifyLog', '{}');
         $this->RegisterAttributeString('AdviceLog', '{}');
         $this->RegisterAttributeInteger('LastErrorCode', 255);
+        // EVU-/Energieerzeuger-Sperre: laufende Sperre und abgeschlossene Zeiträume [[Beginn, Ende]] (60 Tage)
+        $this->RegisterAttributeString('LockState', '');
+        $this->RegisterAttributeString('LockLog', '[]');
+        // Monatswerte für Zeiträume, deren Tageswerte nicht mehr aufgehoben werden (Langzeitvergleich)
+        $this->RegisterAttributeString('MonthlyHistory', '{}');
+        // Heizkurve: gesicherte Hoval-Originalwerte, Lernwerte der Symcon-Heizkurve, gedämpfte Außentemperatur (3 h)
+        $this->RegisterAttributeString('HovalOriginal', '');
+        $this->RegisterAttributeString('CurveLearn', '');
+        $this->RegisterAttributeFloat('OutAvg3h', -999);
         // Warmwasserladungen: laufende Ladung, aufsummierter WW-Strom, letzte Ladungen [{ts, min, t0, t1, dk, kwh, out, df}]
         $this->RegisterAttributeString('DhwCharge', '');
         $this->RegisterAttributeFloat('DhwElecTotal', 0);
@@ -445,6 +460,9 @@ class HovalWaermepumpeKachel extends IPSModule
             case 'PowerDay': // Kachel fordert die 15-min-Werte eines Tages an: "YYYY-MM-DD"
                 $this->UpdateVisualizationValue(json_encode(['powerDay' => $this->GetPowerDay((string) $Value)]));
                 break;
+            case 'Year': // Jahresvergleich
+                $this->UpdateVisualizationValue(json_encode(['year' => $this->GetYearView()]));
+                break;
             case 'Cost': // Kachel fordert die Kostenübersicht an
                 $this->UpdateVisualizationValue(json_encode(['cost' => $this->GetCostView()]));
                 break;
@@ -529,6 +547,7 @@ class HovalWaermepumpeKachel extends IPSModule
                         ['caption' => 'W', 'value' => 0], ['caption' => 'kW', 'value' => 1]]];
                     $items[] = ['type' => 'Select', 'name' => 'MeasuredEnergyUnit', 'caption' => 'Einheit Energie', 'options' => [
                         ['caption' => 'Wh', 'value' => 0], ['caption' => 'kWh', 'value' => 1], ['caption' => 'MWh', 'value' => 2]]];
+                    $items[] = ['type' => 'NumberSpinner', 'name' => 'DayRetentionYears', 'caption' => 'Tageswerte aufheben (danach nur Monatswerte, unbegrenzt)', 'suffix' => 'Jahre', 'minimum' => 1, 'maximum' => 10];
                     $items[] = ['type' => 'NumberSpinner', 'name' => 'MeasuredCorrection', 'caption' => 'Korrektur Zähler (z.B. +1,5 wenn der Netzbetreiber 1,5 % mehr misst)', 'suffix' => '%', 'digits' => 2];
                     break;
             }
@@ -597,11 +616,14 @@ class HovalWaermepumpeKachel extends IPSModule
             ['type' => 'CheckBox', 'name' => 'NotifyAdvice', 'caption' => 'Einsparempfehlungen: Ergebnis nach einer umgesetzten Empfehlung'],
             ['type' => 'Button', 'caption' => 'Testnachricht senden', 'onClick' => 'HWP_TestNotification($id);']
         ]];
-        $elements[] = ['type' => 'ExpansionPanel', 'caption' => 'Heizkurve schreiben (optional)', 'items' => [
+        $elements[] = ['type' => 'ExpansionPanel', 'caption' => 'Heizkurve schreiben / Symcon-Heizkurve (optional)', 'items' => [
             ['type' => 'Label', 'caption' => 'Damit Heizkurven-Vorschläge per Knopfdruck übernommen werden können: Modbus-Geräte mit Funktion 6, Faktor 0,1, S16. '
                 . 'Dieselben Geräte können oben unter „Heizkurve / Regelung“ auch zum Lesen eingetragen werden.'],
             ['type' => 'SelectVariable', 'name' => 'WriteCurveFoot', 'caption' => 'Fußpunkt VL-Temperatur Heizkennlinie schreiben (30618)'],
-            ['type' => 'SelectVariable', 'name' => 'WriteCurveDesign', 'caption' => 'Auslegepunkt VL-Temperatur Heizkennlinie schreiben (30615)']
+            ['type' => 'SelectVariable', 'name' => 'WriteCurveDesign', 'caption' => 'Auslegepunkt VL-Temperatur Heizkennlinie schreiben (30615)'],
+            ['type' => 'Label', 'caption' => 'Für die selbstlernende Symcon-Heizkurve (Umschalter in der Kachel): Hoval wird auf Konstantregelung gestellt und Symcon gibt den Vorlauf-Soll vor.'],
+            ['type' => 'SelectVariable', 'name' => 'WriteStrategy', 'caption' => 'Regelstrategie HK1 schreiben (27510, U8, Faktor 1)'],
+            ['type' => 'SelectVariable', 'name' => 'WriteFlowConst', 'caption' => 'Vorlauf-Soll Konstantanforderung Heizen HK1 schreiben (1490, S16, Faktor 0,1)']
         ]];
 
         // Eigene Klartexte für Status, Betriebsarten, Störungen
@@ -666,6 +688,7 @@ class HovalWaermepumpeKachel extends IPSModule
         $this->ControlTick($now);
         $this->RecordRefrigerant($now);
         $this->TrackDhwCharge($now);
+        $this->TrackLock($now);
         $this->CheckAlerts();
         $this->UpdateDayStats($now);
         foreach (array_keys(self::DATAPOINTS) as $key) {
@@ -846,6 +869,7 @@ class HovalWaermepumpeKachel extends IPSModule
             'trk'  => isset($day['cycStart']) ? !empty($day['cycFull']) : !empty($day['trk']), // Starts ab Tagesbeginn erfasst
             'run'  => $day['runMin'] ?? null,
             'st'   => $this->DayStarts($day),
+            'lk'   => $day['lockMin'] ?? 0,                   // Minuten EVU-/Energieerzeuger-Sperre
             'dev'  => isset($day['dev']) && $day['dev'][1] >= 60 ? round($day['dev'][0] / $day['dev'][1], 2) : null,
             'rdev' => array_map(fn ($v) => round($v[0] / $v[1], 2), array_filter($day['rdev'] ?? [], fn ($v) => $v[1] >= 60))
         ] + $this->DayRefAverages($day);
@@ -929,7 +953,7 @@ class HovalWaermepumpeKachel extends IPSModule
             $history = json_decode($this->ReadAttributeString('DailyHistory'), true) ?: [];
             $history[] = $summary;
             // dauerhaft speichern (ca. 3 Jahre) – Grundlage für Tages-, Wochen- und Monatsvergleiche
-            $this->WriteAttributeString('DailyHistory', json_encode(array_slice($history, -1100)));
+            $this->WriteAttributeString('DailyHistory', json_encode($this->RollupOldDays($history)));
             foreach (['DailyElec' => 'e', 'DailyHeat' => 'h', 'DailyTemp' => 't', 'DailyDefrost' => 'df'] as $ident => $field) {
                 if ($summary[$field] !== null) {
                     $this->SetValue($ident, $summary[$field]);
@@ -1175,7 +1199,8 @@ class HovalWaermepumpeKachel extends IPSModule
             'peaks'   => $peakList,
             'week'    => $this->GetPowerWeek($history, $now),
             'month'   => $this->GetPowerMonth($peaks, $now, $history),
-            'rlSpread' => $this->ReadPropertyFloat('ReturnSetSpread')
+            'rlSpread' => $this->ReadPropertyFloat('ReturnSetSpread'),
+            'locks'    => $this->LocksBetween($now - 7 * 86400, $now)
         ];
     }
 
@@ -1261,6 +1286,7 @@ class HovalWaermepumpeKachel extends IPSModule
                 't' => $rec['t'] ?? null, 'tmin' => $rec['tmin'] ?? null, 'tmax' => $rec['tmax'] ?? null, 'df' => $rec['df'] ?? null,
                 'st' => !empty($rec['trk']) ? ($rec['st'] ?? null) : null, 'run' => $rec['run'] ?? null, 'h' => $rec['h'] ?? null],
             'series' => $series,
+            'locks'  => $this->LocksBetween($start, $end),
             'peak'   => $peaks[$date] ?? null,
             'energy' => $energy === null ? null : round($energy, 2),
             'cost'   => $energy === null ? null : round($energy * $this->ReadPropertyFloat('PricePerKWh'), 2),
@@ -1647,6 +1673,387 @@ class HovalWaermepumpeKachel extends IPSModule
     }
 
 
+
+
+
+    // ---------------------------------------------------------------- Heizkurve (Hoval oder selbstlernend über Symcon)
+
+    private const CURVE_BINS = [-15, -10, -5, 0, 5, 10, 15];
+
+    /**
+     * Heizkurve je Modus: „hoval“ → Hoval rechnet selbst (ggf. Regelstrategie zurückstellen);
+     * „symcon“ → Konstantregelung (27510 = 3) und Vorlauf-Soll (1490) aus der lernenden Symcon-Kurve, inkl. PV-Anhebung.
+     */
+    private function CurveControl(array &$state, int $now, bool $heating, float $roomSet, bool $holiday)
+    {
+        $symcon = $this->Setting('curveMode') === 'symcon' && $this->Setting('ctlOn')
+            && $this->ReadPropertyInteger('WriteStrategy') > 0 && $this->ReadPropertyInteger('WriteFlowConst') > 0;
+        if (!$symcon) {
+            if (!empty($state['curveActive'])) {
+                $orig = json_decode($this->ReadAttributeString('HovalOriginal'), true) ?: [];
+                $this->WriteTo('WriteStrategy', (float) ($orig['strategy'] ?? 1), 0.01, 0);
+                $state['curveActive'] = false;
+            }
+            $state['curveNow'] = null;
+            return;
+        }
+        $out = $this->OutdoorDamped();
+        if ($out === null) {
+            return;
+        }
+        $curve = $this->SymconCurve($out, $roomSet);
+        $vl = $curve['vl'];
+        $pvBoost = 0.0;
+        // PV-Überschuss per Vorlauf-Anhebung: ohne Puffer +1…3 K, mit Puffer bis zum Maximalwert, bis er durchgewärmt ist
+        if ($this->Setting('pvOn') && $this->Setting('pvMethod') === 'vl' && !empty($state['pvActive']) && $heating) {
+            $bufBottom = $this->Value('BufferBottom') ?? $this->Value('BufferTemp');
+            $bufMax = (float) $this->Setting('pvBufMax');
+            if ($bufBottom !== null) {
+                if ($bufBottom >= $bufMax - 2) {
+                    $state['pvBufDone'] = true;
+                }
+                $pvBoost = empty($state['pvBufDone']) ? max(0, $bufMax - $vl) : min(3, (float) $this->Setting('pvVlBoost'));
+            } else {
+                $pvBoost = min(3, (float) $this->Setting('pvVlBoost'));
+            }
+        } else {
+            $state['pvBufDone'] = false;
+        }
+        $target = round(min(max($vl, $vl + $pvBoost), max((float) $this->Setting('cVlMax'), $this->Setting('pvMethod') === 'vl' ? (float) $this->Setting('pvBufMax') : 0)), 1);
+        $this->WriteTo('WriteStrategy', 3, 0.01, 1800, 'ControlStrategy');   // Konstantregelung
+        $this->WriteTo('WriteFlowConst', $target, 0.15, 1800, 'FlowConst');  // Vorlauf-Soll aus der Symcon-Kurve
+        $state['curveActive'] = true;
+        $state['curveNow'] = $curve + ['target' => $target, 'pv' => round($pvBoost, 1), 'out' => round($out, 1), 'roomSet' => $roomSet, 'heating' => $heating];
+        if ($this->Setting('cLearn') && !$holiday) {
+            $this->CurveLearnTick($state, $now, $heating && $this->CurrentSeason($state) !== 'summer', $roomSet);
+        }
+    }
+
+    /** Gedämpfte Außentemperatur (Mittel über ca. 3 h, wie die Gebäudeträgheit) */
+    private function OutdoorDamped(): ?float
+    {
+        $avg = $this->ReadAttributeFloat('OutAvg3h');
+        return $avg <= -900 ? $this->Value('OutdoorTemp') : $avg;
+    }
+
+    private function CurveLearnState(): array
+    {
+        return (json_decode($this->ReadAttributeString('CurveLearn'), true) ?: []) + ['offsets' => [], 'hour' => 0, 'devSum' => 0, 'outSum' => 0, 'n' => 0, 'log' => []];
+    }
+
+    /** Lernanteil bei einer Außentemperatur: lineare Interpolation zwischen den Stützstellen */
+    private function LearnOffset(array $offsets, float $out): float
+    {
+        $bins = self::CURVE_BINS;
+        if ($out <= $bins[0]) {
+            return (float) ($offsets[$bins[0]] ?? 0);
+        }
+        if ($out >= end($bins)) {
+            return (float) ($offsets[end($bins)] ?? 0);
+        }
+        for ($i = 1; $i < count($bins); $i++) {
+            if ($out <= $bins[$i]) {
+                $w = ($out - $bins[$i - 1]) / ($bins[$i] - $bins[$i - 1]);
+                return (1 - $w) * ($offsets[$bins[$i - 1]] ?? 0) + $w * ($offsets[$bins[$i]] ?? 0);
+            }
+        }
+        return 0.0;
+    }
+
+    /** Symcon-Heizkurve: Grundkurve (Fuß-/Auslegepunkt) + gelernter Anteil + Raumsoll-Verschiebung */
+    private function SymconCurve(float $out, float $roomSet, ?array $learn = null): array
+    {
+        $foot = (float) $this->Setting('cFoot');
+        $design = (float) $this->Setting('cDesign');
+        $at = (float) $this->Setting('cDesignAT');
+        $base = $foot + ($design - $foot) * (20 - $out) / max(1, 20 - $at);
+        $offset = $this->LearnOffset(($learn ?? $this->CurveLearnState())['offsets'], $out);
+        $room = ($roomSet - 20) * (float) $this->Setting('cRoomFactor');
+        $vl = max((float) $this->Setting('cVlMin'), min((float) $this->Setting('cVlMax'), $base + $offset + $room));
+        return ['vl' => round($vl, 1), 'base' => round($base, 1), 'learn' => round($offset, 2), 'room' => round($room, 1)];
+    }
+
+    /**
+     * Lernen (jede Minute, wirksam stündlich): Liegt der Raum-Durchschnitt unter dem Soll, wird die Kurve an dieser
+     * Außentemperatur angehoben, sonst abgesenkt – langsam (Fußbodenheizung ist träge): je K Raumabweichung 0,15 K/h,
+     * max. 0,3 K je Stunde und ±6 K gesamt. Nicht gelernt wird bei Sollwertwechsel (3 h), PV-Anhebung, Urlaub, Sommer.
+     */
+    private function CurveLearnTick(array $state, int $now, bool $heating, ?float $roomSet)
+    {
+        $learn = $this->CurveLearnState();
+        $rs = $state['roomStats'] ?? null;
+        $out = $this->OutdoorDamped();
+        $ok = $heating && $rs && $rs['avgIst'] !== null && $out !== null && empty($state['pvActive'])
+            && $now - ($state['setChange'] ?? 0) >= 3 * 3600;
+        $hour = intdiv($now, 3600);
+        if ($learn['hour'] !== $hour) {
+            if ($learn['n'] >= 45) {
+                $dev = $learn['devSum'] / $learn['n'];
+                $o = $learn['outSum'] / $learn['n'];
+                $step = max(-0.3, min(0.3, -0.15 * $dev));
+                $bins = self::CURVE_BINS;
+                // auf die zwei benachbarten Stützstellen verteilen
+                $lo = $bins[0];
+                $hi = end($bins);
+                foreach ($bins as $i => $b) {
+                    if ($o >= $b) {
+                        $lo = $b;
+                        $hi = $bins[$i + 1] ?? $b;
+                    }
+                }
+                $w = $hi === $lo ? 1 : ($o - $lo) / ($hi - $lo);
+                foreach ([[$lo, 1 - $w], [$hi, $w]] as [$b, $weight]) {
+                    if ($weight > 0) {
+                        $learn['offsets'][$b] = round(max(-6, min(6, ($learn['offsets'][$b] ?? 0) + $step * $weight)), 2);
+                    }
+                }
+                $learn['log'][] = [$learn['hour'] * 3600, round($o, 1), round($dev, 2), round($step, 2)];
+                $learn['log'] = array_slice($learn['log'], -336); // 14 Tage Stundenwerte
+            }
+            $learn = ['offsets' => $learn['offsets'], 'hour' => $hour, 'devSum' => 0, 'outSum' => 0, 'n' => 0, 'log' => $learn['log']];
+        }
+        if ($ok) {
+            $learn['devSum'] += $rs['avgIst'] - $rs['avgSoll'];
+            $learn['outSum'] += $out;
+            $learn['n']++;
+        }
+        $this->WriteAttributeString('CurveLearn', json_encode($learn));
+    }
+
+    /** Hoval-Originalwerte sichern (Regelstrategie, Vorlauf-Konstant, Heizkurve) – nur beim ersten Mal oder auf Wunsch */
+    private function BackupHoval(bool $force = false): ?string
+    {
+        if (!$force && $this->ReadAttributeString('HovalOriginal') !== '') {
+            return null;
+        }
+        $values = ['strategy' => $this->Value('ControlStrategy'), 'flowConst' => $this->Value('FlowConst'), 'foot' => $this->Value('CurveFoot'),
+                   'design' => $this->Value('CurveDesign'), 'designAT' => $this->Value('CurveDesignAT')];
+        if ($values['strategy'] === null) {
+            return 'Regelstrategie (27510) ist nicht als Datenpunkt eingetragen – Originalwerte können nicht gesichert werden.';
+        }
+        $this->WriteAttributeString('HovalOriginal', json_encode(['ts' => time()] + $values));
+        return null;
+    }
+
+    /** Symcon-Grundkurve beim ersten Einschalten aus der Hoval-Kurve übernehmen (gleiches Verhalten zum Start) */
+    private function InitCurveFromHoval()
+    {
+        $orig = json_decode($this->ReadAttributeString('HovalOriginal'), true) ?: [];
+        $changes = [];
+        foreach (['foot' => 'cFoot', 'design' => 'cDesign', 'designAT' => 'cDesignAT'] as $src => $dst) {
+            if (($orig[$src] ?? null) !== null) {
+                $changes[$dst] = $orig[$src];
+            }
+        }
+        if ($changes) {
+            $this->SaveSettings($changes);
+        }
+    }
+
+    /** Auf die gesicherten Hoval-Werte zurücksetzen (Regelstrategie, Vorlauf-Konstant, Heizkurve) */
+    private function RestoreHoval(): string
+    {
+        $orig = json_decode($this->ReadAttributeString('HovalOriginal'), true);
+        if (!$orig) {
+            return 'Es sind keine Hoval-Originalwerte gesichert.';
+        }
+        $done = [];
+        foreach (['strategy' => 'WriteStrategy', 'flowConst' => 'WriteFlowConst', 'foot' => 'WriteCurveFoot', 'design' => 'WriteCurveDesign'] as $key => $property) {
+            if (($orig[$key] ?? null) !== null && $this->ReadPropertyInteger($property) > 0) {
+                @RequestAction($this->ReadPropertyInteger($property), $orig[$key]);
+                $done[] = $key;
+            }
+        }
+        $this->SaveSettings(['curveMode' => 'hoval']);
+        $state = $this->GetCtlState();
+        $state['curveActive'] = false;
+        $this->SetCtlState($state);
+        $this->LogMessage('Hoval-Originalwerte wiederhergestellt: ' . json_encode($orig), KL_MESSAGE);
+        return 'Hoval-Werte wiederhergestellt (' . implode(', ', $done) . ')';
+    }
+
+    /** Daten für die Kachel: Kurven zum Vergleich, aktueller Punkt, Lernwerte */
+    private function CurveView(array $state): array
+    {
+        $learn = $this->CurveLearnState();
+        $orig = json_decode($this->ReadAttributeString('HovalOriginal'), true);
+        $hFoot = $this->Value('CurveFoot') ?? ($orig['foot'] ?? null);
+        $hDesign = $this->Value('CurveDesign') ?? ($orig['design'] ?? null);
+        $hAT = $this->Value('CurveDesignAT') ?? ($orig['designAT'] ?? -12.0);
+        $points = [];
+        for ($t = -15; $t <= 20; $t++) {
+            $sc = $this->SymconCurve((float) $t, 20.0, $learn);
+            $points[] = [$t, ($hFoot !== null && $hDesign !== null) ? round($hFoot + ($hDesign - $hFoot) * (20 - $t) / max(1, 20 - $hAT), 1) : null,
+                         $sc['base'], round($sc['base'] + $sc['learn'], 1)];
+        }
+        $out = $this->OutdoorDamped();
+        return [
+            'mode'      => $this->Setting('curveMode'),
+            'out'       => $out === null ? null : round($out, 1),
+            'now'       => $state['curveNow'] ?? null,
+            'points'    => $points,
+            'offsets'   => $learn['offsets'],
+            'lastLearn' => array_slice($learn['log'], -6),
+            'hoval'     => ['foot' => $hFoot, 'design' => $hDesign, 'designAT' => $hAT, 'strategy' => $this->Value('ControlStrategy'), 'flowConst' => $this->Value('FlowConst')],
+            'original'  => $orig ?: null,
+            'canSymcon' => $this->ReadPropertyInteger('WriteStrategy') > 0 && $this->ReadPropertyInteger('WriteFlowConst') > 0,
+            'hasBuffer' => $this->Value('BufferTop') !== null || $this->Value('BufferBottom') !== null || $this->Value('BufferTemp') !== null
+        ];
+    }
+
+    // ---------------------------------------------------------------- EVU-Sperre
+
+    /** Sperre aktiv? WFA 3 „Sperre“ / 17 „EW-/Energieerzeuger-Sperre“ oder Wärmeerzeuger 3 „Extern gesperrt“ */
+    private function LockActive(): bool
+    {
+        $wfa = $this->Value('WFAStatus');
+        $wez = $this->Value('WEZStatus');
+        return ($wfa !== null && in_array((int) $wfa, [3, 17], true)) || ($wez !== null && (int) $wez === 3);
+    }
+
+    /** Jede Minute: Sperrzeiten erfassen (Zeiträume für die Diagramme, Minuten je Tag für die Auswertung) */
+    private function TrackLock(int $now)
+    {
+        $state = json_decode($this->ReadAttributeString('LockState'), true) ?: ['active' => false];
+        $active = $this->LockActive();
+        if ($active) {
+            $day = json_decode($this->ReadAttributeString('DayStats'), true);
+            if ($day) {
+                $day['lockMin'] = ($day['lockMin'] ?? 0) + 1;
+                $this->WriteAttributeString('DayStats', json_encode($day));
+            }
+        }
+        if ($active && empty($state['active'])) {
+            $state = ['active' => true, 'start' => $now];
+        } elseif (!$active && !empty($state['active'])) {
+            $log = json_decode($this->ReadAttributeString('LockLog'), true) ?: [];
+            $log[] = [$state['start'], $now];
+            $log = array_values(array_filter($log, fn ($l) => $l[1] >= $now - 60 * 86400));
+            $this->WriteAttributeString('LockLog', json_encode($log));
+            $state = ['active' => false];
+        }
+        $this->WriteAttributeString('LockState', json_encode($state));
+    }
+
+    /** Sperrzeiträume, die ein Zeitfenster berühren (laufende Sperre bis jetzt) */
+    private function LocksBetween(int $from, int $to): array
+    {
+        $log = json_decode($this->ReadAttributeString('LockLog'), true) ?: [];
+        $state = json_decode($this->ReadAttributeString('LockState'), true) ?: [];
+        if (!empty($state['active'])) {
+            $log[] = [$state['start'], time()];
+        }
+        return array_values(array_filter($log, fn ($l) => $l[1] >= $from && $l[0] <= $to));
+    }
+
+    // ---------------------------------------------------------------- Langzeit: Monatswerte
+
+    /** Tageswerte älter als die Aufbewahrungszeit zu Monatswerten zusammenfassen (die bleiben unbegrenzt) */
+    private function RollupOldDays(array $history): array
+    {
+        $years = max(1, $this->ReadPropertyInteger('DayRetentionYears'));
+        $limit = date('Y-m-d', strtotime("-$years years"));
+        $keep = [];
+        $monthly = json_decode($this->ReadAttributeString('MonthlyHistory'), true) ?: [];
+        $changed = false;
+        foreach ($history as $d) {
+            if ($d['d'] >= $limit) {
+                $keep[] = $d;
+                continue;
+            }
+            $m = substr($d['d'], 0, 7);
+            $b = $monthly[$m] ?? ['days' => 0];
+            $b['days']++;
+            foreach (['e', 'eh', 'ew', 'ed', 'h', 'df', 'lk'] as $f) {
+                if (isset($d[$f]) && $d[$f] !== null) {
+                    $b[$f] = round(($b[$f] ?? 0) + $d[$f], 3);
+                }
+            }
+            if (!empty($d['trk']) && isset($d['st'])) {
+                $b['st'] = ($b['st'] ?? 0) + $d['st'];
+                $b['run'] = ($b['run'] ?? 0) + ($d['run'] ?? 0);
+            }
+            foreach (['t', 'hum'] as $f) {
+                if (isset($d[$f]) && $d[$f] !== null) {
+                    $b[$f . 'Sum'] = round(($b[$f . 'Sum'] ?? 0) + $d[$f], 2);
+                    $b[$f . 'N'] = ($b[$f . 'N'] ?? 0) + 1;
+                }
+            }
+            if (isset($d['tmin']) && $d['tmin'] !== null) {
+                $b['tmin'] = isset($b['tmin']) ? min($b['tmin'], $d['tmin']) : $d['tmin'];
+            }
+            if (isset($d['tmax']) && $d['tmax'] !== null) {
+                $b['tmax'] = isset($b['tmax']) ? max($b['tmax'], $d['tmax']) : $d['tmax'];
+            }
+            $monthly[$m] = $b;
+            $changed = true;
+        }
+        if ($changed) {
+            ksort($monthly);
+            $this->WriteAttributeString('MonthlyHistory', json_encode($monthly));
+        }
+        return $keep;
+    }
+
+    /** Monatswerte aus Tages- und Langzeitdaten: ['Y-m' => [e, eh, ew, ed, h, df, lk, t, tmin, tmax, hum, days, p]] */
+    private function MonthTotals(): array
+    {
+        $months = [];
+        foreach (json_decode($this->ReadAttributeString('MonthlyHistory'), true) ?: [] as $m => $b) {
+            $months[$m] = $b;
+        }
+        foreach ($this->AllDays() as $d) {
+            $m = substr($d['d'], 0, 7);
+            $b = $months[$m] ?? ['days' => 0];
+            $b['days']++;
+            $b['p'] = ($b['p'] ?? false) || !empty($d['p']);
+            foreach (['e', 'eh', 'ew', 'ed', 'h', 'df', 'lk'] as $f) {
+                if (isset($d[$f]) && $d[$f] !== null) {
+                    $b[$f] = ($b[$f] ?? 0) + $d[$f];
+                }
+            }
+            if (!empty($d['trk']) && isset($d['st'])) {
+                $b['st'] = ($b['st'] ?? 0) + $d['st'];
+                $b['run'] = ($b['run'] ?? 0) + ($d['run'] ?? 0);
+            }
+            foreach (['t', 'hum'] as $f) {
+                if (isset($d[$f]) && $d[$f] !== null) {
+                    $b[$f . 'Sum'] = ($b[$f . 'Sum'] ?? 0) + $d[$f];
+                    $b[$f . 'N'] = ($b[$f . 'N'] ?? 0) + 1;
+                }
+            }
+            if (isset($d['tmin']) && $d['tmin'] !== null) {
+                $b['tmin'] = isset($b['tmin']) ? min($b['tmin'], $d['tmin']) : $d['tmin'];
+            }
+            if (isset($d['tmax']) && $d['tmax'] !== null) {
+                $b['tmax'] = isset($b['tmax']) ? max($b['tmax'], $d['tmax']) : $d['tmax'];
+            }
+            $months[$m] = $b;
+        }
+        ksort($months);
+        return $months;
+    }
+
+    /** Jahresvergleich: je Jahr und Monat Strom, Wärme, Kosten, Ø Außentemperatur */
+    private function GetYearView(): array
+    {
+        $price = $this->ReadPropertyFloat('PricePerKWh');
+        $years = [];
+        foreach ($this->MonthTotals() as $m => $b) {
+            [$y, $mo] = array_map('intval', explode('-', $m));
+            $e = $b['e'] ?? null;
+            $years[$y][$mo] = [
+                'e' => $e === null ? null : round($e, 1), 'h' => isset($b['h']) ? round($b['h'], 1) : null,
+                'c' => $e === null ? null : round($e * $price, 2),
+                't' => !empty($b['tN']) ? round($b['tSum'] / $b['tN'], 1) : null,
+                'tmin' => $b['tmin'] ?? null, 'tmax' => $b['tmax'] ?? null,
+                'az' => ($e !== null && $e > 1 && isset($b['h'])) ? round($b['h'] / $e, 2) : null,
+                'df' => $b['df'] ?? null, 'lk' => isset($b['lk']) ? (int) $b['lk'] : null, 'days' => $b['days'], 'p' => !empty($b['p'])
+            ];
+        }
+        ksort($years);
+        return ['years' => $years, 'price' => $price];
+    }
 
     // ---------------------------------------------------------------- Einsparempfehlungen
 
@@ -2062,7 +2469,7 @@ class HovalWaermepumpeKachel extends IPSModule
                 $b['st'] = ($b['st'] ?? 0) + $day['st'];
                 $b['run'] = ($b['run'] ?? 0) + ($day['run'] ?? 0);
             }
-            foreach (['e', 'eh', 'ew', 'ed', 'h', 'df'] as $field) {
+            foreach (['e', 'eh', 'ew', 'ed', 'h', 'df', 'lk'] as $field) {
                 if (isset($day[$field]) && $day[$field] !== null) {
                     $b[$field] = ($b[$field] ?? 0) + $day[$field];
                 }
@@ -2080,6 +2487,35 @@ class HovalWaermepumpeKachel extends IPSModule
                 $b['tmax'] = isset($b['tmax']) ? max($b['tmax'], $day['tmax']) : $day['tmax'];
             }
             unset($b);
+        }
+
+        // Monate, deren Tageswerte schon zu Monatswerten zusammengefasst wurden
+        if ($period === 'month') {
+            foreach (json_decode($this->ReadAttributeString('MonthlyHistory'), true) ?: [] as $m => $mb) {
+                if (!isset($labels[$m])) {
+                    $hasOlder = $hasOlder || $m < $oldestKey;
+                    continue;
+                }
+                $b = $buckets[$m] ?? [];
+                foreach (['e', 'eh', 'ew', 'ed', 'h', 'df', 'lk', 'st', 'run'] as $f) {
+                    if (isset($mb[$f])) {
+                        $b[$f] = ($b[$f] ?? 0) + $mb[$f];
+                    }
+                }
+                $b['days'] = ($b['days'] ?? 0) + $mb['days'];
+                foreach (['t', 'hum'] as $f) {
+                    if (!empty($mb[$f . 'N'])) {
+                        $b[$f . 'Sum'] = ($b[$f . 'Sum'] ?? 0) + $mb[$f . 'Sum'];
+                        $b[$f . 'Count'] = ($b[$f . 'Count'] ?? 0) + $mb[$f . 'N'];
+                    }
+                }
+                foreach (['tmin' => 'min', 'tmax' => 'max'] as $f => $fn) {
+                    if (isset($mb[$f])) {
+                        $b[$f] = isset($b[$f]) ? $fn($b[$f], $mb[$f]) : $mb[$f];
+                    }
+                }
+                $buckets[$m] = $b;
+            }
         }
 
         $rows = [];
@@ -2108,6 +2544,7 @@ class HovalWaermepumpeKachel extends IPSModule
                 'df'    => isset($b['df']) ? (int) $b['df'] : null,
                 'c'     => $e === null ? null : round($e * $this->ReadPropertyFloat('PricePerKWh'), 2),
                 'st'    => isset($b['st']) ? (int) $b['st'] : null,
+                'lk'    => isset($b['lk']) ? (int) $b['lk'] : null,
                 'rps'   => (isset($b['st']) && $b['st'] > 0) ? round($b['run'] / $b['st'], 0) : null // Ø Laufzeit je Start (min)
             ];
         }
@@ -2601,7 +3038,7 @@ class HovalWaermepumpeKachel extends IPSModule
         $live = json_decode($this->ReadAttributeString('RefHist'), true) ?: [];
         $meta = ['hours' => $hours, 'end' => $end, 'start' => $start];
         if ($hours <= 6 && $end >= $now - 60) {
-            return ['refriHist' => $live] + $meta + ['src' => 'live'];
+            return ['refriHist' => $live] + $meta + ['src' => 'live', 'locks' => $this->LocksBetween($start, $end)];
         }
         $archives = IPS_GetInstanceListByModuleID('{43192F0B-135B-4CE7-A0A7-1475603F3060}');
         if (!$archives) {
@@ -2643,7 +3080,7 @@ class HovalWaermepumpeKachel extends IPSModule
             $sh = $v[3] ?? ((isset($v[5]) && $evap !== null) ? round($v[5] - $evap, 1) : null);
             $rows[] = [$t, $v[1] ?? null, $v[2] ?? null, $sh, $v[4] ?? null, $v[5] ?? null, $v[6] ?? null, $evap, $v[8] ?? null, $v[9] ?? null, $dfState ? 1 : 0];
         }
-        return ['refriHist' => $rows] + $meta + ['src' => 'archive', 'step' => $step];
+        return ['refriHist' => $rows] + $meta + ['src' => 'archive', 'step' => $step, 'locks' => $this->LocksBetween($start, $end)];
     }
 
     /** Minutenwerte für den Verlauf: [Zeit, ND, HD, Überhitzung, Heißgas, Sauggas, Luft, Verdampfung, Verdichter %, Ventilator %, Abtauung] */
@@ -2676,6 +3113,8 @@ class HovalWaermepumpeKachel extends IPSModule
         'winterBelow' => [-10, 20], 'summerAbove' => [5, 30], 'ecoWinter' => [10, 25], 'ecoTransition' => [10, 25],
         'comfortWinter' => [10, 30], 'comfortTransition' => [10, 30], 'comfortSummer' => [10, 30],
         'dhwComfort' => [30, 70], 'dhwBoost' => [30, 70],
+        'cFoot' => [15, 45], 'cDesign' => [20, 65], 'cDesignAT' => [-30, 5], 'cVlMin' => [15, 40], 'cVlMax' => [25, 65],
+        'cRoomFactor' => [0, 5], 'pvVlBoost' => [0, 5], 'pvBufMax' => [25, 65],
         'roomHyst' => [0.1, 2], 'roomMin' => [0, 120], 'maxPeak' => [1, 100], 'margin' => [0, 5], 'minHP' => [0, 20], 'hpMax' => [0.5, 30],
         'pvStart' => [0.1, 30], 'pvStop' => [0, 30], 'pvStartMin' => [0, 60], 'pvStopMin' => [0, 60], 'pvMinRun' => [0, 240],
         'pvOffRoom' => [0, 12], 'pvOffDHW' => [0, 30], 'pvOffBuffer' => [0, 30]
@@ -2690,6 +3129,8 @@ class HovalWaermepumpeKachel extends IPSModule
                 'ctlOn' => $this->ReadPropertyBoolean('ControlEnabled'), 'roomsOn' => $this->ReadPropertyBoolean('RoomDemandEnabled'),
                 'limitOn' => $this->ReadPropertyBoolean('PowerLimitEnabled'), 'pvOn' => false,
                 'dhwComfort' => 50.0, 'dhwBoost' => 58.0,
+                'curveMode' => 'hoval', 'cLearn' => true, 'cFoot' => 24.0, 'cDesign' => 35.0, 'cDesignAT' => -12.0, 'cVlMin' => 20.0, 'cVlMax' => 45.0,
+                'cRoomFactor' => 1.5, 'pvMethod' => 'sg', 'pvVlBoost' => 2.0, 'pvBufMax' => 45.0,
                 'seasonMode' => $this->ReadPropertyInteger('SeasonMode'), 'winterBelow' => $this->ReadPropertyFloat('SeasonWinterBelow'),
                 'summerAbove' => $this->ReadPropertyFloat('SeasonSummerAbove'), 'ecoWinter' => $this->ReadPropertyFloat('EcoWinter'),
                 'ecoTransition' => $this->ReadPropertyFloat('EcoTransition'),
@@ -2724,12 +3165,18 @@ class HovalWaermepumpeKachel extends IPSModule
             if (isset(self::SETTING_LIMITS[$key])) {
                 [$min, $max] = self::SETTING_LIMITS[$key];
                 $settings[$key] = round(max($min, min($max, (float) $value)), 2);
-            } elseif (in_array($key, ['ctlOn', 'dhwOn', 'roomsOn', 'limitOn', 'pvOn', 'monOn'], true)) {
+            } elseif (in_array($key, ['ctlOn', 'dhwOn', 'roomsOn', 'limitOn', 'pvOn', 'monOn', 'cLearn'], true)) {
                 $settings[$key] = (bool) $value;
             } elseif ($key === 'seasonMode') {
                 $settings[$key] = (int) $value === 0 ? 0 : 1;
             } elseif ($key === 'roomMode') {
                 $settings[$key] = $value === 'avg' ? 'avg' : 'any';
+            } elseif ($key === 'cInit') {
+                $settings[$key] = (bool) $value;
+            } elseif ($key === 'curveMode') {
+                $settings[$key] = $value === 'symcon' ? 'symcon' : 'hoval';
+            } elseif ($key === 'pvMethod') {
+                $settings[$key] = $value === 'vl' ? 'vl' : 'sg';
             } elseif ($key === 'roomExcluded') {
                 $settings[$key] = array_values(array_map('strval', (array) $value));
             } elseif ($key === 'heatPrograms' || $key === 'dhwPrograms') {
@@ -3015,11 +3462,13 @@ class HovalWaermepumpeKachel extends IPSModule
         $rooms = (bool) $this->Setting('roomsOn');
         $state = $this->GetCtlState();
 
-        // gleitendes 24-h-Mittel der Außentemperatur (für die automatische Saison)
+        // gleitendes 24-h-Mittel der Außentemperatur (für die automatische Saison) und 3-h-Mittel (Heizkurve)
         $outdoor = $this->Value('OutdoorTemp');
         if ($outdoor !== null) {
             $avg = $this->ReadAttributeFloat('TempAvg');
             $this->WriteAttributeFloat('TempAvg', $avg <= -900 ? $outdoor : $avg + ($outdoor - $avg) / 1440);
+            $avg3 = $this->ReadAttributeFloat('OutAvg3h');
+            $this->WriteAttributeFloat('OutAvg3h', $avg3 <= -900 ? $outdoor : $avg3 + ($outdoor - $avg3) / 180);
         }
 
         $season = $this->CurrentSeason($state);
@@ -3057,6 +3506,13 @@ class HovalWaermepumpeKachel extends IPSModule
                 $this->WriteTo('WriteHC1Room', max(10, min(30, $target)), 0.01, 1800, empty($state['pvActive']) ? 'RoomSetpoint' : null);
                 $this->WriteTo('WriteHC1Mode', 4, 0.01, 1800, 'HC1Mode'); // Konstant mit Normal-Raumtemperatur
             }
+            $heatingNow = !($holidayFrost || ($holiday === null && ($state['mode'] === 'frost' || ($state['mode'] === 'auto' && $program['kind'] === 'off'))) || !$demand);
+            // Sollwertwechsel merken (Lernpause, weil die Räume dem neuen Soll erst folgen)
+            if (abs(($state['lastTarget'] ?? $target) - $target) > 0.2) {
+                $state['setChange'] = $now;
+            }
+            $state['lastTarget'] = $target;
+            $this->CurveControl($state, $now, $heatingNow, $target, $holiday !== null);
             $state['ctlActive'] = true;
         } elseif ($rooms) {
             // nur Raumanforderung: zwischen Hoval-Programm und Standby umschalten
@@ -3095,6 +3551,9 @@ class HovalWaermepumpeKachel extends IPSModule
             }
             $state['dhwReturn'] = false;
             $state['dhwActive'] = true;
+        }
+        if (!$control && !empty($state['curveActive'])) {
+            $this->CurveControl($state, $now, false, 20.0, false); // Heizungssteuerung aus: Hoval-Regelstrategie wiederherstellen
         }
         if (!$control && !empty($state['ctlActive'])) {
             // Heizungssteuerung wurde deaktiviert: Heizkreis an Hoval zurückgeben (falls keine Raumanforderung)
@@ -3144,7 +3603,7 @@ class HovalWaermepumpeKachel extends IPSModule
         $fmt = fn ($v) => number_format((float) $v, 1, ',', '');
 
         // ---- passwortgeschützt: Entsperren, Funktionen, Einstellungen, Räume, max. Warmwassertemperatur ----
-        if (in_array($a, ['unlock', 'feature', 'settings', 'room', 'maxTemp'], true)) {
+        if (in_array($a, ['unlock', 'feature', 'settings', 'room', 'maxTemp', 'curveMode', 'curveBackup', 'curveRestore', 'curveLearnReset'], true)) {
             $error = $this->CheckPassword($action['pw'] ?? '');
             if ($error !== null) {
                 return ['ok' => false, 'msg' => $error, 'locked' => true];
@@ -3163,7 +3622,7 @@ class HovalWaermepumpeKachel extends IPSModule
                     return ['ok' => true, 'msg' => $names[$key] . (!empty($action['v']) ? ' aktiviert' : ' deaktiviert')];
                 case 'settings':
                     $error = $this->SaveSettings(array_intersect_key((array) ($action['values'] ?? []),
-                        self::SETTING_LIMITS + array_flip(['seasonMode', 'roomMode', 'heatPrograms', 'dhwPrograms'])));
+                        self::SETTING_LIMITS + array_flip(['seasonMode', 'roomMode', 'heatPrograms', 'dhwPrograms', 'pvMethod', 'cLearn'])));
                     return $error === null ? ['ok' => true, 'msg' => 'Einstellungen gespeichert'] : ['ok' => false, 'msg' => $error];
                 case 'room':
                     $excluded = array_values(array_diff($this->Setting('roomExcluded'), [(string) ($action['name'] ?? '')]));
@@ -3172,6 +3631,35 @@ class HovalWaermepumpeKachel extends IPSModule
                     }
                     $this->SaveSettings(['roomExcluded' => $excluded]);
                     return ['ok' => true, 'msg' => ($action['name'] ?? '') . (empty($action['v']) ? ' wird nicht berücksichtigt' : ' wird berücksichtigt')];
+                case 'curveMode':
+                    if (($action['v'] ?? '') === 'symcon') {
+                        if (!$this->Setting('ctlOn')) {
+                            return ['ok' => false, 'msg' => 'Zuerst die Heizungssteuerung aktivieren.'];
+                        }
+                        if ($this->ReadPropertyInteger('WriteStrategy') <= 0 || $this->ReadPropertyInteger('WriteFlowConst') <= 0) {
+                            return ['ok' => false, 'msg' => 'In der Instanz die Schreib-Variablen für 27510 und 1490 eintragen.'];
+                        }
+                        $error = $this->BackupHoval();
+                        if ($error !== null) {
+                            return ['ok' => false, 'msg' => $error];
+                        }
+                        if (empty($this->Settings()['cInit'])) {
+                            $this->InitCurveFromHoval();
+                            $this->SaveSettings(['cInit' => true]);
+                        }
+                        $this->SaveSettings(['curveMode' => 'symcon']);
+                        return ['ok' => true, 'msg' => 'Heizkurve: Symcon (selbstlernend) – Hoval-Werte sind gesichert'];
+                    }
+                    $this->SaveSettings(['curveMode' => 'hoval']);
+                    return ['ok' => true, 'msg' => 'Heizkurve: Hoval'];
+                case 'curveBackup':
+                    $error = $this->BackupHoval(true);
+                    return $error === null ? ['ok' => true, 'msg' => 'Hoval-Werte gesichert'] : ['ok' => false, 'msg' => $error];
+                case 'curveRestore':
+                    return ['ok' => true, 'msg' => $this->RestoreHoval()];
+                case 'curveLearnReset':
+                    $this->WriteAttributeString('CurveLearn', '');
+                    return ['ok' => true, 'msg' => 'Lernwerte zurückgesetzt'];
                 case 'maxTemp':
                     $value = round(max(30, min(70, (float) ($action['v'] ?? 55))) * 2) / 2;
                     $this->WriteAttributeFloat('DHWMax', $value);
@@ -3399,6 +3887,10 @@ class HovalWaermepumpeKachel extends IPSModule
         if (@$this->GetIDForIdent('PVBoost') && $this->GetValue('PVBoost') !== $pv) {
             $this->SetValue('PVBoost', $pv);
         }
+        // PV per Vorlauf-Anhebung (Symcon-Heizkurve): kein Smart Grid für PV
+        $pvViaSG = $this->Setting('pvMethod') !== 'vl';
+        $pv = $pv && $pvViaSG;
+        $pvOn = $pvOn && $pvViaSG;
 
         if (!$limitOn && !$pvOn) {
             if ($state['limitActive']) {
@@ -3449,6 +3941,9 @@ class HovalWaermepumpeKachel extends IPSModule
         } elseif ($rooms) {
             $need = ['WriteHC1Mode' => ['Betriebswahl HK1', 1478, 'HC1Mode']];
         }
+        if ($control && $this->Setting('curveMode') === 'symcon') {
+            $need += ['WriteStrategy' => ['Regelstrategie', 27510, 'ControlStrategy'], 'WriteFlowConst' => ['Vorlauf-Soll Konstant', 1490, 'FlowConst']];
+        }
         if ($dhw) {
             $need += ['WriteDHWMode' => ['Betriebswahl Warmwasser', 1496, 'DHWMode'], 'WriteDHWTemp' => ['Normal-Warmwassertemperatur', 1497, null]];
         }
@@ -3488,7 +3983,7 @@ class HovalWaermepumpeKachel extends IPSModule
         $dhw = $this->DHWProgramAt($now);
         $avg = $this->ReadAttributeFloat('TempAvg');
         $limit = (bool) $settings['limitOn'];
-        $editable = array_intersect_key($settings, self::SETTING_LIMITS + array_flip(['seasonMode', 'roomMode', 'heatPrograms', 'dhwPrograms']));
+        $editable = array_intersect_key($settings, self::SETTING_LIMITS + array_flip(['seasonMode', 'roomMode', 'heatPrograms', 'dhwPrograms', 'pvMethod', 'cLearn']));
         return [
             'ctl'      => (bool) $settings['ctlOn'],
             'dhwCtl'   => (bool) $settings['dhwOn'],
@@ -3525,6 +4020,7 @@ class HovalWaermepumpeKachel extends IPSModule
             'roomList'  => $state['roomList'] ?? [],
             'roomStats' => $state['roomStats'] ?? null,
             'holiday'   => $state['holiday'] ?? null,
+            'curve'     => $this->CurveView($state),
             'strategy'  => $this->Value('ControlStrategy') !== null ? $this->Format('ControlStrategy') : null,
             'writeIssues' => $this->WriteIssues((bool) $settings['ctlOn'], (bool) $settings['roomsOn'], (bool) $settings['dhwOn']),
             'pw'        => $limit ? $this->LimitCalculation($now) : null,

@@ -333,6 +333,7 @@
     #stats .seg-ed { fill: var(--cold); }
     #stats .partial { opacity: .5; }
     #stats .sel { fill: rgba(128, 128, 128, .13); }
+    #stats .lock { fill: rgba(110, 110, 120, .25); }
     #stats .hit { fill: transparent; cursor: pointer; }
     #stats .tline { fill: none; stroke: var(--acc); stroke-width: 2; stroke-linejoin: round; }
     #stats .tdot { fill: var(--acc); }
@@ -430,6 +431,8 @@
     .pw-series button.off span { text-decoration: line-through; }
     #pwChart .cursor { stroke: var(--fg); stroke-width: 1; opacity: .4; }
     #pwChart .pk { fill: var(--hot); }
+    #pwChart .lock, #rChart .lock { fill: rgba(110, 110, 120, .22); }
+    .legend i.l-lock { background: rgba(110, 110, 120, .45); }
     #tile.pw-long .pw-peaks { display: none; }
     #pwTip { position: absolute; top: 4px; padding: 4px 8px; border-radius: 6px; background: rgba(30, 30, 30, .85); color: #fff;
              font-size: 11px; white-space: normal; max-width: 92%; line-height: 1.4; pointer-events: none; display: none; }
@@ -459,7 +462,7 @@
     #schema .center { text-anchor: middle; }
     #schema .unit-box { fill: var(--box); stroke: var(--stroke); stroke-width: 1; }
     #schema .fan-ring { fill: none; stroke: var(--stroke); stroke-width: 1.5; }
-    #schema .blade { fill: var(--fg); opacity: .5; }
+    #schema .blade, #schemaFx .blade { fill: var(--fg); opacity: .5; }
     #schema .pipe-bg { fill: none; stroke-width: 9; stroke-linecap: round; opacity: .13; }
     #schema .pipe { fill: none; stroke-width: 5; stroke-linecap: round; }
     #schema .hot { stroke: var(--hot); }
@@ -468,14 +471,14 @@
     #schema .tank-temp { fill: #fff; font-size: 11px; font-weight: 600; text-anchor: middle; paint-order: stroke; stroke: rgba(0, 0, 0, .25); stroke-width: 2px; }
     /* Umwälzpumpe: Laufrad dreht sich, Ring pulsiert, solange Wasser fließt */
     #schema .pump { fill: #fff; stroke: var(--cold); stroke-width: 1.6; }
-    #schema .pump-ring { fill: none; stroke: var(--cold); stroke-width: 1.2; opacity: 0; transform-box: fill-box; transform-origin: center; }
-    #schema .blade-p { fill: none; stroke: var(--cold); stroke-width: 1.8; stroke-linecap: round; }
-    #schema .hub { fill: var(--cold); }
+    #schema .pump-ring, #schemaFx .pump-ring { fill: none; stroke: var(--cold); stroke-width: 1.2; opacity: 0; transform-box: fill-box; transform-origin: center; }
+    #schema .blade-p, #schemaFx .blade-p { fill: none; stroke: var(--cold); stroke-width: 1.8; stroke-linecap: round; }
+    #schema .hub, #schemaFx .hub { fill: var(--cold); }
     #impeller { transform-box: fill-box; transform-origin: center; }
     @keyframes ripple { 0% { transform: scale(1); opacity: .5; } 100% { transform: scale(1.9); opacity: 0; } }
-    #schema.running #impeller { animation: spin .9s linear infinite; }
-    #schema.running .pump-ring { animation: ripple 1.8s ease-out infinite; }
-    #schema.running .pump-ring.r2 { animation-delay: .9s; }
+    #schemaFx.running #impeller { animation: spin .9s linear infinite; }
+    #schemaFx.running .pump-ring { animation: ripple 1.8s ease-out infinite; }
+    #schemaFx.running .pump-ring.r2 { animation-delay: .9s; }
     /* FBH-Schlange: Farbverlauf Vorlauf (rot) -> Rücklauf (blau) aus vielen kurzen Abschnitten */
     #schema .fbh-seg { fill: none; stroke-width: 5; stroke-linecap: round; }
     #fbhSegs { transition: opacity .8s ease; }
@@ -490,7 +493,7 @@
     #schema .valve-hub { fill: #fff; stroke: var(--fg); stroke-width: 1; stroke-opacity: .6; }
     #schema .valve-arm { stroke: var(--fg); stroke-width: 2.4; stroke-linecap: round; }
     @keyframes portPulse { 50% { opacity: .55; } }
-    #schema.running .valve-port.active { animation: portPulse 1.6s ease-in-out infinite; }
+    /* (kein Pulsieren mehr: jede Animation im Schema kostet Rechenzeit auf dem Handy) */
     #schema .on-tank { fill: #fff; opacity: .9; }
     /* Zweig, auf den das Y-Ventil gerade nicht geschaltet ist */
     #schema .pipe.inactive { stroke: var(--stroke); animation: none !important; }
@@ -515,11 +518,11 @@
     /* Lüfter dreht sich im Betrieb */
     @keyframes spin { to { transform: rotate(360deg); } }
     #fan { transform-box: fill-box; transform-origin: center; }
-    #schema.heating #fan { animation: spin 1.6s linear infinite; }
-    #schema.heating .blade { fill: var(--acc); opacity: .9; }
+    #schemaFx.heating #fan { animation: spin 1.6s linear infinite; }
+    #schemaFx.heating .blade { fill: var(--acc); opacity: .9; }
     #schema.heating .fan-ring { stroke: var(--acc); }
     /* Abtauung: Lüfter blau */
-    #schema.defrosting .blade { fill: var(--cold); opacity: .9; }
+    #schemaFx.defrosting .blade { fill: var(--cold); opacity: .9; }
     #schema.defrosting .fan-ring { stroke: var(--cold); }
 </style>
 
@@ -683,7 +686,7 @@
     </div>
 
     <div class="view" id="viewStats" hidden>
-        <div class="subnav" id="sMode"><button data-m="energy" class="on">Energie</button><button data-m="cost">Kosten</button><button data-m="dhw">Warmwasser</button><button data-m="mon">Überwachung <span id="sMonDot"></span></button><button data-m="tips">💡 Tipps</button></div>
+        <div class="subnav" id="sMode"><button data-m="energy" class="on">Energie</button><button data-m="cost">Kosten</button><button data-m="year">Jahre</button><button data-m="dhw">Warmwasser</button><button data-m="mon">Überwachung <span id="sMonDot"></span></button><button data-m="tips">💡 Tipps</button></div>
         <div class="smode" id="sModeEnergy">
         <div class="stats-bar">
             <span class="seg" id="sPeriod">
@@ -701,6 +704,7 @@
             <span><i class="l-t"></i>Ø Außen</span>
             <span><i class="l-hum"></i>Ø Feuchte</span>
             <span>❄ Abtauungen</span>
+            <span id="sLegendLock" hidden><i class="l-lock"></i>EVU-Sperre (Anteil)</span>
         </div>
         <div class="chart-wrap">
             <svg id="stats"></svg>
@@ -734,6 +738,15 @@
             <div class="hint">Aufheizzeit je K = Dauer der Ladung ÷ Temperaturanstieg im Speicher (oben). Ladungen unter 5 min, unter 3 K oder mit Abtauung
                 werden angezeigt, aber nicht bewertet. Steigt der Wert bei gleicher Außentemperatur deutlich, meldet die Überwachung
                 „Warmwasser-Aufheizzeit je K“ (z.B. verkalkter Wärmetauscher, zu wenig Volumenstrom).</div>
+        </div>
+        <div class="smode" id="sModeYear" hidden>
+            <div class="stats-bar"><span class="seg" id="yMetric"><button data-k="e" class="on">Strom</button><button data-k="c">Kosten</button><button data-k="h">Wärme</button><button data-k="az">Arbeitszahl</button></span>
+                <span class="legend" id="yLegend" style="margin:0"></span></div>
+            <div class="chart-wrap" style="min-height:220px"><svg id="yChart" class="tchart"></svg><div id="yTip" class="tip"></div>
+                <div id="yEmpty" class="empty">Noch keine Monatswerte.</div></div>
+            <div style="overflow-x:auto"><table class="tbl" id="yTable"></table></div>
+            <div class="hint">Monate nebeneinander je Jahr (Punkte: Ø Außentemperatur). Tageswerte werden nach der in der Instanz eingestellten Zeit zu Monatswerten
+                zusammengefasst – der Jahresvergleich bleibt unbegrenzt erhalten.</div>
         </div>
         <div class="smode" id="sModeTips" hidden>
             <div class="hint">Einsparempfehlungen aus den eigenen Messwerten (Raumtemperaturen, Laufzeiten, Warmwasser). Nach dem Umsetzen „Erledigt“ antippen –
@@ -782,6 +795,7 @@
             <span class="legend" style="margin:0">
                 <span><i class="l-pw"></i><span id="pwLegend">Leistung (kW, Ø 15 min)</span></span>
                 <span id="pwLegendPeak" hidden><i style="background:var(--hot)"></i>Spitze 15 min</span>
+                <span id="pwLegendLock" hidden><i class="l-lock"></i>EVU-Sperre</span>
             </span>
         </div>
         <div class="pw-series" id="pwSeries"></div>
@@ -935,6 +949,21 @@
                 </details>
                 <details class="ed" data-sec="heat"><summary>⚙ Zeitprogramm und Temperaturen</summary><div class="edbody"></div></details>
             </div>
+            <div class="card" id="cCurve" data-page="heat">
+                <h3>Heizkurve <span class="badge" id="cvBadge">–</span></h3>
+                <div class="row"><span class="seg" id="cvMode"><button data-v="hoval">Hoval</button><button data-v="symcon">Symcon (selbstlernend)</button></span>
+                    <span class="hint" id="cvLockHint"></span></div>
+                <div class="state" id="cvState"></div>
+                <div class="legend" style="margin:0"><span><i class="dash" style="color:#9aa7b1"></i>Hoval</span><span><i class="dash" style="color:var(--heat)"></i>Symcon Grundkurve</span>
+                    <span><i style="background:var(--acc)"></i>Symcon gelernt</span><span>● jetzt</span></div>
+                <div class="chart-wrap" style="min-height:190px"><svg id="cvChart" class="tchart"></svg><div id="cvTip" class="tip"></div></div>
+                <div class="hint" id="cvLearn"></div>
+                <div class="hint" id="cvOrig"></div>
+                <div class="setbar" id="cvButtons"><button class="btn" id="cvBackup">Originalwerte sichern</button><button class="btn" id="cvLearnReset">Lernwerte zurücksetzen</button>
+                    <button class="btn warn" id="cvRestore">Auf Hoval-Werte zurücksetzen</button></div>
+                <div class="warnbox" id="cvMissing" hidden></div>
+                <details class="ed" data-sec="curve"><summary>⚙ Symcon-Heizkurve einstellen</summary><div class="edbody"></div></details>
+            </div>
             <div class="card" id="cDhw" data-page="dhw">
                 <h3>Warmwasser <small id="cDhwHoval"></small></h3>
                 <div class="state" id="cDhwState">–</div>
@@ -1068,22 +1097,29 @@
         g.dataset.key = key;
         g.innerHTML = '';
         const t1 = top !== null ? top : bottom, t2 = bottom !== null ? bottom : top;
-        const steps = 24;
-        // Ersatz für einen Clip-Pfad: schmale Streifen, in den Rundungen jeweils so weit eingerückt,
-        // dass die äußere Kante des Streifens noch innerhalb der Rundung liegt
-        const insetAt = (yy) => yy < y + r ? r - Math.sqrt(Math.max(0, r * r - (y + r - yy) ** 2))
-            : yy > y + h - r ? r - Math.sqrt(Math.max(0, r * r - (yy - (y + h - r)) ** 2)) : 0;
+        // Farbverlauf aus waagrechten Bändern; jedes Band ist ein Pfad, dessen linke und rechte Kante exakt der
+        // Rundung des Speichers folgen (fein abgetastet) – keine Stufen, ohne SVG-Verläufe/Clip-Pfade
+        const steps = 24, inner = 0.75;
+        const halfWidthAt = (yy) => {
+            const cy = yy < y + r ? y + r : yy > y + h - r ? y + h - r : yy;
+            const dy = yy - cy, rr = r - inner;
+            return w / 2 - inner - (rr - Math.sqrt(Math.max(0, rr * rr - dy * dy)));
+        };
+        const cx = x + w / 2;
         for (let i = 0; i < steps; i++) {
-            const sy = y + i * h / steps, sh = h / steps + 0.4;
+            const y0 = y + inner + i * (h - 2 * inner) / steps, y1 = y + inner + (i + 1) * (h - 2 * inner) / steps + (i < steps - 1 ? 0.4 : 0);
             const t = t1 === null ? null : t1 + (t2 - t1) * (i / (steps - 1));
-            const inset = Math.max(insetAt(sy + 0.75), insetAt(Math.min(y + h - 0.75, sy + sh)));
-            const rect = document.createElementNS(NS, 'rect');
-            rect.setAttribute('x', x + inset + 0.75);
-            rect.setAttribute('y', sy);
-            rect.setAttribute('width', Math.max(0, w - 2 * inset - 1.5));
-            rect.setAttribute('height', sh);
-            rect.setAttribute('fill', tempColor(t));
-            g.appendChild(rect);
+            const n = (y0 < y + r || y1 > y + h - r) ? 8 : 1; // in den Rundungen fein abtasten
+            const left = [], right = [];
+            for (let k = 0; k <= n; k++) {
+                const yy = y0 + (y1 - y0) * k / n, hw = halfWidthAt(Math.min(y + h - inner, Math.max(y + inner, yy)));
+                left.push(`${(cx - hw).toFixed(2)} ${yy.toFixed(2)}`);
+                right.unshift(`${(cx + hw).toFixed(2)} ${yy.toFixed(2)}`);
+            }
+            const path = document.createElementNS(NS, 'path');
+            path.setAttribute('d', 'M' + left.join(' L') + ' L' + right.join(' L') + ' Z');
+            path.setAttribute('fill', tempColor(t));
+            g.appendChild(path);
         }
     }
 
@@ -1326,6 +1362,7 @@
         const cfg = R_SERIES[rRange];
         $('rLegend').innerHTML = cfg.lines.map(([, label, color, dash]) => `<span style="color:${color}"><i class="${dash ? 'dash' : ''}" style="background:${dash ? 'transparent' : color}"></i><span style="color:var(--fg)">${label}</span></span>`).join('')
             + '<span><i style="background:var(--cold);opacity:.25"></i>Abtauung</span><span><i style="background:rgba(128,128,128,.3)"></i>Verdichter aus</span>'
+            + ((rMeta && rMeta.locks && rMeta.locks.length) ? '<span><i class="l-lock"></i>EVU-Sperre</span>' : '')
             + (refriHist.some((d, k) => k && d[0] - refriHist[k - 1][0] > Math.max(300, (rMeta && rMeta.step ? rMeta.step : 60) * 2.5)) ? '<span><i style="background:rgba(128,128,128,.55)"></i>keine Daten</span>' : '');
         if (W < 60 || H < 40) return;
         svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
@@ -1348,6 +1385,11 @@
         const pad = Math.max(1, (hi - lo) * 0.1); lo = Math.floor(lo - pad); hi = Math.ceil(hi + pad);
         const step = Math.max(1, Math.ceil((hi - lo) / 4)); lo = Math.floor(lo / step) * step; hi = lo + 4 * step; // glatte Achsenschritte
         const y = (v) => H - B - (v - lo) / (hi - lo) * (H - T - B);
+        // EVU-Sperren
+        for (const [a, b] of (rMeta && rMeta.locks) || []) {
+            const xa = x(Math.max(a, t0)), xb = x(Math.min(b, t1));
+            if (xb > xa) svgEl('rect', { x: xa, y: T, width: Math.max(1.5, xb - xa), height: H - T - B, class: 'lock' }, svg);
+        }
         // Datenlücken (> 5 min ohne Minutenwert, z.B. Symcon neu gestartet) schraffiert hinterlegen
         for (let k = 1; k < data.length; k++) {
             if (data[k][0] - data[k - 1][0] > gapT) svgEl('rect', { x: x(data[k - 1][0]), y: T, width: Math.max(1, x(data[k][0]) - x(data[k - 1][0])), height: H - T - B, class: 'gap' }, svg);
@@ -1451,6 +1493,7 @@
         document.querySelectorAll('#viewCtl .card[data-page]').forEach(c => { c.hidden = c.dataset.page !== ctlPage; });
         drawFunc();
         drawHoliday();
+        drawCurve();
         // offene Einstellungen nur neu aufbauen, wenn kein Entwurf läuft oder sich der Sperrzustand geändert hat
         document.querySelectorAll('.ed[open]').forEach(el => { if (!drafts[el.dataset.sec] || el.dataset.u !== String(unlocked)) renderEd(el.dataset.sec); });
 
@@ -1680,8 +1723,12 @@
         rooms: { seg: ['roomMode', 'Anforderung', [['any', 'ein Raum zu kalt'], ['avg', 'Durchschnitt zu kalt']], false],
                  fields: 'roomHyst:Hysterese K,roomMin:Mindestzeit zwischen Wechseln min' },
         limit: { fields: 'maxPeak:max. 15-min-Spitze gesamt kW,margin:Sicherheitsabstand kW,minHP:WP mindestens kW,hpMax:WP max. elektrisch kW' },
-        pv: { fields: 'pvStart:Einschalten ab kW Überschuss,pvStartMin:… für mindestens min,pvStop:Ausschalten unter kW,pvStopMin:… für mindestens min,pvMinRun:Mindestlaufzeit min,pvOffRoom:Offset Raum HK1 K,pvOffDHW:Offset Warmwasser K,pvOffBuffer:Offset Puffer K',
-              hint: 'Überschuss = Einspeisung + aktuelle WP-Leistung. Bei aktivem PV-Überschuss werden die Offsets über Smart Grid (Vorzugsbetrieb) gesetzt.' }
+        curve: { seg: ['cLearn', 'Lernen', [[1, 'an'], [0, 'aus']], true],
+                 fields: 'cFoot:Fußpunkt VL °C (bei 20 °C außen),cDesign:Auslegepunkt VL °C,cDesignAT:Auslegepunkt Außentemp. °C,cVlMin:Vorlauf min °C,cVlMax:Vorlauf max °C,cRoomFactor:Raumsoll-Einfluss K VL je K',
+                 hint: 'Grundkurve linear zwischen Fuß- und Auslegepunkt (für 20 °C Raum). Dazu: Raumsoll-Verschiebung und der gelernte Anteil je Außentemperatur. Beim ersten Einschalten werden die Hoval-Werte übernommen.' },
+        pv: { seg: ['pvMethod', 'Verfahren', [['sg', 'Smart Grid (Offsets)'], ['vl', 'Vorlauf anheben']], false],
+              fields: 'pvStart:Einschalten ab kW Überschuss,pvStartMin:… für mindestens min,pvStop:Ausschalten unter kW,pvStopMin:… für mindestens min,pvMinRun:Mindestlaufzeit min,pvOffRoom:Offset Raum HK1 K,pvOffDHW:Offset Warmwasser K,pvOffBuffer:Offset Puffer K,pvVlBoost:Vorlauf anheben ohne Puffer K (max. 3),pvBufMax:mit Puffer: Vorlauf bis °C',
+              hint: 'Überschuss = Einspeisung + aktuelle WP-Leistung. „Smart Grid“: Offsets und Vorzugsbetrieb. „Vorlauf anheben“ (braucht die Symcon-Heizkurve): ohne Puffer Vorlauf +1…3 K, mit Puffer bis zum Maximalwert, bis der Puffer unten durchgewärmt ist.' }
     };
     const secKeys = (sec) => { const c = SEC[sec]; if (c.keys) return c.keys; return [...(c.seg ? [c.seg[0]] : []), ...(c.fields ? c.fields.split(',').map(e => e.split(':')[0]) : []), ...(c.prog ? [c.prog] : [])]; };
     function renderEd(sec) {
@@ -1701,7 +1748,8 @@
         if (c.hint) h += `<div class="hint">${c.hint}</div>`;
         if (c.seg) {
             const [k, label, options] = c.seg;
-            h += `<div class="row"><span class="hint">${label}</span><span class="seg">` + options.map(([v, t]) => `<button data-seg="${v}" class="${String(d[k]) === String(v) ? 'on' : ''}"${dis}>${t}</button>`).join('') + '</span></div>';
+            const cur = typeof d[k] === 'boolean' ? (d[k] ? 1 : 0) : d[k];
+            h += `<div class="row"><span class="hint">${label}</span><span class="seg">` + options.map(([v, t]) => `<button data-seg="${v}" class="${String(cur) === String(v) ? 'on' : ''}"${dis}>${t}</button>`).join('') + '</span></div>';
         }
         if (c.fields) h += '<div class="fields">' + c.fields.split(',').map(e => { const [k, label] = e.split(':'); return `<label>${label}<input type="number" step="0.1" data-k="${k}" value="${d[k] ?? ''}"${dis}></label>`; }).join('') + '</div>';
         if (c.prog) {
@@ -1740,6 +1788,87 @@
         }));
     }
     document.querySelectorAll('.ed[data-sec]').forEach(el => el.addEventListener('toggle', () => { if (el.open) renderEd(el.dataset.sec); }));
+
+    // ---------- Heizkurve: Hoval oder selbstlernend über Symcon ----------
+    let cvGeo = null;
+    function drawCurve() {
+        const c = ctl.curve;
+        $('cCurve').hidden = $('cCurve').hidden || !c;
+        if (!c) return;
+        const sym = c.mode === 'symcon';
+        $('cvBadge').textContent = sym ? 'Symcon' : 'Hoval';
+        $('cvBadge').className = 'badge' + (sym ? ' ok' : '');
+        document.querySelectorAll('#cvMode button').forEach(b => { b.classList.toggle('on', b.dataset.v === c.mode); b.disabled = !unlocked; });
+        $('cvLockHint').textContent = unlocked ? '' : '🔒 zum Umschalten in „Funktionen“ entsperren';
+        const n = c.now, hv = c.hoval;
+        $('cvState').innerHTML = sym && n
+            ? `Außen Ø 3 h <b>${num(n.out, 1)} °C</b> → Vorlauf-Soll <b>${num(n.target, 1)} °C</b> <span class="hint">(Kurve ${num(n.base, 1)} ${n.room >= 0 ? '+' : '−'} Raum ${num(Math.abs(n.room), 1)} ${n.learn >= 0 ? '+' : '−'} gelernt ${num(Math.abs(n.learn), 1)}${n.pv ? ' + PV ' + num(n.pv, 1) : ''})</span>`
+            : sym ? '<span class="hint">wartet auf Werte …</span>'
+            : `Hoval regelt selbst${hv.strategy !== null && hv.strategy !== undefined ? ' · ' + esc(ctl.strategy || '') : ''}${hv.foot !== null ? ` · Fußpunkt ${num(hv.foot, 1)} °C, Auslegepunkt ${num(hv.design, 1)} °C bei ${num(hv.designAT, 0)} °C` : ''}`;
+        const offs = c.offsets || {}, keys = Object.keys(offs).map(Number).sort((a, b) => a - b);
+        $('cvLearn').innerHTML = keys.length ? 'Gelernt: ' + keys.map(k => `${k} °C <b style="color:${offs[k] > 0 ? 'var(--hot)' : 'var(--cold)'}">${offs[k] > 0 ? '+' : ''}${num(offs[k], 1)} K</b>`).join(' · ')
+            : (sym ? 'Lernt aus der Raumabweichung (langsam, je Außentemperatur – ein paar Tage Geduld).' : '');
+        const o = c.original;
+        $('cvOrig').textContent = o ? `Hoval-Originalwerte gesichert am ${ddmm(o.ts)}: Regelstrategie ${o.strategy ?? '–'}, Vorlauf-Konstant ${num(o.flowConst, 1)} °C, Fußpunkt ${num(o.foot, 1)} °C, Auslegepunkt ${num(o.design, 1)} °C bei ${num(o.designAT, 0)} °C`
+            : 'Noch keine Hoval-Originalwerte gesichert (passiert automatisch beim ersten Umschalten auf Symcon).';
+        $('cvButtons').hidden = !unlocked;
+        $('cvRestore').disabled = !o;
+        const miss = [];
+        if (!c.canSymcon) miss.push('Für die Symcon-Heizkurve in der Instanz „Regelstrategie HK1 schreiben (27510)“ und „Vorlauf-Soll Konstant schreiben (1490)“ eintragen.');
+        if (hv.strategy === null || hv.strategy === undefined) miss.push('Zum Sichern der Originalwerte die Datenpunkte 27510, 1490, 30618, 30615, 30612 (Heizkurve / Regelung) eintragen.');
+        $('cvMissing').hidden = !miss.length;
+        $('cvMissing').innerHTML = miss.map(t => 'ℹ ' + esc(t)).join('<br>');
+        drawCurveChart();
+    }
+    function drawCurveChart() {
+        const c = ctl && ctl.curve, svg = $('cvChart');
+        if (!c || $('cCurve').hidden) return;
+        const W = svg.clientWidth, H = svg.clientHeight;
+        svg.innerHTML = '';
+        if (W < 60 || H < 50) return;
+        svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+        const L = 30, R = 8, T = 8, B = 18;
+        const vals = c.points.flatMap(p => [p[1], p[2], p[3]]).filter(v => v !== null);
+        if (c.now) vals.push(c.now.target);
+        let lo = Math.floor(Math.min(...vals) / 5) * 5, hi = Math.ceil(Math.max(...vals) / 5) * 5;
+        if (hi - lo < 10) hi = lo + 10;
+        const x = (t) => L + (t + 15) / 35 * (W - L - R), y = (v) => H - B - (v - lo) / (hi - lo) * (H - T - B);
+        for (let i = 0; i <= 4; i++) {
+            const v = lo + i * (hi - lo) / 4, yy = y(v);
+            svgEl('line', { x1: L, x2: W - R, y1: yy, y2: yy, class: 'grid' }, svg);
+            svgEl('text', { x: L - 4, y: yy + 3, 'text-anchor': 'end' }, svg).textContent = num(v, 0) + '°';
+        }
+        for (let t = -15; t <= 20; t += 5) svgEl('text', { x: x(t), y: H - 4, 'text-anchor': 'middle' }, svg).textContent = t + '°';
+        [[1, '#9aa7b1', true], [2, 'var(--heat)', true], [3, 'var(--acc)', false]].forEach(([i, color, dash]) => {
+            const pts = c.points.filter(p => p[i] !== null);
+            if (pts.length) svgEl('path', { d: pts.map((p, k) => (k ? 'L' : 'M') + x(p[0]).toFixed(1) + ' ' + y(p[i]).toFixed(1)).join(' '), class: 'ln', style: `stroke:${color}` + (dash ? ';stroke-dasharray:5 3' : '') }, svg);
+        });
+        if (c.out !== null && c.out !== undefined) {
+            const vNow = c.now ? c.now.target : null;
+            svgEl('line', { x1: x(Math.max(-15, Math.min(20, c.out))), x2: x(Math.max(-15, Math.min(20, c.out))), y1: T, y2: H - B, class: 'grid' }, svg);
+            if (vNow !== null) svgEl('circle', { cx: x(Math.max(-15, Math.min(20, c.out))), cy: y(vNow), r: 4, style: 'fill:var(--acc);stroke:#fff;stroke-width:1.5' }, svg);
+        }
+        cvGeo = { x, c };
+    }
+    $('cvChart').addEventListener('pointermove', (e) => {
+        if (!cvGeo) return;
+        const r = $('cvChart').getBoundingClientRect(), t = Math.round((e.clientX - r.left - 30) / (r.width - 38) * 35 - 15);
+        const p = cvGeo.c.points.find(q => q[0] === t), tip = $('cvTip');
+        if (!p) { tip.style.display = 'none'; return; }
+        tip.innerHTML = `<b>Außen ${t} °C</b><br>Hoval ${num(p[1], 1)} · Grundkurve ${num(p[2], 1)} · gelernt ${num(p[3], 1)} °C`;
+        tip.style.display = 'block';
+        tip.style.left = Math.min(Math.max(0, cvGeo.x(t) - tip.offsetWidth / 2), r.width - tip.offsetWidth) + 'px';
+    });
+    $('cvChart').addEventListener('pointerleave', () => { $('cvTip').style.display = 'none'; });
+    document.querySelectorAll('#cvMode button').forEach(b => b.addEventListener('click', () => { if (unlocked) ctlSend({ a: 'curveMode', pw: pwMem, v: b.dataset.v }); }));
+    $('cvBackup').addEventListener('click', () => ctlSend({ a: 'curveBackup', pw: pwMem }));
+    $('cvLearnReset').addEventListener('click', () => ctlSend({ a: 'curveLearnReset', pw: pwMem }));
+    let cvRestoreArmed = 0;
+    $('cvRestore').addEventListener('click', () => {
+        if (Date.now() - cvRestoreArmed > 4000) { cvRestoreArmed = Date.now(); toast('Zum Zurücksetzen nochmal tippen'); return; }
+        ctlSend({ a: 'curveRestore', pw: pwMem });
+    });
+    window.addEventListener('resize', () => { if (ctl && !$('cCurve').hidden) drawCurveChart(); });
 
     // ---------- Urlaub: Heizung abgesenkt bzw. Frostschutz, Warmwasser aus bzw. 40 °C; endet automatisch ----------
     let hHeat = 'eco', hDhw = 'off';
@@ -2052,7 +2181,7 @@
     const ddmm = (ts) => { const d = new Date(ts * 1000); return d.getDate() + '.' + (d.getMonth() + 1) + '.'; };
 
     // Tagesauswahl: 0 = letzte 24 h, 1 = gestern, 2 = vorgestern … (15-min-Werte der letzten 31 Tage, beim Modul angefordert)
-    let pwDayOff = 0, pwDay = null, msg0Today = null;
+    let pwDayOff = 0, pwDay = null, msg0Today = null, pwLocks = [];
     const isoDate = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
     const dayOffDate = (off) => { const d = new Date(); d.setHours(12, 0, 0, 0); d.setDate(d.getDate() - off); return isoDate(d); };
     function setPowerDay(off) {
@@ -2191,6 +2320,14 @@
             const every = Math.max(1, Math.ceil(40 / ((W - L - R) / 31)));
             items.forEach((it, i) => { if ((items.length - 1 - i) % every === 0) svgEl('text', { x: x(it.t + 43200), y: H - 4, 'text-anchor': 'middle' }, svg).textContent = ddmm(it.t); });
         }
+        // EVU-/Energieerzeuger-Sperren grau hinterlegen (Dauer sichtbar)
+        const locks = (pwRange === 'day' && pwDayOff > 0 ? (pwDay && pwDay.locks) : pw.locks) || [];
+        for (const [a, b] of locks) {
+            const xa = x(Math.max(a, tStart)), xb = x(Math.min(b, tEnd));
+            if (xb > xa) svgEl('rect', { x: xa, y: T, width: Math.max(1.5, xb - xa), height: H - T - B, class: 'lock' }, svg);
+        }
+        $('pwLegendLock').hidden = !locks.some(([a, b]) => b > tStart && a < tEnd);
+        pwLocks = locks;
         const slotPx = (items[0] ? items[0].slot : 900) / span * (W - L - R);
         const bw = Math.max(1, slotPx * (pwRange === 'month' ? 0.6 : 1) - (pwRange === 'month' ? 0 : 1));
         const off = (slotPx - bw) / 2;
@@ -2247,7 +2384,9 @@
         const tip = $('pwTip');
         const extra = PW_SERIES.filter(([k]) => k !== 'a' && !pwHidden.includes(k))
             .map(([, label, , , fn]) => { const v = fn(best.it); return v === null || v === undefined ? null : `${label} ${num(v, 1)} °C`; }).filter(Boolean);
-        tip.innerHTML = esc(best.it.tip) + (extra.length ? '<br>' + extra.join(' · ') : '');
+        const lk = pwLocks.find(([a, b]) => best.it.t + best.it.slot > a && best.it.t < b);
+        tip.innerHTML = esc(best.it.tip) + (extra.length ? '<br>' + extra.join(' · ') : '')
+            + (lk ? `<br>⛔ EVU-Sperre ${hhmm(lk[0])}–${hhmm(lk[1])} (${Math.round((lk[1] - lk[0]) / 60)} min)` : '');
         tip.style.display = 'block';
         tip.style.left = Math.min(Math.max(0, cx - tip.offsetWidth / 2), r.width - tip.offsetWidth) + 'px';
     }
@@ -2328,6 +2467,14 @@
         const xs = (i) => L + i * slot;
 
         svgEl('rect', { x: xs(sSel), y: T - 12, width: slot, height: H - B - T + 12, class: 'sel' }, svg);
+        // EVU-Sperre: grauer Hintergrund, Höhe = Anteil der Sperrzeit am Zeitraum (volle Höhe = ganzer Tag gesperrt)
+        rows.forEach((r, i) => {
+            if (!r.lk) return;
+            const share = Math.min(1, r.lk / (Math.max(1, r.days) * 1440)), hh = share * (H - T - B);
+            const lr = svgEl('rect', { x: xs(i) + 1, y: H - B - hh, width: slot - 2, height: hh, class: 'lock' }, svg);
+            const tt = svgEl('title', {}, lr); tt.textContent = `EVU-Sperre ${Math.floor(r.lk / 60)} h ${r.lk % 60} min`;
+        });
+        $('sLegendLock').hidden = !rows.some(r => r.lk);
         for (let i = 0; i <= 4; i++) {
             const y = T + i * (H - T - B) / 4;
             svgEl('line', { x1: L, x2: W - R, y1: y, y2: y, class: 'grid' }, svg);
@@ -2374,6 +2521,8 @@
         $('sModeMon').hidden = m !== 'mon';
         $('sModeDhw').hidden = m !== 'dhw';
         $('sModeTips').hidden = m !== 'tips';
+        $('sModeYear').hidden = m !== 'year';
+        if (m === 'year') { drawYear(); requestAction('Year', ''); }
         if (m === 'tips') { drawTips(); requestAction('Advice', JSON.stringify({ a: 'list' })); }
         if (m === 'dhw') { drawDhw(); requestAction('Dhw', ''); }
         if (m === 'energy') requestStats();
@@ -2481,6 +2630,76 @@
     $('dhwChart').addEventListener('pointerleave', () => { $('dhwTip').style.display = 'none'; });
     window.addEventListener('resize', () => { if (!$('sModeDhw').hidden) drawDhw(); });
 
+    // ---------- Jahresvergleich: Monate je Jahr nebeneinander ----------
+    let yearData = null, yMetric = 'e', yGeo = null;
+    const MON = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
+    const YCOL = ['#9aa7b1', 'var(--heat)', 'var(--acc)', 'var(--cold)'];
+    const YM = { e: [' kWh', 0], c: [' €', 0], h: [' kWh', 0], az: ['', 2] };
+    document.querySelectorAll('#yMetric button').forEach(b => b.addEventListener('click', () => { yMetric = b.dataset.k; drawYear(); }));
+    function drawYear() {
+        if (!yearData || $('sModeYear').hidden) return;
+        document.querySelectorAll('#yMetric button').forEach(b => b.classList.toggle('on', b.dataset.k === yMetric));
+        const years = Object.keys(yearData.years).map(Number).sort().slice(-4);
+        const col = (i) => YCOL[YCOL.length - years.length + i];
+        $('yLegend').innerHTML = years.map((y, i) => `<span><i style="background:${col(i)}"></i>${y}</span>`).join('') + '<span>● Ø Außen</span>';
+        const val = (y, mo) => { const r = (yearData.years[y] || {})[mo]; return r ? r[yMetric] : null; };
+        const tmp = (y, mo) => { const r = (yearData.years[y] || {})[mo]; return r ? r.t : null; };
+        // Tabelle: Monat | je Jahr Wert (Ø °C) | Summe
+        const fmt = (v) => v === null || v === undefined ? '–' : num(v, YM[yMetric][1]) + YM[yMetric][0];
+        let tbl = '<tr><th>Monat</th>' + years.map(y => `<th>${y}</th>`).join('') + '</tr>';
+        MON.forEach((m, mi) => {
+            if (!years.some(y => val(y, mi + 1) !== null && val(y, mi + 1) !== undefined)) return;
+            tbl += `<tr><td>${m}</td>` + years.map(y => { const t = tmp(y, mi + 1), r = (yearData.years[y] || {})[mi + 1];
+                return `<td>${fmt(val(y, mi + 1))}${t !== null && t !== undefined ? ` <span class="hint">${num(t, 1)}°</span>` : ''}${r && r.p ? ' <span class="hint">(lfd.)</span>' : ''}</td>`; }).join('') + '</tr>';
+        });
+        if (yMetric !== 'az') tbl += '<tr><td><b>Summe</b></td>' + years.map(y => { const v = MON.reduce((s0, _, i) => s0 + (val(y, i + 1) || 0), 0); return `<td><b>${fmt(v)}</b></td>`; }).join('') + '</tr>';
+        $('yTable').innerHTML = tbl;
+        const svg = $('yChart'), W = svg.clientWidth, H = svg.clientHeight;
+        svg.innerHTML = '';
+        const all = years.flatMap(y => MON.map((_, i) => val(y, i + 1))).filter(v => v !== null && v !== undefined);
+        $('yEmpty').style.display = all.length ? 'none' : 'flex';
+        yGeo = null;
+        if (all.length && W > 60 && H > 50) {
+            svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+            const L = 40, R = 30, T = 8, B = 18, slot = (W - L - R) / 12;
+            const vMax = niceCeil(Math.max(0.1, ...all));
+            const temps = years.flatMap(y => MON.map((_, i) => tmp(y, i + 1))).filter(v => v !== null && v !== undefined);
+            let tLo = temps.length ? Math.floor(Math.min(...temps) / 5) * 5 : -5, tHi = temps.length ? Math.ceil(Math.max(...temps) / 5) * 5 : 20;
+            if (tHi - tLo < 12) tHi = tLo + 12;
+            tHi = tLo + Math.ceil((tHi - tLo) / 4) * 4;
+            const yv = (v) => H - B - v / vMax * (H - T - B), yt = (v) => H - B - (v - tLo) / (tHi - tLo) * (H - T - B);
+            for (let i = 0; i <= 4; i++) {
+                const yy = T + i * (H - T - B) / 4;
+                svgEl('line', { x1: L, x2: W - R, y1: yy, y2: yy, class: 'grid' }, svg);
+                svgEl('text', { x: L - 4, y: yy + 3, 'text-anchor': 'end' }, svg).textContent = num(vMax * (4 - i) / 4, YM[yMetric][1] && vMax < 10 ? 1 : 0);
+                svgEl('text', { x: W - R + 4, y: yy + 3 }, svg).textContent = num(tHi - i * (tHi - tLo) / 4, 0) + '°';
+            }
+            const bw = Math.max(2, Math.min(16, slot * 0.8 / years.length));
+            MON.forEach((m, mi) => {
+                svgEl('text', { x: L + slot * mi + slot / 2, y: H - 4, 'text-anchor': 'middle' }, svg).textContent = m;
+                years.forEach((y, yi) => {
+                    const v = val(y, mi + 1), x0 = L + slot * mi + (slot - bw * years.length) / 2 + yi * bw;
+                    if (v !== null && v !== undefined) svgEl('rect', { x: x0, y: yv(v), width: bw - 1, height: Math.max(0.5, H - B - yv(v)), rx: 1.5, style: `fill:${col(yi)}` }, svg);
+                    const t = tmp(y, mi + 1);
+                    if (t !== null && t !== undefined) svgEl('circle', { cx: x0 + bw / 2, cy: yt(t), r: 2.4, style: `fill:${col(yi)};stroke:var(--fg);stroke-width:.6` }, svg);
+                });
+            });
+            yGeo = { L, slot, years };
+        }
+    }
+    $('yChart').addEventListener('pointermove', (e) => {
+        if (!yGeo || !yearData) return;
+        const r = $('yChart').getBoundingClientRect(), mi = Math.floor((e.clientX - r.left - yGeo.L) / yGeo.slot);
+        const tip = $('yTip');
+        if (mi < 0 || mi > 11) { tip.style.display = 'none'; return; }
+        tip.innerHTML = `<b>${MON[mi]}</b><br>` + yGeo.years.map(y => { const d = (yearData.years[y] || {})[mi + 1];
+            return d ? `${y}: ${num(d.e, 0)} kWh · ${num(d.c, 0)} € · Ø ${num(d.t, 1)} °C · AZ ${num(d.az, 2)}` : `${y}: –`; }).join('<br>');
+        tip.style.display = 'block';
+        tip.style.left = Math.min(Math.max(0, yGeo.L + yGeo.slot * mi - 40), r.width - tip.offsetWidth) + 'px';
+    });
+    $('yChart').addEventListener('pointerleave', () => { $('yTip').style.display = 'none'; });
+    window.addEventListener('resize', () => { if (!$('sModeYear').hidden) drawYear(); });
+
     // ---------- Einsparempfehlungen ----------
     let tipsData = null;
     const fK = (v) => (v > 0 ? '+' : '') + num(v, 1) + ' K';
@@ -2577,6 +2796,7 @@
             + item('<i style="background:var(--hot)"></i>Warmwasser', num(r.ew, 1) + ' kWh', share(r.ew || 0))
             + item('<i style="background:var(--cold)"></i>Abtauen', num(r.ed, 2) + ' kWh', share(r.ed || 0))
             + item('Abtauungen', r.df === null ? '–' : r.df, delta(r.df, prev.df))
+            + (r.lk ? item('EVU-Sperre', r.lk >= 60 ? `${Math.floor(r.lk / 60)} h ${r.lk % 60} min` : `${r.lk} min`, delta(r.lk, prev.lk)) : '')
             + (r.st !== null && r.st !== undefined ? item('Verdichterstarts', r.st, delta(r.st, prev.st), r.rps ? `Ø ${r.rps} min Laufzeit je Start` : '') : '')
             + item('Wärme', num(r.h, 1) + ' kWh', delta(r.h, prev.h))
             + item('Arbeitszahl', num(r.az, 2), delta(r.az, prev.az, false))
@@ -2669,6 +2889,41 @@
         $('tempPop').hidden = true;
     });
 
+    // Bewegte Teile (Lüfter, Pumpenrad, Pumpen-Wellen) auf die eigene Ebene: dann wird beim Drehen nicht das ganze Schema neu gezeichnet
+    ['fan', 'impeller'].forEach(id => $('schemaFx').appendChild($(id)));
+    document.querySelectorAll('#schema .pump-ring').forEach(r => $('schemaFx').insertBefore(r, $('impeller')));
+
+    // SVG-Text in eine Breite einpassen: erst zweizeilig (Umbruch an Leerzeichen, „-“ oder „/“), dann kleiner
+    function fitSvgText(el, text, maxW) {
+        if (el.dataset.text === text) return;
+        el.dataset.text = text;
+        el.removeAttribute('font-size');
+        el.removeAttribute('dy');
+        el.textContent = text;
+        if (!text || el.getComputedTextLength() <= maxW) return;
+        const x = el.getAttribute('x');
+        let best = null;
+        for (let i = 1; i < text.length - 1; i++) {
+            if (!' -/'.includes(text[i])) continue;
+            const a = text.slice(0, text[i] === ' ' ? i : i + 1).trim(), b = text.slice(i + 1).trim();
+            const score = Math.abs(a.length - b.length);
+            if (!best || score < best.score) best = { a, b, score };
+        }
+        el.textContent = '';
+        const lines = best ? [best.a, best.b] : [text];
+        lines.forEach((t, k) => {
+            const ts = document.createElementNS(NS, 'tspan');
+            ts.setAttribute('x', x);
+            if (k > 0) ts.setAttribute('dy', '1.05em');
+            ts.textContent = t;
+            el.appendChild(ts);
+        });
+        el.setAttribute('font-size', '8');
+        if (lines.length > 1) el.setAttribute('dy', '-0.45em');
+        const widest = Math.max(...[...el.childNodes].map(n => n.getComputedTextLength()));
+        if (widest > maxW) el.setAttribute('font-size', (8 * maxW / widest).toFixed(2));
+    }
+
     // Pfad nur ändern, wenn er sich wirklich ändert (ein neu gesetzter Pfad startet die Fließ-Animation neu)
     const setD = (id, d) => { const e = $(id); if (e.getAttribute('d') !== d) e.setAttribute('d', d); };
 
@@ -2696,6 +2951,7 @@
         if (msg.cost) { costData = msg.cost; drawCost(); return; }
         if (msg.dhw) { dhwData = msg.dhw; drawDhw(); return; }
         if (msg.advice) { tipsData = msg.advice; drawTips(); return; }
+        if (msg.year) { yearData = msg.year; drawYear(); return; }
         if (msg.monitor) { monData = msg.monitor; drawMonitor(); return; }
         if (msg.powerDay) { // Antwort: 15-min-Werte eines Tages
             if (pwDayOff > 0 && msg.powerDay.date === dayOffDate(pwDayOff)) { pwDay = msg.powerDay; drawPower(); }
@@ -2734,7 +2990,7 @@
         $('kOutSub').textContent = td0 ? `↓${num(td0.min, 1)} ↑${num(td0.max, 1)} · Ø ${num(td0.avg, 1)}` : '';
         $('kOutSub').title = td0 ? `heute: Tiefstwert ${num(td0.min, 1)} °C, Höchstwert ${num(td0.max, 1)} °C, Mittel ${num(td0.avg, 1)} °C` : '';
         const defrosting = n('WEZStatus') === 8 || !!(msg.defrost && msg.defrost.active);
-        $('tStatus').textContent = defrosting ? f('WEZStatus') : has('WFAStatus') ? f('WFAStatus') : has('WEZStatus') ? f('WEZStatus') : '';
+        fitSvgText($('tStatus'), defrosting ? f('WEZStatus') : has('WFAStatus') ? f('WFAStatus') : has('WEZStatus') ? f('WEZStatus') : '', 92);
         $('tWezSoll').textContent = f('WEZSetpoint');
         $('tWezIst').textContent = f('WEZPower');
         $('tWezPower').textContent = f('Hours');
@@ -2849,6 +3105,8 @@
         $('schema').classList.toggle('running', pumping);
         $('schemaFx').classList.toggle('running', pumping);
         $('schema').classList.toggle('heating', !!msg.heating);
+        $('schemaFx').classList.toggle('heating', !!msg.heating);
+        $('schemaFx').classList.toggle('defrosting', defrosting);
         $('schema').classList.toggle('defrosting', defrosting);
         syncGlints();
         // offene Auswertung höchstens einmal pro Minute aktualisieren (laufender Tag/Woche/Monat)
