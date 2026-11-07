@@ -261,8 +261,12 @@
     .lvl button.custom.on { background: #9b6bd6; border-color: #9b6bd6; }
     /* Schema: Raumtemperaturen antippen */
     #roomTap, #dhwTap, #fbhInfo { cursor: pointer; }
-    #schema .sinfo circle { fill: none; stroke: var(--fg); stroke-opacity: .5; stroke-width: .8; }
-    #schema .sinfo text { font-size: 6.5px; font-weight: 700; opacity: .7; }
+    #schema .sinfo circle { fill: var(--box); stroke: var(--fg); stroke-opacity: .55; stroke-width: .9; }
+    #schema .sinfo circle.hit { fill: transparent; stroke: none; }
+    #schema .sinfo text { font-size: 8px; font-weight: 700; opacity: .75; }
+    #roomBox { fill: transparent; stroke: none; }
+    #roomTap.edit #roomBox { fill: var(--acc); fill-opacity: .1; stroke: var(--acc); stroke-width: 1; }
+    #schema #tRoomEdit { fill: var(--acc); }
     #schema .sbtn rect { fill: var(--acc); fill-opacity: .14; stroke: var(--acc); stroke-width: .9; }
     #schema .sbtn text { fill: var(--acc); font-size: 6.6px; font-weight: 600; }
     #schema .sbtn.on rect { fill: var(--hot); fill-opacity: .18; stroke: var(--hot); }
@@ -665,21 +669,18 @@
         </g>
         <g id="fbhSegs"></g>
         <path class="pipe fbh-flow" id="pipeFbh" d="M372 62 H428 V78 H380 V94 H428 V110 H380 V126 H428 V142 H372"/>
-        <!-- über der FBH: Titel, Info und Knopf zum Ändern der Raumtemperatur -->
-        <text class="title center" x="400" y="30">FBH</text>
-        <g id="fbhInfo" class="sinfo"><circle cx="424" cy="27" r="5"/><text class="center" x="424" y="29.4">i</text></g>
+        <!-- über der FBH: Raumtemperatur als große Tippfläche (öffnet „Raumtemperatur ändern“) + Info -->
         <g id="roomTap">
-            <g id="roomBtn" class="sbtn">
-                <rect x="376" y="37" width="62" height="13" rx="6.5"/>
-                <text class="center" x="407" y="45.8" textLength="56" lengthAdjust="spacingAndGlyphs">✎ Raumtemperatur ändern</text>
-            </g>
+            <rect id="roomBox" x="364" y="3" width="74" height="54" rx="8"/>
+            <text class="small center" x="401" y="15">Raum Ø</text>
+            <text class="center" x="401" y="30" id="tRoom" style="font-size:12px;font-weight:700"></text>
+            <text class="small center" x="401" y="41" id="tRoomDev" style="font-weight:600"></text>
+            <text class="center" x="401" y="52" id="tRoomEdit" style="font-size:7.5px;font-weight:700">✎ ändern</text>
         </g>
-        <!-- unter der FBH: Vorlauf, Raum Ø, Soll und Abweichung -->
-        <text class="center" x="400" y="162" id="tHc1"></text>
-        <g id="roomVals">
-            <text class="small center" x="400" y="175" id="tRoom"></text>
-            <text class="small center" x="400" y="187" id="tRoomDev" style="font-weight:600"></text>
-        </g>
+        <g id="fbhInfo" class="sinfo"><circle class="hit" cx="428" cy="14" r="11"/><circle cx="428" cy="14" r="6"/><text class="center" x="428" y="16.8">i</text></g>
+        <!-- unter der FBH wie früher: Titel und Vorlauf -->
+        <text class="title center" x="400" y="162">FBH</text>
+        <text class="center" x="400" y="175" id="tHc1"></text>
         <!-- Warmwasser aufheizen (bei aktiver Warmwassersteuerung), zwischen Speicher und Puffer -->
         <g id="dhwTap" class="sbtn">
             <rect x="254" y="94" width="40" height="30" rx="7"/>
@@ -3148,7 +3149,7 @@
         // ohne Puffer: Heizungszweig direkt vom Ventil zur FBH und von dort zurück
         $('bufferGroup').style.display = hasBuf ? '' : 'none';
         // ohne Puffer: Vorlauf links an der FBH herunter (Abstand zum Knopf „Raumtemperatur ändern“)
-        const heatPath = hasBuf ? 'M160 48 V16 H322 V40' : 'M160 48 V16 H358 V62 H372';
+        const heatPath = hasBuf ? 'M160 48 V16 H322 V40' : 'M160 48 V16 H350 V62 H372';
         setD('pipeHeat', heatPath);
         setD('bgHeat', heatPath);
         setD('pipeRetHeat', hasBuf ? 'M322 176 V218 H224' : 'M372 142 H360 V218 H224');
@@ -3158,15 +3159,18 @@
         const rsx = ctl && ctl.roomStats && ctl.roomStats.avgIst != null ? ctl.roomStats : null;
         if (rsx) {
             const dk = rsx.avgIst - rsx.avgSoll;
-            $('tRoom').textContent = `Raum Ø ${num(rsx.avgIst, 1)} °C`;
+            $('tRoom').textContent = `${num(rsx.avgIst, 1)} °C`;
             $('tRoomDev').textContent = `Soll ${num(rsx.avgSoll, 1)} · ${dk > 0 ? '+' : ''}${num(dk, 1)} K`;
             $('tRoomDev').style.fill = Math.abs(dk) <= 0.5 ? '#30a46c' : Math.abs(dk) <= 1.5 ? '#f2994a' : 'var(--hot)';
         } else {
-            $('tRoom').textContent = has('RoomSetpoint') ? 'Raum Soll ' + f('RoomSetpoint') : '';
-            $('tRoomDev').textContent = '';
+            $('tRoom').textContent = has('RoomSetpoint') ? f('RoomSetpoint') : '–';
+            $('tRoomDev').textContent = has('RoomSetpoint') ? 'Soll (Hoval)' : '';
+            $('tRoomDev').style.fill = '';
         }
         const canEdit = !!(ctl && ctl.ctl && ctl.heat);
-        $('roomBtn').style.display = canEdit ? '' : 'none';
+        $('roomTap').classList.toggle('edit', canEdit);
+        $('tRoomEdit').style.display = canEdit ? '' : 'none';
+        $('roomTap').style.cursor = canEdit ? 'pointer' : 'default';
         // Warmwasser aufheizen: Knopf zwischen Speicher und Puffer (nur mit Warmwassersteuerung)
         const dctl = ctl && ctl.dhwCtl && ctl.dhw;
         $('dhwTap').style.display = dctl ? '' : 'none';
