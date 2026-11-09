@@ -280,6 +280,16 @@ Dauer, Speichertemperatur oben vorher/nachher, Temperaturanstieg, Strom und Ø A
 Außentemperatur liegt (Hinweis auf verkalkten Wärmetauscher, zu wenig Volumenstrom, Fühlerproblem); geprüft wird direkt nach jeder Ladung.
 Die Spreizung (VL − RL) steht im Wärmepumpen-Symbol, im Betrieb farbig bewertet (grün 2,5–8 K).
 
+**Version 5.2:**
+- **Warmwasser-Hysterese (Symcon):** In Ladezeiten (Absenken/Eigene) wird erst nachgeladen, wenn der Speicher oben unter Soll − Hysterese
+  fällt, dann bis zum Soll; dazwischen Standby. Startet Hoval nicht von selbst, wird der Hoval-Soll nach 20 min angehoben. 0 = Hoval.
+- **Aufheizoptimierung:** Vor einem Wechsel auf eine höhere Temperatur (z.B. Absenkung → Komfort um 6:00) beginnt die Heizung so früh,
+  dass die Räume zur Startzeit warm sind. Die Aufheizgeschwindigkeit (K/h) wird je Außentemperatur (5-K-Bereiche) selbst gelernt.
+- **Maximaltemperatur Heizkreis:** schreibt 30690 (max. Vorlauf HK1, neue Schreib-Variable „WriteFlowMax“, Lesen über Datenpunkt
+  „Heizkreis 1 – max. Vorlauftemperatur“); Originalwert wird gesichert und beim Ausschalten zurückgeschrieben; begrenzt auch die Symcon-Kurve.
+- **Kosten tageweise:** frei wählbarer Zeitraum (Tag, 7/30 Tage, Monat, Jahr, Kalender) mit Vergleichszeitraum (davor, Vorjahr, frei):
+  Kosten, Verbrauch, Ø Außentemperatur, Heizgradtage, Heizen je Gradtag (witterungsbereinigt), Arbeitszahl, Tagesdiagramm und Liste.
+
 **Version 5.1:** Über der FBH steht jetzt **Raum Ø** groß (mit Soll und Abweichung) als große Tippfläche – Antippen öffnet
 „Raumtemperatur ändern“ (wenn die Heizungsregelung aktiv ist). ℹ mit größerer unsichtbarer Tippfläche fürs Handy.
 FBH-Titel und Vorlauf wieder unter der Fußbodenheizung.

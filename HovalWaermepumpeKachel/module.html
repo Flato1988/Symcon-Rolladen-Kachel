@@ -371,6 +371,24 @@
     .cost-cards .kpi .sub { font-size: 10.5px; opacity: .65; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     #viewStats .hint { font-size: 11px; opacity: .65; }
     .sec-title { font-size: 12px; font-weight: 600; margin-top: 4px; }
+    .crow { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12px; }
+    .crow input[type=date] { font: inherit; font-size: 12px; padding: 3px 6px; border-radius: 6px; border: 1px solid rgba(128, 128, 128, .35); background: transparent; color: inherit; min-height: 30px; }
+    .crow .k { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 3px; }
+    .crow label { display: inline-flex; align-items: center; gap: 4px; }
+    #crChart { flex: 1; width: 100%; min-height: 0; display: block; touch-action: pan-y; }
+    #crChart text { fill: var(--fg); font-size: 10px; opacity: .65; }
+    #crChart .grid { stroke: rgba(128, 128, 128, .22); stroke-width: 1; }
+    #crChart .ba { fill: var(--acc); opacity: .85; }
+    #crChart .bb { fill: rgba(128, 128, 128, .55); }
+    #crChart .ta { fill: none; stroke: var(--cold); stroke-width: 1.8; }
+    #crChart .tb { fill: none; stroke: var(--cold); stroke-width: 1.4; stroke-dasharray: 4 3; opacity: .6; }
+    #crTip { white-space: normal; max-width: 92%; }
+    #crChart .sel { fill: rgba(128, 128, 128, .14); }
+    .tbl td.up { color: #e5484d; } .tbl td.down { color: #16a34a; }
+    .tbl td:first-child, .tbl th:first-child { text-align: left; }
+    #crCards .kpi .sub { white-space: normal; }
+    .optbox .now { font-size: 12px; }
+    .optbox { border-top: 1px solid rgba(128, 128, 128, .2); padding-top: 6px; margin-top: 4px; display: flex; flex-direction: column; gap: 4px; }
     .sec-title .hint { font-weight: 400; opacity: .6; font-size: 11px; }
     #costChart, #dhwChart { flex: 1; width: 100%; min-height: 0; display: block; touch-action: pan-y; }
     #dhwChart text { fill: var(--fg); font-size: 10px; opacity: .65; }
@@ -755,6 +773,20 @@
         <div id="sDetail"></div>
         </div>
         <div class="smode" id="sModeCost" hidden>
+            <div class="sec-title">Zeitraum tageweise vergleichen</div>
+            <div class="crow"><span class="seg" id="crQ"><button data-q="1">Tag</button><button data-q="7">7 Tage</button><button data-q="30">30 Tage</button><button data-q="m">Monat</button><button data-q="y">Jahr</button></span>
+                <button class="nav" id="crPrev" title="früher">‹</button><button class="nav" id="crNext" title="später">›</button></div>
+            <div class="crow"><span><i class="k" style="background:var(--acc)"></i>Zeitraum</span><input type="date" id="crAf"> – <input type="date" id="crAt"></div>
+            <div class="crow"><label><input type="checkbox" id="crCmp" checked><i class="k" style="background:rgba(128,128,128,.55)"></i>Vergleich</label><input type="date" id="crBf"> – <input type="date" id="crBt">
+                <span class="seg" id="crBq"><button data-b="prev">davor</button><button data-b="year">Vorjahr</button></span></div>
+            <div class="cost-cards" id="crCards"></div>
+            <div class="chart-wrap" style="min-height:180px"><svg id="crChart"></svg><div id="crTip" class="tip"></div>
+                <div id="crEmpty" class="empty">Für diesen Zeitraum gibt es noch keine Tageswerte.</div></div>
+            <table class="tbl" id="crTable"></table>
+            <details id="crDays"><summary class="hint">Tageswerte als Liste</summary><div style="overflow-x:auto"><table class="tbl" id="crDayTbl"></table></div></details>
+            <div class="hint">Balken = Kosten je Tag (Zeitraum farbig, Vergleich grau, Tag für Tag nebeneinander), Linie = Ø Außentemperatur (Vergleich gestrichelt).
+                „Heizen je Gradtag“ rechnet die Witterung heraus: Heizstrom ÷ Σ (20 °C − Ø außen) – damit lassen sich ein milder und ein kalter Zeitraum fair vergleichen.</div>
+            <div class="sec-title">Laufende Zeiträume</div>
             <div class="cost-cards" id="cCards"></div>
             <div class="sec-title">Kosten je Tag nach Ø Außentemperatur <span class="hint" id="cPrice"></span></div>
             <div class="chart-wrap" style="min-height:170px">
@@ -1564,7 +1596,9 @@
         if (h.mode === 'frost') st = '<b>Frostschutz</b> – Heizkreis im Standby';
         else if (h.mode === 'const') st = `<b>Dauerbetrieb</b> ${tTxt(h.constTemp)}`;
         else if (h.prog.kind === 'off') st = '<b>Heizung aus</b> (Sommer)' + (h.prog.until ? ` bis ${until(h.prog.until)}` : '');
-        else st = `<b>${{ comfort: 'Komfort', eco: 'Absenkung', custom: 'Eigene Temperatur' }[h.prog.kind] || 'Komfort'}</b> ${tTxt(h.prog.temp)}` + (h.prog.until ? ` bis ${until(h.prog.until)}` : '');
+        else if (h.prog.kind === 'preheat') st = `<b>🔥 Vorheizen</b> auf ${tTxt(h.prog.temp)} für ${until(h.prog.until)}`;
+        else st = `<b>${{ comfort: 'Komfort', eco: 'Absenkung', custom: 'Eigene Temperatur' }[h.prog.kind] || 'Komfort'}</b> ${tTxt(h.prog.temp)}` + (h.prog.until ? ` bis ${until(h.prog.until)}` : '')
+            + (h.preheat && !h.preheatOn && h.mode === 'auto' ? ` <span class="hint">· Vorheizen ab ca. ${hhmm(h.preheat.start)}</span>` : '');
         if (ctl.rooms && !ctl.demand && h.mode !== 'frost') st += ' · <span class="hint">keine Raumanforderung → Standby</span>';
         $('cHeatState').innerHTML = st;
         $('cHeatHoval').textContent = h.hc1 ? `Hoval: ${h.hc1}${h.roomSet ? ' · ' + h.roomSet : ''}` : '';
@@ -1581,7 +1615,11 @@
         let ws;
         if (d.boost) ws = `<b>Aufheizen</b> ${tTxt(d.boost.temp)}`;
         else if (!d.prog) ws = '<b>Hoval-Programm</b> <span class="hint">(keine eigenen Ladezeiten)</span>';
-        else if (d.prog.kind !== 'off') ws = `<b>${{ comfort: 'Laden (abgesenkt)', boost: 'Aufheizen', custom: 'Laden' }[d.prog.level] || 'Laden'}</b> ${tTxt(d.prog.temp)}` + (d.prog.until ? ` bis ${until(d.prog.until)}` : '');
+        else if (d.prog.kind !== 'off') {
+            const hy = Number((ctl.settings || {}).dhwHyst) || 0;
+            ws = `<b>${{ comfort: 'Laden (abgesenkt)', boost: 'Aufheizen', custom: 'Laden' }[d.prog.level] || 'Laden'}</b> ${tTxt(d.prog.temp)}` + (d.prog.until ? ` bis ${until(d.prog.until)}` : '');
+            if (hy > 0 && d.prog.kind === 'on') ws += d.charge ? ' · <b>lädt</b>' : ` · <span class="hint">wartet, lädt unter ${tTxt(d.prog.temp - hy)}</span>`;
+        }
         else ws = '<b>Standby</b>' + (d.prog.until ? ` bis ${until(d.prog.until)}` : '');
         $('cDhwState').innerHTML = ws + (d.top !== null ? ` <span class="hint">· oben ${tTxt(d.top)}${d.bottom !== null && d.bottom !== undefined ? ' · unten ' + tTxt(d.bottom) : ''}</span>` : '');
         $('cDhwTemps').innerHTML = `<span>Absenken <b>${tTxt(d.comfort)}</b></span><span>Aufheizen <b>${tTxt(d.boostT)}</b></span><span>max. <b>${tTxt(d.max)}</b></span>`;
@@ -1765,8 +1803,8 @@
     // Einstellungen direkt in der jeweiligen Unterseite: Entwurf bearbeiten, erst mit "Speichern" übernehmen (Passwort)
     const opt = (list, v, dis) => list.map(([k, t]) => `<option value="${k}"${k === v ? ' selected' : ''}>${t}</option>`).join('');
     const SEC = {
-        heat: { custom: true, keys: ['seasonMode', 'winterBelow', 'summerAbove', 'ecoWinter', 'ecoTransition', 'comfortWinter', 'comfortTransition', 'comfortSummer', 'heatPrograms'] },
-        dhw: { custom: true, keys: ['dhwComfort', 'dhwBoost', 'dhwPrograms'] },
+        heat: { custom: true, keys: ['seasonMode', 'winterBelow', 'summerAbove', 'ecoWinter', 'ecoTransition', 'comfortWinter', 'comfortTransition', 'comfortSummer', 'heatPrograms', 'optOn', 'optMax', 'hcMaxOn', 'hcMax'] },
+        dhw: { custom: true, keys: ['dhwComfort', 'dhwBoost', 'dhwHyst', 'dhwPrograms'] },
         rooms: { seg: ['roomMode', 'Anforderung', [['any', 'ein Raum zu kalt'], ['avg', 'Durchschnitt zu kalt']], false],
                  fields: 'roomHyst:Hysterese K,roomMin:Mindestzeit zwischen Wechseln min' },
         limit: { fields: 'maxPeak:max. 15-min-Spitze gesamt kW,margin:Sicherheitsabstand kW,minHP:WP mindestens kW,hpMax:WP max. elektrisch kW' },
@@ -1997,14 +2035,39 @@
                     + (lvl === 'custom' ? `<span class="pt"><input type="number" step="0.5" data-i="${i}" data-c="Temp" value="${r.Temp}"${dis}>°C</span>` : `<span class="hint">${num(tempOf(r), 1)} °C</span>`)
                     + (unlocked ? `<button class="btn del" data-i="${i}" title="löschen">✕</button>` : '') + '</div>';
             }).join('') + '</div>';
-        if (unlocked) x += `<div><button class="btn" data-add>+ Zeit für ${SN[S]}</button></div>`
-            + '<div class="setbar"><span class="hint ed-msg"></span><button class="btn" data-reset>Zurücksetzen</button><button class="btn primary" data-save>Speichern</button></div>';
+        if (unlocked) x += `<div><button class="btn" data-add>+ Zeit für ${SN[S]}</button></div>`;
+        // Aufheizoptimierung
+        const onoff = (key) => '<span class="seg">' + [[1, 'an'], [0, 'aus']].map(([v, t]) => `<button data-ob="${key}" data-v="${v}" class="${(d[key] ? 1 : 0) === v ? 'on' : ''}"${dis}>${t}</button>`).join('') + '</span>';
+        const ph = h.preheat, rt = h.rate || {};
+        let os = '';
+        if (h.preheatOn && ph) os = `🔥 <b>Vorheizen läuft</b> – ${tTxt(ph.temp)} um ${until(ph.next)}` + (ph.ist !== null && ph.ist !== undefined ? ` · Raum Ø jetzt ${tTxt(ph.ist)}` : '');
+        else if (ph) os = `Nächster Anstieg: <b>${until(ph.next)}</b> auf ${tTxt(ph.temp)} → Beginn ca. <b>${hhmm(ph.start)}</b>`
+            + ` <span class="hint">(${ph.ist !== null && ph.ist !== undefined ? 'Raum Ø ' + tTxt(ph.ist) + ', ' : ''}${num(ph.rate, 2)} K/h ${ph.learned ? 'gelernt' : 'Startwert'}${ph.out !== null ? ' bei ' + num(ph.out, 1) + ' °C außen' : ''})</span>`;
+        else if (d.optOn) os = `<span class="hint">Kein Temperaturanstieg in den nächsten ${num(d.optMax, 1)} h.</span>`;
+        const bins = Object.entries(rt.bins || {}).sort((p, q) => Number(p[0]) - Number(q[0]));
+        const late = (l) => l.late === null || l.late === undefined ? 'nicht erreicht' : Math.abs(l.late) <= 10 ? 'pünktlich' : l.late > 0 ? `${l.late} min zu spät` : `${-l.late} min zu früh`;
+        x += `<div class="optbox"><div class="sec-title">Aufheizoptimierung <button class="info" data-info="opt" title="Erklärung">i</button></div>`
+            + `<div class="row"><span class="hint">Früher anfangen, damit die Komforttemperatur zur Startzeit erreicht ist</span>${onoff('optOn')}</div>`
+            + `<div class="fields"><label>max. Vorlaufzeit h<input type="number" step="0.5" data-k="optMax" value="${d.optMax ?? ''}"${dis}></label></div>`
+            + (os ? `<div class="now">${os}</div>` : '')
+            + (bins.length ? `<div class="hint">Gelernt: ${bins.map(([k, v]) => `${k} °C → <b>${num(v[0], 2)} K/h</b> (${v[1]}×)`).join(' · ')}</div>` : '<div class="hint">Noch nichts gelernt – Startwert 0,5 K/h; gemessen wird bei jedem Anstieg der Solltemperatur (braucht Raumfühler).</div>')
+            + ((rt.log || []).length ? '<div class="hint">Zuletzt: ' + rt.log.slice(-3).reverse().map(l => `${dtTxt(l.start)} ${num(l.from, 1)}→${num(l.to, 1)} °C, ${num(l.rate, 2)} K/h, ${late(l)}`).join(' · ') + '</div>' : '')
+            + '</div>';
+        // Maximaltemperatur Heizkreis
+        x += `<div class="optbox"><div class="sec-title">Maximaltemperatur Heizkreis <button class="info" data-info="hcmax" title="Erklärung">i</button></div>`
+            + `<div class="row"><span class="hint">Vorlauf begrenzen</span>${onoff('hcMaxOn')}</div>`
+            + `<div class="fields"><label>max. Vorlauf °C<input type="number" step="0.5" data-k="hcMax" value="${d.hcMax ?? ''}"${dis}></label>`
+            + `<label>Hoval (30690) gelesen<span class="hint" style="padding:4px 0">${h.vlMaxRead !== null && h.vlMaxRead !== undefined ? tTxt(h.vlMaxRead) : '– (Datenpunkt nicht eingetragen)'}</span></label></div>`
+            + `<div class="hint">Empfehlung Fußbodenheizung: <b>35–40 °C</b> (nie über 45 °C bei Zementestrich, 40 °C bei Holz-/Parkettboden).`
+            + (h.canVlMax ? '' : ' · <b>Schreib-Variable 30690 nicht eingetragen</b> – die Grenze wirkt dann nur auf die Symcon-Heizkurve.') + '</div></div>';
+        if (unlocked) x += '<div class="setbar"><span class="hint ed-msg"></span><button class="btn" data-reset>Zurücksetzen</button><button class="btn primary" data-save>Speichern</button></div>';
         body.innerHTML = x;
         const q = (sel) => body.querySelectorAll(sel);
         const keep = () => q('input[data-k]').forEach(i => { if (i.value !== '') d[i.dataset.k] = Number(i.value); });
         q('[data-unlock]').forEach(b => b.addEventListener('click', () => { const v = body.querySelector('.lpw').value; if (v) { pendingPw = v; ctlSend({ a: 'unlock', pw: v }); } }));
         q('[data-es]').forEach(b => b.addEventListener('click', () => { keep(); edSeason = b.dataset.es; renderHeatEd(el, d); }));
         q('[data-sm]').forEach(b => b.addEventListener('click', () => { keep(); d.seasonMode = Number(b.dataset.sm); renderHeatEd(el, d); }));
+        q('[data-ob]').forEach(b => b.addEventListener('click', () => { keep(); d[b.dataset.ob] = b.dataset.v === '1'; renderHeatEd(el, d); }));
         q('input[data-k]').forEach(i => i.addEventListener('change', () => { if (i.value !== '') { d[i.dataset.k] = Number(i.value); renderHeatEd(el, d); } }));
         q('[data-c]').forEach(e => e.addEventListener('change', () => { const r = d.heatPrograms[Number(e.dataset.i)]; r[e.dataset.c] = e.dataset.c === 'Temp' ? Number(e.value) : e.value; keep(); renderHeatEd(el, d); }));
         q('[data-lv]').forEach(b => b.addEventListener('click', () => {
@@ -2043,7 +2106,14 @@
         if (!unlocked) x += `<div class="lockrow"><span class="hint">🔒 Zum Ändern entsperren</span><input type="password" class="lpw" placeholder="Passwort" autocomplete="off" style="width:110px"><button class="btn primary" data-unlock>Entsperren</button></div>`;
         x += `<div class="fields"><label>Absenken °C<input type="number" step="0.5" data-k="dhwComfort" value="${d.dhwComfort ?? ''}"${dis}></label>`
             + `<label>Aufheizen °C<input type="number" step="0.5" data-k="dhwBoost" value="${d.dhwBoost ?? ''}"${dis}></label>`
+            + `<label>Hysterese K (0 = Hoval)<input type="number" step="0.5" data-k="dhwHyst" value="${d.dhwHyst ?? 0}"${dis}></label>`
             + `<label>max. (Passwort, oben)<span class="hint" style="padding:4px 0">${tTxt(max)} – höhere Werte werden begrenzt</span></label></div>`;
+        if (Number(d.dhwHyst) > 0) {
+            const ch = ctl.dhw.charge, ls = ctl.dhw.last;
+            x += '<div class="hint">' + (ch ? `🔥 Ladung läuft seit ${hhmm(ch.since)} (Start bei ${tTxt(ch.t0)}, Ziel ${tTxt(ch.temp)})${ch.kick ? ' · Hoval-Soll angehoben, weil Hoval nicht von selbst geladen hat' : ''}`
+                : `In Ladezeiten (Absenken/Eigene) wird erst geladen, wenn der Speicher oben unter <b>Soll − ${num(d.dhwHyst, 1)} K</b> fällt; dazwischen Standby. Aufheizen lädt immer.`)
+                + (ls ? ` · letzte Ladung ${dtTxt(ls.ts)}: ${num(ls.t0, 1)} → ${num(ls.t1, 1)} °C in ${ls.min} min` : '') + '</div>';
+        }
         x += '<div class="week"><span></span><div class="scale">' + [0, 6, 12, 18, 24].map(hh => `<span style="left:${hh / 24 * 100}%">${hh}</span>`).join('') + '</div>';
         [[1, 'Mo'], [2, 'Di'], [3, 'Mi'], [4, 'Do'], [5, 'Fr'], [6, 'Sa'], [0, 'So']].forEach(([wd, label]) => {
             const segs = d.dhwPrograms.filter(r => (DAYSETS[r.Days] || []).includes(wd)).map(r => {
@@ -2573,7 +2643,7 @@
         if (m === 'tips') { drawTips(); requestAction('Advice', JSON.stringify({ a: 'list' })); }
         if (m === 'dhw') { drawDhw(); requestAction('Dhw', ''); }
         if (m === 'energy') requestStats();
-        if (m === 'cost') { drawCost(); requestAction('Cost', ''); }
+        if (m === 'cost') { drawCost(); requestAction('Cost', ''); crInit(); drawCostRange(); crRequest(); }
         if (m === 'mon') { drawMonitor(); requestAction('Monitor', ''); }
     }
     document.querySelectorAll('#sMode button').forEach(b => b.addEventListener('click', () => showStatsMode(b.dataset.m)));
@@ -2611,7 +2681,175 @@
         $('cTable').innerHTML = '<tr><th>Ø Außen</th><th>Tage</th><th>kWh/Tag</th><th>€/Tag</th><th>≈ €/Monat</th><th>Arbeitszahl</th></tr>'
             + c.bins.map(b => `<tr><td>${b.from} … ${b.to} °C</td><td>${b.n}</td><td>${num(b.e, 1)}</td><td>${eur(b.c)}</td><td>${num(b.month, 0)} €</td><td>${b.az === null ? '–' : num(b.az, 2)}</td></tr>`).join('');
     }
-    window.addEventListener('resize', () => { if (!$('sModeCost').hidden) drawCost(); });
+    window.addEventListener('resize', () => { if (!$('sModeCost').hidden) { drawCost(); drawCostRange(); } });
+
+    // ---------- Kosten tageweise: frei wählbarer Zeitraum + Vergleichszeitraum ----------
+    let crData = null, crGeo = null, crQ = '7', crBMode = 'prev';
+    const isoD = (dt) => dt.getFullYear() + '-' + String(dt.getMonth() + 1).padStart(2, '0') + '-' + String(dt.getDate()).padStart(2, '0');
+    const parseD = (s) => { const m = /^(\d{4})-(\d\d)-(\d\d)$/.exec(s || ''); return m ? new Date(+m[1], +m[2] - 1, +m[3], 12) : null; };
+    const addD = (s, n) => { const d = parseD(s); d.setDate(d.getDate() + n); return isoD(d); };
+    const addY = (s, n) => { const d = parseD(s); d.setFullYear(d.getFullYear() + n); return isoD(d); };
+    const spanD = (a, b) => Math.round((parseD(b) - parseD(a)) / 86400000) + 1;
+    const dTxt = (s) => { const d = parseD(s); return d ? WD[d.getDay()] + ' ' + d.getDate() + '.' + (d.getMonth() + 1) + '.' + (d.getFullYear() !== new Date().getFullYear() ? String(d.getFullYear()).slice(2) : '') : ''; };
+    const monthEnd = (s) => { const d = parseD(s); return isoD(new Date(d.getFullYear(), d.getMonth() + 1, 0, 12)); };
+    function crSetA(af, at) {
+        const today = isoD(new Date());
+        $('crAf').value = af; $('crAt').value = at > today ? today : at;
+        crSetB();
+    }
+    function crSetB() {
+        const af = $('crAf').value, at = $('crAt').value;
+        if (!af || !at || !crBMode) return;
+        if (crBMode === 'year') { $('crBf').value = addY(af, -1); $('crBt').value = addY(at, -1); return; }
+        if (crQ === 'm' && af.endsWith('-01')) { const f = isoD(new Date(parseD(af).getFullYear(), parseD(af).getMonth() - 1, 1, 12)); $('crBf').value = f; $('crBt').value = monthEnd(f); return; }
+        if (crQ === 'y' && af.endsWith('-01-01')) { $('crBf').value = addY(af, -1); $('crBt').value = addY(af, -1).slice(0, 4) + '-12-31'; return; }
+        const n = spanD(af, at);
+        $('crBt').value = addD(af, -1); $('crBf').value = addD(af, -n);
+    }
+    function crQuick(q) {
+        crQ = q;
+        const now = new Date(), today = isoD(now);
+        if (q === 'm') crSetA(isoD(new Date(now.getFullYear(), now.getMonth(), 1, 12)), today);
+        else if (q === 'y') crSetA(now.getFullYear() + '-01-01', today);
+        else crSetA(addD(today, -(Number(q) - 1)), today);
+    }
+    function crInit() {
+        if ($('crAf').value) return;
+        try {
+            const s = JSON.parse(localStorage.getItem('hwpCr') || 'null');
+            if (s && s.q && s.q !== 'x') { crBMode = s.b || 'prev'; $('crCmp').checked = s.c !== false; crQuick(s.q); return; }
+            if (s && s.af) { crQ = 'x'; crBMode = s.b || ''; $('crCmp').checked = s.c !== false; ['af', 'at', 'bf', 'bt'].forEach(k => { $('cr' + k.charAt(0).toUpperCase() + k.charAt(1)).value = s[k] || ''; }); if (s.af && s.at) return; }
+        } catch (e) {}
+        crQuick('7');
+    }
+    function crRequest() {
+        const af = $('crAf').value, at = $('crAt').value, cmp = $('crCmp').checked;
+        document.querySelectorAll('#crQ button').forEach(b => b.classList.toggle('on', b.dataset.q === crQ));
+        document.querySelectorAll('#crBq button').forEach(b => { b.classList.toggle('on', b.dataset.b === crBMode); b.disabled = !cmp; });
+        $('crBf').disabled = $('crBt').disabled = !cmp;
+        if (!af || !at) return;
+        try { localStorage.setItem('hwpCr', JSON.stringify({ q: crQ, b: crBMode, c: cmp, af, at, bf: $('crBf').value, bt: $('crBt').value })); } catch (e) {}
+        const b = cmp && $('crBf').value && $('crBt').value ? [$('crBf').value, $('crBt').value] : null;
+        requestAction('CostRange', JSON.stringify({ a: [af, at], b }));
+    }
+    document.querySelectorAll('#crQ button').forEach(b => b.addEventListener('click', () => { crQuick(b.dataset.q); crRequest(); }));
+    document.querySelectorAll('#crBq button').forEach(b => b.addEventListener('click', () => { crBMode = b.dataset.b; crSetB(); crRequest(); }));
+    ['crAf', 'crAt'].forEach(id => $(id).addEventListener('change', () => { crQ = 'x'; if ($('crAf').value > $('crAt').value && $('crAt').value) { const t = $('crAf').value; $('crAf').value = $('crAt').value; $('crAt').value = t; } crSetB(); crRequest(); }));
+    ['crBf', 'crBt'].forEach(id => $(id).addEventListener('change', () => { crBMode = ''; crRequest(); }));
+    $('crCmp').addEventListener('change', crRequest);
+    function crShift(dir) {
+        const af = $('crAf').value, at = $('crAt').value;
+        if (!af || !at) return;
+        const today = isoD(new Date());
+        let nf, nt;
+        if (crQ === 'm' && af.endsWith('-01')) { const d = parseD(af); nf = isoD(new Date(d.getFullYear(), d.getMonth() + dir, 1, 12)); nt = monthEnd(nf); }
+        else if (crQ === 'y' && af.endsWith('-01-01')) { nf = addY(af, dir); nt = nf.slice(0, 4) + '-12-31'; }
+        else { const n = spanD(af, at); nf = addD(af, dir * n); nt = addD(at, dir * n); }
+        if (nf > today) return;
+        crSetA(nf, nt);
+        crRequest();
+    }
+    $('crPrev').addEventListener('click', () => crShift(-1));
+    $('crNext').addEventListener('click', () => crShift(1));
+
+    function drawCostRange() {
+        if ($('sModeCost').hidden) return;
+        const A = crData && crData.a, B = crData && $('crCmp').checked ? crData.b : null;
+        const svg = $('crChart');
+        svg.innerHTML = '';
+        crGeo = null;
+        if (!A) { $('crCards').innerHTML = ''; $('crTable').innerHTML = ''; $('crDayTbl').innerHTML = ''; $('crEmpty').style.display = 'flex'; return; }
+        if (crData.first) ['crAf', 'crAt', 'crBf', 'crBt'].forEach(id => { $(id).min = crData.first; $(id).max = isoD(new Date()); });
+        const a = A.sum, b = B ? B.sum : null;
+        const pct = (x, y) => x === null || y === null || x === undefined || y === undefined || !y ? null : (x - y) / Math.abs(y) * 100;
+        const dTag = (x, y, unit, digits, better) => {
+            if (x === null || y === null || x === undefined || y === undefined) return '<td></td>';
+            const p = unit === '%' ? pct(x, y) : x - y;
+            if (p === null) return '<td></td>';
+            const cls = better === 0 || Math.abs(p) < (unit === '%' ? 2 : 0.05) ? '' : ((p > 0) === (better > 0) ? 'down' : 'up');
+            return `<td class="${cls}">${p > 0 ? '+' : p < 0 ? '−' : '±'}${num(Math.abs(p), digits)}${unit === '%' ? ' %' : ' ' + unit}</td>`;
+        };
+        // Kacheln: Zeitraum mit Abweichung zum Vergleich
+        const card = (label, val, sub) => `<div class="kpi"><div class="label">${label}</div><div class="value">${val}</div><div class="sub">${sub}</div></div>`;
+        const cp = b ? pct(a.c, b.c) : null;
+        $('crCards').innerHTML = card(A.from === A.to ? dTxt(A.from) : `${dTxt(A.from)} – ${dTxt(A.to)}`, eur(a.c), cp === null ? `${a.n} Tage${a.missing ? ' · ' + a.missing + ' ohne Werte' : ''}` : `${cp > 0 ? '+' : '−'}${num(Math.abs(cp), 1)} % zum Vergleich (${eur(b.c)})`)
+            + card('Verbrauch', `${num(a.e, 1)} kWh`, `Heizen ${num(a.eh, 1)} · WW ${num(a.ew, 1)}` + (b ? ` · Vgl. ${num(b.e, 1)}` : ''))
+            + card('Ø Außentemperatur', a.t === null ? '–' : num(a.t, 1) + ' °C', b && b.t !== null ? `Vergleich ${num(b.t, 1)} °C` : (a.hdd ? `${num(a.hdd, 0)} Gradtage` : ''))
+            + card('Ø je Tag', eur(a.cDay), a.eDay !== null ? `${num(a.eDay, 1)} kWh/Tag` + (b && b.cDay !== null ? ` · Vgl. ${eur(b.cDay)}` : '') : '');
+        // Vergleichstabelle
+        const row = (label, x, y, fmt, unit, digits, better) => `<tr><td>${label}</td><td>${x === null || x === undefined ? '–' : fmt(x)}</td>` + (b ? `<td>${y === null || y === undefined ? '–' : fmt(y)}</td>` + dTag(x, y, unit, digits, better) : '') + '</tr>';
+        const kwh = (v) => num(v, 1) + ' kWh', deg = (v) => num(v, 1) + ' °C';
+        $('crTable').innerHTML = `<tr><th></th><th>Zeitraum</th>${b ? '<th>Vergleich</th><th>Differenz</th>' : ''}</tr>`
+            + row('Kosten', a.c, b && b.c, eur, '%', 1, -1)
+            + row('Strom gesamt', a.e, b && b.e, kwh, '%', 1, -1)
+            + row('davon Heizen', a.eh, b && b.eh, kwh, '%', 1, -1)
+            + row('davon Warmwasser', a.ew, b && b.ew, kwh, '%', 1, -1)
+            + row('Ø Kosten je Tag', a.cDay, b && b.cDay, eur, '%', 1, -1)
+            + row('Ø Außentemperatur', a.t, b && b.t, deg, 'K', 1, 0)
+            + row('Heizgradtage', a.hdd, b && b.hdd, (v) => num(v, 0), '%', 0, 0)
+            + row('Heizen je Gradtag', a.ehHdd, b && b.ehHdd, (v) => num(v, 2) + ' kWh', '%', 1, -1)
+            + row('Arbeitszahl', a.az, b && b.az, (v) => num(v, 2), '%', 1, 1)
+            + (a.lk || (b && b.lk) ? row('EVU-Sperre', a.lk, b && b.lk, (v) => num(v / 60, 1) + ' h', '%', 0, 0) : '')
+            + row('Tage mit Werten', a.n, b && b.n, (v) => String(v), '%', 0, 0);
+        const da = A.days, db = B ? B.days : [], n = Math.max(da.length, db.length);
+        // Tageswerte als Liste
+        const cell = (d) => !d ? '<td></td><td></td><td></td><td></td>' : d.e === null ? `<td>${dTxt(d.d)}</td><td>–</td><td>–</td><td>–</td>`
+            : `<td>${dTxt(d.d)}${d.p ? ' …' : ''}</td><td>${d.t !== null && d.t !== undefined ? num(d.t, 1) + ' °C' : '–'}</td><td>${num(d.e, 1)}</td><td>${eur(d.c)}</td>`;
+        $('crDayTbl').innerHTML = '<tr><th>Tag</th><th>Ø außen</th><th>kWh</th><th>Kosten</th>' + (B ? '<th>Vergleich</th><th>Ø außen</th><th>kWh</th><th>Kosten</th>' : '') + '</tr>'
+            + Array.from({ length: n }, (_, i) => '<tr>' + cell(da[i]) + (B ? cell(db[i]) : '') + '</tr>').join('');
+        const W = svg.clientWidth, H = svg.clientHeight; // erst nach dem Füllen messen
+        // Diagramm: Kosten je Tag, Tag für Tag nebeneinander, Ø Außentemperatur als Linie
+        const any = da.some(d => d.e !== null) || db.some(d => d.e !== null);
+        $('crEmpty').style.display = any ? 'none' : 'flex';
+        if (any && W > 60 && H > 50) {
+            svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+            const L = 36, R = 32, T = 10, Bm = 22, slot = (W - L - R) / n;
+            const cs = [...da, ...db].filter(d => d.e !== null);
+            const max = niceCeil(Math.max(0.2, ...cs.map(d => d.c)));
+            const ts = cs.filter(d => d.t !== null && d.t !== undefined).map(d => d.t);
+            const tMin = ts.length ? Math.floor(Math.min(...ts) - 1) : 0, tMax = ts.length ? Math.ceil(Math.max(...ts) + 1) : 10;
+            const y = (v) => H - Bm - v / max * (H - T - Bm), yt = (v) => H - Bm - (v - tMin) / Math.max(1, tMax - tMin) * (H - T - Bm);
+            for (let i = 0; i <= 4; i++) {
+                const yy = T + i * (H - T - Bm) / 4;
+                svgEl('line', { x1: L, x2: W - R, y1: yy, y2: yy, class: 'grid' }, svg);
+                svgEl('text', { x: L - 4, y: yy + 3, 'text-anchor': 'end' }, svg).textContent = axisNum(max * (4 - i) / 4) + ' €';
+                svgEl('text', { x: W - R + 4, y: yy + 3 }, svg).textContent = num(tMax - i * (tMax - tMin) / 4, 0) + '°';
+            }
+            const bw = B ? Math.max(1, slot * 0.4) : Math.max(2, Math.min(40, slot * 0.7));
+            const x0 = (i) => L + i * slot + (slot - (B ? bw * 2 + Math.min(2, slot * 0.05) : bw)) / 2;
+            da.forEach((d, i) => { if (d.e !== null) svgEl('rect', { x: x0(i), y: y(d.c), width: bw, height: Math.max(0.5, H - Bm - y(d.c)), rx: Math.min(2, bw / 3), class: 'ba' }, svg); });
+            db.forEach((d, i) => { if (d.e !== null) svgEl('rect', { x: x0(i) + bw + Math.min(2, slot * 0.05), y: y(d.c), width: bw, height: Math.max(0.5, H - Bm - y(d.c)), rx: Math.min(2, bw / 3), class: 'bb' }, svg); });
+            const line = (days, cls) => {
+                let dd = '', pen = false;
+                days.forEach((d, i) => { if (d.e === null || d.t === null || d.t === undefined) { pen = false; return; } dd += (pen ? 'L' : 'M') + (L + i * slot + slot / 2).toFixed(1) + ' ' + yt(d.t).toFixed(1); pen = true; });
+                if (dd) svgEl('path', { d: dd, class: cls }, svg);
+                if (n <= 45) days.forEach((d, i) => { if (d.e !== null && d.t !== null && d.t !== undefined) svgEl('circle', { cx: L + i * slot + slot / 2, cy: yt(d.t), r: 2, class: cls, style: 'fill:var(--cold)' }, svg); });
+            };
+            if (B) line(db, 'tb');
+            line(da, 'ta');
+            const step = Math.max(1, Math.ceil(n / Math.max(1, (W - L - R) / 42)));
+            da.forEach((d, i) => {
+                if (i % step) return;
+                const dt = parseD(d.d);
+                svgEl('text', { x: L + i * slot + slot / 2, y: H - 8, 'text-anchor': 'middle' }, svg).textContent = n === 1 ? dTxt(d.d) : dt.getDate() + '.' + (dt.getMonth() + 1) + '.';
+            });
+            crGeo = { L, slot, n, da, db };
+        }
+    }
+    function showCrTip(e) {
+        const tip = $('crTip');
+        if (!crGeo) return;
+        const r = $('crChart').getBoundingClientRect(), i = Math.floor((e.clientX - r.left - crGeo.L) / crGeo.slot);
+        if (i < 0 || i >= crGeo.n) { tip.style.display = 'none'; return; }
+        const line = (d, k) => !d ? '' : d.e === null ? `${k}${dTxt(d.d)}: keine Werte` : `${k}<b>${dTxt(d.d)}</b>: ${eur(d.c)} · ${num(d.e, 1)} kWh (Heizen ${num(d.eh ?? 0, 1)} · WW ${num(d.ew ?? 0, 1)})`
+            + (d.t !== null && d.t !== undefined ? ` · Ø ${num(d.t, 1)} °C` + (d.tmin !== null && d.tmin !== undefined ? ` (${num(d.tmin, 0)}…${num(d.tmax, 0)})` : '') : '');
+        tip.innerHTML = line(crGeo.da[i], '') + (crGeo.db.length ? '<br>' + line(crGeo.db[i], 'Vgl. ') : '');
+        tip.style.display = 'block';
+        tip.style.left = Math.min(Math.max(0, crGeo.L + (i + 0.5) * crGeo.slot - tip.offsetWidth / 2), r.width - tip.offsetWidth) + 'px';
+    }
+    $('crChart').addEventListener('pointermove', showCrTip);
+    $('crChart').addEventListener('pointerdown', showCrTip);
+    $('crChart').addEventListener('pointerleave', () => { $('crTip').style.display = 'none'; });
 
     // ---------- Warmwasser: Ladungen, Aufheizzeit je K nach Außentemperatur ----------
     let dhwData = null, dhwGeo = null;
@@ -2938,11 +3176,13 @@
         func: ['Funktionen', 'Hier werden die Steuerungsfunktionen mit dem Passwort ein- und ausgeschaltet.\n\nHeizungssteuerung: Symcon übernimmt Betriebsart, Zeitprogramm und Raum-Soll von Heizkreis 1.\nWarmwassersteuerung: Symcon übernimmt Ladezeiten und Temperaturen.\nRaumanforderung: Heizkreis nur freigeben, wenn ein Raum (oder der Durchschnitt) zu kalt ist.\nLeistungsbegrenzung: hält die 15-min-Spitze von Haus + WP unter dem Grenzwert.\nPV-Überschuss: nutzt Solarstrom-Überschuss als Wärme.\n\nAusschalten gibt die jeweilige Funktion an das Hoval-Programm „Woche 1“ zurück.'],
         holiday: ['Urlaub', 'Senkt während der Abwesenheit ab und endet automatisch.\n\nHeizung: „Absenkung“ = Absenktemperatur der aktuellen Saison, „Frostschutz“ = Heizkreis im Standby.\nWarmwasser: „aus“ = Standby (Hoval-Frostschutz bleibt aktiv), „40 °C“ = niedrige Temperatur.\n\nPlanbar im Voraus (Beginn in der Zukunft).'],
         heat: ['Heizung', 'Automatik: Zeitprogramm der Saison (Komfort, Absenkung oder eigene Temperatur je Zeit).\nFrostschutz: Heizkreis im Standby.\nDauer: feste Raumtemperatur ohne Zeitprogramm.\n\nSaison: Winter / Übergang / Sommer – manuell oder automatisch nach Ø 24 h Außentemperatur. Im Sommer heizt die Anlage nur in eigenen Zeiten.\n\nKomfort- und Absenktemperatur lassen sich auch direkt im Anlagenschema über „Soll ändern“ einstellen.'],
-        'ed-heat': ['Zeitprogramm', 'Je Saison stellst du die Komfort- und Absenktemperatur einmal ein. Jede Zeit wählt dann nur die Stufe:\nKomfort / Absenkung / Eigene (eigene Temperatur nur für diese Zeit).\n\nAußerhalb der Zeiten gilt die Absenkung (im Sommer: aus).\nDie Wochenübersicht zeigt je Tag, was gilt.\n\nSaison automatisch: Winter unter X °C, Sommer über Y °C (Ø der letzten 24 h, mit 1 K Hysterese).'],
+        'ed-heat': ['Zeitprogramm', 'Je Saison stellst du die Komfort- und Absenktemperatur einmal ein. Jede Zeit wählt dann nur die Stufe:\nKomfort / Absenkung / Eigene (eigene Temperatur nur für diese Zeit).\n\nAußerhalb der Zeiten gilt die Absenkung (im Sommer: aus).\nDie Wochenübersicht zeigt je Tag, was gilt.\n\nSaison automatisch: Winter unter X °C, Sommer über Y °C, dazwischen Übergang (Ø der letzten 24 h, mit 1 K Hysterese).\n\nAufheizoptimierung und Maximaltemperatur stehen unten im Editor.'],
         curve: ['Heizkurve', 'Hoval: Die Wärmepumpe berechnet den Vorlauf selbst aus ihrer Heizkurve.\n\nSymcon (selbstlernend): Hoval wird auf Konstantregelung gestellt, Symcon gibt den Vorlauf-Soll vor:\nGrundkurve (Fuß-/Auslegepunkt) + Verschiebung durch das Raum-Soll + gelernter Anteil je Außentemperatur.\nIst es im Schnitt zu kalt, hebt Symcon die Kurve bei dieser Außentemperatur langsam an (max. 0,3 K/h), ist es zu warm, senkt es sie ab.\n\nDie Hoval-Originalwerte werden vorher gesichert – „Auf Hoval-Werte zurücksetzen“ stellt alles wieder her.'],
         'ed-curve': ['Symcon-Heizkurve', 'Fußpunkt: Vorlauf bei 20 °C außen (für 20 °C Raum).\nAuslegepunkt: Vorlauf bei der Auslegungs-Außentemperatur (z.B. −12 °C).\nVorlauf min/max: Grenzen für den Sollwert.\nRaumsoll-Einfluss: um wie viel K der Vorlauf je 1 K höherem Raum-Soll steigt (Fußbodenheizung ca. 1,5).\nLernen: aus = feste Kurve ohne Anpassung.'],
         dhw: ['Warmwasser', 'Zeigt den aktuellen Zustand (Laden, Standby, Aufheizen).\n\nAufheizen: einmalig für 1–6 Stunden auf eine höhere Temperatur (z.B. vor dem Baden oder für den Legionellenschutz). Danach gilt wieder das Programm.\n\nDie maximale Warmwassertemperatur begrenzt alle Werte und ist nur mit Passwort änderbar.\n\nAufheizen geht auch direkt im Anlagenschema (Knopf neben dem Speicher).'],
-        'ed-dhw': ['Ladezeiten', 'Absenken: die normale (niedrigere) Ladetemperatur.\nAufheizen: die höhere Temperatur für bestimmte Zeiten.\nJede Ladezeit wählt Absenken, Aufheizen oder eine eigene Temperatur.\n\nAußerhalb der Ladezeiten: Standby (keine Ladung).\nOhne Ladezeiten regelt Hoval das Warmwasser selbst.'],
+        'ed-dhw': ['Ladezeiten', 'Absenken: die normale (niedrigere) Ladetemperatur.\nAufheizen: die höhere Temperatur für bestimmte Zeiten.\nJede Ladezeit wählt Absenken, Aufheizen oder eine eigene Temperatur.\n\nAußerhalb der Ladezeiten: Standby (keine Ladung).\nOhne Ladezeiten regelt Hoval das Warmwasser selbst.\n\nHysterese (Symcon): In den Ladezeiten wird erst nachgeladen, wenn der Speicher oben unter Soll − Hysterese fällt (z.B. 50 °C − 7 K = unter 43 °C), dann bis zum Soll geladen. Weniger, dafür längere Ladungen = weniger Verdichterstarts. 0 = Hoval-Schaltdifferenz.\nStartet Hoval die Ladung nicht von selbst (eigene Schaltdifferenz größer), hebt Symcon den Hoval-Sollwert nach 20 min an und beendet die Ladung beim eingestellten Soll.'],
+        opt: ['Aufheizoptimierung', 'Beispiel: Absenkung 22:00–6:00 auf 19,5 °C, ab 6:00 Komfort 21,5 °C.\nOhne Optimierung beginnt die Heizung erst um 6:00 – die Fußbodenheizung braucht dann Stunden.\nMit Optimierung rechnet Symcon: (21,5 °C − Raum Ø jetzt) ÷ Aufheizgeschwindigkeit = Vorlaufzeit und beginnt so früh, dass die 21,5 °C um 6:00 erreicht sind.\n\nDie Aufheizgeschwindigkeit (K/h) lernt Symcon bei jedem Anstieg selbst, getrennt nach Außentemperatur (je 5 K). Startwert 0,5 K/h. Unter „Zuletzt“ siehst du, ob es pünktlich war.\n\nmax. Vorlaufzeit: früher wird nie begonnen.\nBraucht Raumtemperaturfühler (Räume) für die Messung.'],
+        hcmax: ['Maximaltemperatur Heizkreis', 'Begrenzt den Vorlauf von Heizkreis 1 – Schutz für Estrich und Bodenbelag und gegen unnötig hohe (teure) Vorlauftemperaturen.\n\nMit Hoval-Heizkurve: wird in den Hoval-Parameter 30690 (max. Vorlauf HK1) geschrieben. Der Originalwert wird vorher gesichert und beim Ausschalten zurückgeschrieben.\nMit Symcon-Heizkurve: begrenzt zusätzlich den Vorlauf-Soll (auch PV-Anhebung).\n\nEmpfehlung Fußbodenheizung mit Wärmepumpe: 35–40 °C. Eine gut ausgelegte FBH braucht selbst bei −12 °C selten mehr als 35 °C. Mehr als 45 °C nur nach Rücksprache (Estrich-/Belagsfreigabe).'],
         rooms: ['Räume', 'Ø Ist / Ø Soll / Abweichung der berücksichtigten Räume.\nMit dem Schalter je Raum nimmst du einen Raum aus der Bewertung (z.B. Kaminzimmer).\n\nMit aktiver Raumanforderung wird der Heizkreis nur freigegeben, wenn Wärme gebraucht wird.'],
         'ed-rooms': ['Raumanforderung', '„Ein Raum zu kalt“: Anforderung, sobald irgendein Raum unter Soll − Hysterese liegt.\n„Durchschnitt zu kalt“: Anforderung nach dem Mittel aller berücksichtigten Räume – ruhiger, ein einzelner kalter Raum schaltet nicht.\n\nHysterese: Schaltabstand in K. Mindestzeit: so lange bleibt der Zustand mindestens bestehen.'],
         limit: ['Leistungsbegrenzung', 'Rechnet laufend die Energie der aktuellen Viertelstunde (Haus + WP) mit und gibt der WP über Smart Grid (27536) nur so viel Leistung frei, dass die 15-min-Spitze unter dem Grenzwert bleibt.'],
@@ -3057,6 +3297,7 @@
             return;
         }
         if (msg.cost) { costData = msg.cost; drawCost(); return; }
+        if (msg.costRange) { crData = msg.costRange; drawCostRange(); return; }
         if (msg.dhw) { dhwData = msg.dhw; drawDhw(); return; }
         if (msg.advice) { tipsData = msg.advice; drawTips(); return; }
         if (msg.year) { yearData = msg.year; drawYear(); return; }
