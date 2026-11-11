@@ -2088,6 +2088,99 @@ class HovalWaermepumpeKachel extends IPSModule
         return 'Hoval-Werte wiederhergestellt (' . implode(', ', $done) . ')';
     }
 
+    /**
+     * Gelernte Symcon-Kurve (Grundkurve + gelernter Anteil, für 20 °C Raum) als Hoval-Kurve: Fuß- und Auslegepunkt per
+     * gewichteter Ausgleichsrechnung (−15…15 °C, gelernte Bereiche dreifach), Auslegepunkt-Außentemperatur wie bei Hoval.
+     */
+    private function CurveFitToHoval(): ?array
+    {
+        $learn = $this->CurveLearnState();
+        $orig = json_decode($this->ReadAttributeString('HovalOriginal'), true) ?: [];
+        $at = (float) ($this->Value('CurveDesignAT') ?? ($orig['designAT'] ?? $this->Setting('cDesignAT')));
+        $learned = array_map('floatval', array_keys($learn['offsets']));
+        $s = ['w' => 0.0, 'a' => 0.0, 'b' => 0.0, 'c' => 0.0, 'd' => 0.0, 'e' => 0.0];
+        $curve = [];
+        for ($t = -15; $t <= 15; $t++) {
+            $sc = $this->SymconCurve((float) $t, 20.0, $learn);
+            $vl = $sc['base'] + $sc['learn'];
+            $curve[$t] = $vl;
+            $near = false;
+            foreach ($learned as $b) {
+                $near = $near || abs($b - $t) <= 2.5;
+            }
+            $w = $near ? 3.0 : 1.0;
+            $u = (20 - $t) / max(1, 20 - $at); // VL = Fuß·(1−u) + Auslegung·u
+            $s['a'] += $w * (1 - $u) ** 2;
+            $s['b'] += $w * (1 - $u) * $u;
+            $s['c'] += $w * $u ** 2;
+            $s['d'] += $w * (1 - $u) * $vl;
+            $s['e'] += $w * $u * $vl;
+        }
+        $det = $s['a'] * $s['c'] - $s['b'] ** 2;
+        if (abs($det) < 1e-9) {
+            return null;
+        }
+        $foot = round(($s['d'] * $s['c'] - $s['b'] * $s['e']) / $det, 1);
+        $design = round(($s['a'] * $s['e'] - $s['b'] * $s['d']) / $det, 1);
+        $max = 0.0;
+        $line = [];
+        foreach ($curve as $t => $vl) {
+            $fit = $foot + ($design - $foot) * (20 - $t) / max(1, 20 - $at);
+            $line[$t] = round($fit, 1);
+            $max = max($max, abs($fit - $vl));
+        }
+        return ['foot' => $foot, 'design' => $design, 'designAT' => $at, 'maxDev' => round($max, 1), 'line' => $line,
+                'learned' => count($learned), 'hovalFoot' => $this->Value('CurveFoot') ?? ($orig['foot'] ?? null),
+                'hovalDesign' => $this->Value('CurveDesign') ?? ($orig['design'] ?? null),
+                'canWrite' => $this->ReadPropertyInteger('WriteCurveFoot') > 0 && $this->ReadPropertyInteger('WriteCurveDesign') > 0];
+    }
+
+    /**
+     * Gelernte Kurve in die Hoval schreiben und auf die Hoval-Regelung (gesicherte Original-Regelstrategie, i.d.R. witterungsgeführt)
+     * zurückschalten. Die Symcon-Kurve bleibt dabei unverändert (Grundkurve = übernommene Kurve, Lernwerte als Rest) – ein späteres
+     * Wiedereinschalten setzt genau dort fort.
+     */
+    private function CurveToHoval(): array
+    {
+        $fit = $this->CurveFitToHoval();
+        if ($fit === null || !$fit['canWrite']) {
+            return ['ok' => false, 'msg' => 'In der Instanz „30618 Fußpunkt“ und „30615 Auslegepunkt“ unter „Heizkurve / Regelung – schreiben“ eintragen.'];
+        }
+        $learn = $this->CurveLearnState();
+        $old = [];
+        foreach (self::CURVE_BINS as $b) {
+            $old[$b] = $this->SymconCurve((float) $b, 20.0, $learn);
+        }
+        @RequestAction($this->ReadPropertyInteger('WriteCurveFoot'), $fit['foot']);
+        @RequestAction($this->ReadPropertyInteger('WriteCurveDesign'), $fit['design']);
+        // Symcon-Grundkurve = übernommene Kurve; Lernwerte so umrechnen, dass die Symcon-Kurve gleich bleibt
+        $this->SaveSettings(['cFoot' => $fit['foot'], 'cDesign' => $fit['design'], 'cDesignAT' => $fit['designAT'], 'curveMode' => 'hoval']);
+        // nur bisher gelernte Stützstellen behalten (ungelernte Bereiche folgen ab jetzt der übernommenen Geraden)
+        $offsets = [];
+        foreach (array_intersect_key($old, $learn['offsets']) as $b => $sc) {
+            $newBase = $this->SymconCurve((float) $b, 20.0, ['offsets' => []])['base'];
+            $rest = round($sc['base'] + $sc['learn'] - $newBase, 2);
+            if (abs($rest) >= 0.05) {
+                $offsets[$b] = max(-6, min(6, $rest));
+            }
+        }
+        $learn['offsets'] = $offsets;
+        $this->WriteAttributeString('CurveLearn', json_encode($learn));
+        $state = $this->GetCtlState();
+        // sofort zurück auf die gesicherte Regelstrategie (witterungsgeführt), nicht erst beim nächsten Durchlauf
+        $orig = json_decode($this->ReadAttributeString('HovalOriginal'), true) ?: [];
+        $strategy = (float) ($orig['strategy'] ?? 1);
+        $this->WriteTo('WriteStrategy', $strategy == 3 ? 1.0 : $strategy, 0.01, 0, 'ControlStrategy');
+        $state['curveActive'] = false;
+        $state['curveNow'] = null;
+        $state['curveTransfer'] = ['ts' => time(), 'foot' => $fit['foot'], 'design' => $fit['design'], 'designAT' => $fit['designAT'],
+                                   'oldFoot' => $fit['hovalFoot'], 'oldDesign' => $fit['hovalDesign']];
+        $this->SetCtlState($state);
+        $this->LogMessage('Gelernte Heizkurve in Hoval übernommen: ' . json_encode($state['curveTransfer']), KL_MESSAGE);
+        return ['ok' => true, 'msg' => 'In Hoval übernommen: Fußpunkt ' . $this->Number($fit['foot'], 1) . ' °C, Auslegepunkt '
+            . $this->Number($fit['design'], 1) . ' °C – Hoval regelt wieder selbst'];
+    }
+
     /** Daten für die Kachel: Kurven zum Vergleich, aktueller Punkt, Lernwerte */
     private function CurveView(array $state): array
     {
@@ -2102,8 +2195,18 @@ class HovalWaermepumpeKachel extends IPSModule
             $points[] = [$t, ($hFoot !== null && $hDesign !== null) ? round($hFoot + ($hDesign - $hFoot) * (20 - $t) / max(1, 20 - $hAT), 1) : null,
                          $sc['base'], round($sc['base'] + $sc['learn'], 1)];
         }
+        $fit = count($learn['offsets']) ? $this->CurveFitToHoval() : null;
+        if ($fit) {
+            foreach ($points as &$p) {
+                $p[] = $fit['line'][$p[0]] ?? null;
+            }
+            unset($p);
+            unset($fit['line']);
+        }
         $out = $this->OutdoorDamped();
         return [
+            'fit'       => $fit,
+            'transfer'  => $state['curveTransfer'] ?? null,
             'mode'      => $this->Setting('curveMode'),
             'out'       => $out === null ? null : round($out, 1),
             'now'       => $state['curveNow'] ?? null,
@@ -4031,7 +4134,7 @@ class HovalWaermepumpeKachel extends IPSModule
         $fmt = fn ($v) => number_format((float) $v, 1, ',', '');
 
         // ---- passwortgeschützt: Entsperren, Funktionen, Einstellungen, Räume, max. Warmwassertemperatur ----
-        if (in_array($a, ['unlock', 'feature', 'settings', 'room', 'maxTemp', 'curveMode', 'curveBackup', 'curveRestore', 'curveLearnReset', 'curveFromHoval'], true)) {
+        if (in_array($a, ['unlock', 'feature', 'settings', 'room', 'maxTemp', 'curveMode', 'curveBackup', 'curveRestore', 'curveLearnReset', 'curveFromHoval', 'curveToHoval'], true)) {
             $error = $this->CheckPassword($action['pw'] ?? '');
             if ($error !== null) {
                 return ['ok' => false, 'msg' => $error, 'locked' => true];
@@ -4085,6 +4188,8 @@ class HovalWaermepumpeKachel extends IPSModule
                     return $error === null ? ['ok' => true, 'msg' => 'Hoval-Werte gesichert'] : ['ok' => false, 'msg' => $error];
                 case 'curveRestore':
                     return ['ok' => true, 'msg' => $this->RestoreHoval()];
+                case 'curveToHoval':
+                    return $this->CurveToHoval();
                 case 'curveFromHoval':
                     $orig = json_decode($this->ReadAttributeString('HovalOriginal'), true) ?: [];
                     $values = ['cFoot' => $this->Value('CurveFoot') ?? ($orig['foot'] ?? null), 'cDesign' => $this->Value('CurveDesign') ?? ($orig['design'] ?? null),

@@ -280,6 +280,11 @@ Dauer, Speichertemperatur oben vorher/nachher, Temperaturanstieg, Strom und Ø A
 Außentemperatur liegt (Hinweis auf verkalkten Wärmetauscher, zu wenig Volumenstrom, Fühlerproblem); geprüft wird direkt nach jeder Ladung.
 Die Spreizung (VL − RL) steht im Wärmepumpen-Symbol, im Betrieb farbig bewertet (grün 2,5–8 K).
 
+**Version 5.8:** Gelernte Symcon-Heizkurve in die Hoval übernehmen: Symcon berechnet die Hoval-Gerade (Fuß-/Auslegepunkt), die der
+gelernten Kurve am nächsten kommt (gelernte Bereiche dreifach gewichtet), zeigt sie im Diagramm („Vorschlag für Hoval“) mit der größten
+Abweichung und schreibt sie auf Knopfdruck in 30618/30615. Danach wird die gesicherte Original-Regelstrategie (witterungsgeführt)
+wiederhergestellt – fällt Symcon aus, regelt die Hoval mit der optimierten Kurve weiter. Gelernte Bereiche der Symcon-Kurve bleiben erhalten.
+
 **Version 5.7:** Symcon-Grundkurve folgt der aktuellen Hoval-Kurve (30618/30615/30612), solange sie nicht selbst eingestellt wurde
 (vorher Standardwerte 24/35 °C, die beim Speichern anderer Einstellungen mitgespeichert wurden). Neuer Knopf „Grundkurve = Hoval“.
 Gelernt wird weiterhin nur bei aktiver Symcon-Heizkurve.
