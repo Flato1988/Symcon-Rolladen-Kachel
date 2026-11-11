@@ -1934,8 +1934,9 @@ class HovalWaermepumpeKachel extends IPSModule
         if ($this->Setting('hcMaxOn')) {
             $target = min($target, (float) $this->Setting('hcMax'));        // Maximaltemperatur Heizkreis gilt immer
         }
-        $this->WriteTo('WriteStrategy', 3, 0.01, 1800, 'ControlStrategy');   // Konstantregelung
+        // erst den Vorlauf-Soll, dann die Konstantregelung – sonst gilt kurz der alte Hoval-Wert von 1490 (z.B. 70 °C)
         $this->WriteTo('WriteFlowConst', $target, 0.15, 1800, 'FlowConst');  // Vorlauf-Soll aus der Symcon-Kurve
+        $this->WriteTo('WriteStrategy', 3, 0.01, 1800, 'ControlStrategy');   // Konstantregelung
         $state['curveActive'] = true;
         $state['curveNow'] = $curve + ['target' => $target, 'pv' => round($pvBoost, 1), 'out' => round($out, 1), 'roomSet' => $roomSet, 'heating' => $heating];
         if ($this->Setting('cLearn') && !$holiday) {
