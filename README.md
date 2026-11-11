@@ -280,6 +280,10 @@ Dauer, Speichertemperatur oben vorher/nachher, Temperaturanstieg, Strom und Ø A
 Außentemperatur liegt (Hinweis auf verkalkten Wärmetauscher, zu wenig Volumenstrom, Fühlerproblem); geprüft wird direkt nach jeder Ladung.
 Die Spreizung (VL − RL) steht im Wärmepumpen-Symbol, im Betrieb farbig bewertet (grün 2,5–8 K).
 
+**Version 5.9:** Rücksetzpunkte der Heizkurve: ⭐ Original (zuerst gesicherte Hoval-Werte, wird nie überschrieben), „Hoval-Stand“
+(Knopf „Hoval-Stand sichern“ bzw. automatisch vor einer Übernahme) und jede übernommene Symcon-Kurve – je mit Datum, Werten und
+„Übernehmen“ (schreibt in die Hoval und schaltet auf Hoval-Regelung); max. 12 plus Original.
+
 **Version 5.8:** Gelernte Symcon-Heizkurve in die Hoval übernehmen: Symcon berechnet die Hoval-Gerade (Fuß-/Auslegepunkt), die der
 gelernten Kurve am nächsten kommt (gelernte Bereiche dreifach gewichtet), zeigt sie im Diagramm („Vorschlag für Hoval“) mit der größten
 Abweichung und schreibt sie auf Knopfdruck in 30618/30615. Danach wird die gesicherte Original-Regelstrategie (witterungsgeführt)

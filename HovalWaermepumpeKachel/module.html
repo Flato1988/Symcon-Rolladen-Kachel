@@ -395,6 +395,13 @@
     .tbl td:first-child, .tbl th:first-child { text-align: left; }
     #crCards .kpi .sub { white-space: normal; }
     .optbox .now, #cvFit .now { font-size: 12px; }
+    .snaps { display: flex; flex-direction: column; gap: 4px; }
+    .snap { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding: 6px 8px; border: 1px solid rgba(128, 128, 128, .25); border-radius: 8px; font-size: 12px; }
+    .snap.active { border-color: var(--acc); background: rgba(20, 184, 166, .08); }
+    .snap .t { font-weight: 600; flex: 1 1 180px; }
+    .snap .v { opacity: .75; flex: 1 1 200px; }
+    .snap .btn { min-height: 30px; }
+    .snap .b { display: inline-flex; gap: 6px; flex: 0 0 auto; margin-left: auto; }
     .optbox { border-top: 1px solid rgba(128, 128, 128, .2); padding-top: 6px; margin-top: 4px; display: flex; flex-direction: column; gap: 4px; }
     .sec-title .hint { font-weight: 400; opacity: .6; font-size: 11px; }
     #costChart, #dhwChart { flex: 1; width: 100%; min-height: 0; display: block; touch-action: pan-y; }
@@ -1056,9 +1063,10 @@
                 <div class="chart-wrap" style="min-height:190px"><svg id="cvChart" class="tchart"></svg><div id="cvTip" class="tip"></div></div>
                 <div class="hint" id="cvLearn"></div>
                 <div class="optbox" id="cvFit" hidden></div>
-                <div class="hint" id="cvOrig"></div>
-                <div class="setbar" id="cvButtons"><button class="btn" id="cvBackup">Originalwerte sichern</button><button class="btn" id="cvLearnReset">Lernwerte zurücksetzen</button><button class="btn" id="cvFromHoval" title="Fuß- und Auslegepunkt der Symcon-Grundkurve auf die aktuelle Hoval-Kurve setzen">Grundkurve = Hoval</button>
-                    <button class="btn warn" id="cvRestore">Auf Hoval-Werte zurücksetzen</button></div>
+                <div class="optbox"><div class="sec-title">Rücksetzpunkte <button class="info" data-info="cvsnap" title="Erklärung">i</button></div>
+                    <div class="hint" id="cvOrig"></div><div class="snaps" id="cvSnaps"></div></div>
+                <div class="setbar" id="cvButtons"><button class="btn" id="cvBackup">Hoval-Stand sichern</button><button class="btn" id="cvLearnReset">Lernwerte zurücksetzen</button><button class="btn" id="cvFromHoval" title="Fuß- und Auslegepunkt der Symcon-Grundkurve auf die aktuelle Hoval-Kurve setzen">Grundkurve = Hoval</button>
+                    <button class="btn warn" id="cvRestore" hidden>Auf Hoval-Werte zurücksetzen</button></div>
                 <div class="warnbox" id="cvMissing" hidden></div>
                 <details class="ed" data-sec="curve"><summary>⚙ Symcon-Heizkurve einstellen <button class="info" data-info="ed-curve" title="Erklärung">i</button></summary><div class="edbody"></div></details>
             </div>
@@ -1938,8 +1946,22 @@
             });
         }
         const o = c.original;
-        $('cvOrig').textContent = o ? `Hoval-Originalwerte gesichert am ${ddmm(o.ts)}: Regelstrategie ${o.strategy ?? '–'}, Vorlauf-Konstant ${num(o.flowConst, 1)} °C, Fußpunkt ${num(o.foot, 1)} °C, Auslegepunkt ${num(o.design, 1)} °C bei ${num(o.designAT, 0)} °C`
-            : 'Noch keine Hoval-Originalwerte gesichert (passiert automatisch beim ersten Umschalten auf Symcon).';
+        $('cvOrig').textContent = o ? '' : 'Noch keine Hoval-Originalwerte gesichert (passiert automatisch beim ersten Umschalten auf Symcon oder mit „Hoval-Stand sichern“).';
+        // Rücksetzpunkte: Original zuerst (bleibt immer), dann die weiteren – neueste oben
+        const SNAPK = { hoval: 'Hoval-Stand', symcon: 'Symcon-Kurve übernommen' };
+        const dfull = (ts) => { const d = new Date(ts * 1000); return d.toLocaleDateString('de-DE') + ' ' + hhmm(ts); };
+        const sval = (x) => `Fußpunkt <b>${num(x.foot, 1)} °C</b> · Auslegepunkt <b>${num(x.design, 1)} °C</b> bei ${num(x.designAT, 0)} °C`
+            + (x.strategy !== null && x.strategy !== undefined ? ` · Strategie ${num(x.strategy, 0)}` : '') + (x.vlMax !== null && x.vlMax !== undefined ? ` · max. ${num(x.vlMax, 0)} °C` : '')
+            + (x.maxDev !== undefined ? ` · Abw. ${num(x.maxDev, 1)} K` : '');
+        const rows = (o ? [{ id: 'orig', ts: o.ts, kind: 'orig', ...o }] : []).concat((c.snapshots || []).slice().reverse());
+        $('cvSnaps').innerHTML = rows.map(x => `<div class="snap${x.id === c.activeSnap ? ' active' : ''}"><span class="t">${x.kind === 'orig' ? '⭐ Original (Hoval)' : SNAPK[x.kind] || 'Stand'} vom ${dfull(x.ts)}${x.id === c.activeSnap ? ' <small>· aktiv</small>' : ''}</span>`
+            + `<span class="v">${sval(x)}</span>` + (unlocked ? `<span class="b"><button class="btn${x.kind === 'orig' ? ' warn' : ''}" data-snap="${x.id}">Übernehmen</button>`
+            + (x.kind !== 'orig' ? `<button class="btn del" data-snapdel="${x.id}" title="löschen">✕</button>` : '') + '</span>' : '') + '</div>').join('');
+        $('cvSnaps').querySelectorAll('[data-snap]').forEach(b => b.addEventListener('click', () => {
+            const x = rows.find(r => r.id === b.dataset.snap);
+            if (confirm(`${x.kind === 'orig' ? 'Original' : SNAPK[x.kind]} vom ${dfull(x.ts)} in die Hoval schreiben und auf die Hoval-Regelung umschalten?\n\nFußpunkt ${num(x.foot, 1)} °C, Auslegepunkt ${num(x.design, 1)} °C`)) ctlSend({ a: 'snapRestore', pw: pwMem, id: x.id });
+        }));
+        $('cvSnaps').querySelectorAll('[data-snapdel]').forEach(b => b.addEventListener('click', () => { if (confirm('Diesen Rücksetzpunkt löschen?')) ctlSend({ a: 'snapDelete', pw: pwMem, id: b.dataset.snapdel }); }));
         $('cvButtons').hidden = !unlocked;
         $('cvRestore').disabled = !o;
         const miss = [];
@@ -3364,6 +3386,7 @@
         'ed-curve': ['Symcon-Heizkurve', 'Fußpunkt: Vorlauf bei 20 °C außen (für 20 °C Raum).\nAuslegepunkt: Vorlauf bei der Auslegungs-Außentemperatur (z.B. −12 °C).\nVorlauf min/max: Grenzen für den Sollwert.\nRaumsoll-Einfluss: um wie viel K der Vorlauf je 1 K höherem Raum-Soll steigt (Fußbodenheizung ca. 1,5).\nLernen: aus = feste Kurve ohne Anpassung.'],
         dhw: ['Warmwasser', 'Zeigt den aktuellen Zustand (Laden, Standby, Aufheizen).\n\nAufheizen: einmalig für 1–6 Stunden auf eine höhere Temperatur (z.B. vor dem Baden oder für den Legionellenschutz). Danach gilt wieder das Programm.\n\nDie maximale Warmwassertemperatur begrenzt alle Werte und ist nur mit Passwort änderbar.\n\nAufheizen geht auch direkt im Anlagenschema (Knopf neben dem Speicher).'],
         'ed-dhw': ['Ladezeiten', 'Absenken: die normale (niedrigere) Ladetemperatur.\nAufheizen: die höhere Temperatur für bestimmte Zeiten.\nJede Ladezeit wählt Absenken, Aufheizen oder eine eigene Temperatur.\n\nAußerhalb der Ladezeiten: Standby (keine Ladung).\nOhne Ladezeiten regelt Hoval das Warmwasser selbst.\n\nHysterese (Symcon): In den Ladezeiten wird erst nachgeladen, wenn der Speicher oben unter Soll − Hysterese fällt (z.B. 50 °C − 7 K = unter 43 °C), dann bis zum Soll geladen. Weniger, dafür längere Ladungen = weniger Verdichterstarts. 0 = Hoval-Schaltdifferenz.\nStartet Hoval die Ladung nicht von selbst (eigene Schaltdifferenz größer), hebt Symcon den Hoval-Sollwert nach 20 min an und beendet die Ladung beim eingestellten Soll.'],
+        cvsnap: ['Rücksetzpunkte', 'Hier stehen alle gesicherten Stände der Heizkurve – mit „Übernehmen“ wird der Stand in die Hoval geschrieben und die Hoval regelt wieder selbst.\n\n⭐ Original: die Hoval-Werte, die als erstes gesichert wurden (beim ersten Umschalten auf Symcon). Das Original wird nie überschrieben und kann nicht gelöscht werden.\nHoval-Stand: mit „Hoval-Stand sichern“ oder automatisch vor jeder Übernahme einer Symcon-Kurve (falls der Stand noch nicht in der Liste ist).\nSymcon-Kurve übernommen: jede mit „In Hoval übernehmen“ geschriebene gelernte Kurve.\n\nMax. 12 Rücksetzpunkte plus Original – die ältesten fallen weg. „aktiv“ = zuletzt übernommen.'],
         cvfit: ['Gelernte Kurve übernehmen', 'Wenn die Symcon-Kurve gut eingestellt ist, kannst du sie in die Hoval schreiben und wieder auf die Hoval-Regelung umschalten. Fällt Symcon später aus, regelt die Hoval dann witterungsgeführt mit der optimierten Kurve weiter – statt mit einem festen Vorlauf (Konstantregelung).\n\nDie Hoval-Kurve ist eine Gerade zwischen Fußpunkt (20 °C außen) und Auslegepunkt. Symcon sucht die Gerade, die der gelernten Kurve am nächsten kommt (gelernte Bereiche zählen dreifach). „Größte Abweichung“ zeigt, wie gut das passt – unter 1 K ist sehr gut.\n\nBeim Übernehmen werden 30618 und 30615 geschrieben und die gesicherte Original-Regelstrategie wiederhergestellt. Die Symcon-Kurve bleibt erhalten: Schaltest du später wieder auf Symcon, lernt sie dort weiter.\n\nHinweis: Hoval und Symcon verschieben die Kurve bei anderen Raum-Solltemperaturen unterschiedlich stark – nach dem Umschalten ein paar Tage die Raumtemperaturen beobachten.'],
         opt: ['Aufheizoptimierung', 'Beispiel: Absenkung 22:00–6:00 auf 19,5 °C, ab 6:00 Komfort 21,5 °C.\nOhne Optimierung beginnt die Heizung erst um 6:00 – die Fußbodenheizung braucht dann Stunden.\nMit Optimierung rechnet Symcon: (21,5 °C − Raum Ø jetzt) ÷ Aufheizgeschwindigkeit = Vorlaufzeit und beginnt so früh, dass die 21,5 °C um 6:00 erreicht sind.\n\nDie Aufheizgeschwindigkeit (K/h) lernt Symcon bei jedem Anstieg selbst, getrennt nach Außentemperatur (je 5 K). Startwert 0,5 K/h. Unter „Zuletzt“ siehst du, ob es pünktlich war.\n\nmax. Vorlaufzeit: früher wird nie begonnen.\nBraucht Raumtemperaturfühler (Räume) für die Messung.'],
         hcmax: ['Maximaltemperatur Heizkreis', 'Begrenzt den Vorlauf von Heizkreis 1 – Schutz für Estrich und Bodenbelag und gegen unnötig hohe (teure) Vorlauftemperaturen.\n\nMit Hoval-Heizkurve: wird in den Hoval-Parameter 30690 (max. Vorlauf HK1) geschrieben. Der Originalwert wird vorher gesichert und beim Ausschalten zurückgeschrieben.\nMit Symcon-Heizkurve: begrenzt zusätzlich den Vorlauf-Soll (auch PV-Anhebung).\n\nEmpfehlung Fußbodenheizung mit Wärmepumpe: 35–40 °C. Eine gut ausgelegte FBH braucht selbst bei −12 °C selten mehr als 35 °C. Mehr als 45 °C nur nach Rücksprache (Estrich-/Belagsfreigabe).'],

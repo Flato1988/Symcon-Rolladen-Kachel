@@ -278,6 +278,8 @@ class HovalWaermepumpeKachel extends IPSModule
         $this->RegisterAttributeString('MonthlyHistory', '{}');
         // Heizkurve: gesicherte Hoval-Originalwerte, Lernwerte der Symcon-Heizkurve, gedämpfte Außentemperatur (3 h)
         $this->RegisterAttributeString('HovalOriginal', '');
+        // weitere Rücksetzpunkte der Heizkurve (Hoval-Stände, übernommene Symcon-Kurven); das Original bleibt immer erhalten
+        $this->RegisterAttributeString('CurveSnapshots', '[]');
         $this->RegisterAttributeString('CurveLearn', '');
         $this->RegisterAttributeFloat('OutAvg3h', -999);
         // Aufheizoptimierung: gelernte Aufheizgeschwindigkeit der Räume (K/h) je Außentemperatur, letzte Aufheizvorgänge
@@ -2038,16 +2040,85 @@ class HovalWaermepumpeKachel extends IPSModule
     /** Hoval-Originalwerte sichern (Regelstrategie, Vorlauf-Konstant, Heizkurve) – nur beim ersten Mal oder auf Wunsch */
     private function BackupHoval(bool $force = false): ?string
     {
-        if (!$force && $this->ReadAttributeString('HovalOriginal') !== '') {
+        $hasOriginal = $this->ReadAttributeString('HovalOriginal') !== '';
+        if (!$force && $hasOriginal) {
             return null;
         }
-        $values = ['strategy' => $this->Value('ControlStrategy'), 'flowConst' => $this->Value('FlowConst'), 'foot' => $this->Value('CurveFoot'),
-                   'design' => $this->Value('CurveDesign'), 'designAT' => $this->Value('CurveDesignAT'), 'vlMax' => $this->Value('CurveVlMax')];
+        $values = $this->HovalCurveValues();
         if ($values['strategy'] === null) {
             return 'Regelstrategie (27510) ist nicht als Datenpunkt eingetragen – Originalwerte können nicht gesichert werden.';
         }
+        if ($hasOriginal) {
+            // das zuerst gesicherte Original bleibt unangetastet – jede weitere Sicherung wird ein zusätzlicher Rücksetzpunkt
+            $this->AddSnapshot('hoval', $values);
+            return null;
+        }
         $this->WriteAttributeString('HovalOriginal', json_encode(['ts' => time()] + $values));
         return null;
+    }
+
+    /** Aktuelle Hoval-Werte für Heizkurve und Regelung (gelesene Datenpunkte) */
+    private function HovalCurveValues(): array
+    {
+        return ['strategy' => $this->Value('ControlStrategy'), 'flowConst' => $this->Value('FlowConst'), 'foot' => $this->Value('CurveFoot'),
+                'design' => $this->Value('CurveDesign'), 'designAT' => $this->Value('CurveDesignAT'), 'vlMax' => $this->Value('CurveVlMax')];
+    }
+
+    private function Snapshots(): array
+    {
+        return json_decode($this->ReadAttributeString('CurveSnapshots'), true) ?: [];
+    }
+
+    /** Rücksetzpunkt anlegen (kind: hoval = Hoval-Stand, symcon = übernommene Symcon-Kurve); max. 12, älteste fallen weg */
+    private function AddSnapshot(string $kind, array $values, array $extra = []): void
+    {
+        $list = $this->Snapshots();
+        $id = (string) time();
+        while (in_array($id, array_column($list, 'id'), true)) {
+            $id .= 'x';
+        }
+        $list[] = ['id' => $id, 'ts' => time(), 'kind' => $kind] + $values + $extra;
+        $this->WriteAttributeString('CurveSnapshots', json_encode(array_slice($list, -12)));
+    }
+
+    /** Rücksetzpunkt in die Hoval schreiben ("orig" = zuerst gesicherte Originalwerte) und auf die Hoval-Regelung schalten */
+    private function RestoreSnapshot(string $id): array
+    {
+        if ($id === 'orig') {
+            return ['ok' => true, 'msg' => $this->RestoreHoval()];
+        }
+        $snap = null;
+        foreach ($this->Snapshots() as $s) {
+            if ($s['id'] === $id) {
+                $snap = $s;
+            }
+        }
+        if ($snap === null) {
+            return ['ok' => false, 'msg' => 'Rücksetzpunkt nicht gefunden.'];
+        }
+        $done = [];
+        foreach (['foot' => 'WriteCurveFoot', 'design' => 'WriteCurveDesign', 'designAT' => 'WriteCurveDesignAT', 'vlMax' => 'WriteFlowMax'] as $key => $property) {
+            if (($snap[$key] ?? null) !== null && $this->ReadPropertyInteger($property) > 0) {
+                @RequestAction($this->ReadPropertyInteger($property), $snap[$key]);
+                $done[] = $key;
+            }
+        }
+        if (!in_array('foot', $done, true) || !in_array('design', $done, true)) {
+            return ['ok' => false, 'msg' => 'Zum Wiederherstellen „30618 Fußpunkt“ und „30615 Auslegepunkt“ unter „Heizkurve / Regelung – schreiben“ eintragen.'];
+        }
+        $strategy = $snap['strategy'] ?? null;
+        if ($strategy !== null && (int) $strategy !== 3) {
+            $this->WriteTo('WriteStrategy', (float) $strategy, 0.01, 0, 'ControlStrategy');
+        }
+        $this->SaveSettings(['curveMode' => 'hoval']);
+        $state = $this->GetCtlState();
+        $state['curveActive'] = false;
+        $state['curveNow'] = null;
+        $state['activeSnap'] = $id;
+        $this->SetCtlState($state);
+        $this->LogMessage('Heizkurven-Rücksetzpunkt wiederhergestellt: ' . json_encode($snap), KL_MESSAGE);
+        return ['ok' => true, 'msg' => 'Wiederhergestellt: Fußpunkt ' . $this->Number((float) $snap['foot'], 1) . ' °C, Auslegepunkt '
+            . $this->Number((float) $snap['design'], 1) . ' °C – Hoval regelt selbst'];
     }
 
     /** Symcon-Grundkurve beim ersten Einschalten aus der Hoval-Kurve übernehmen (gleiches Verhalten zum Start) */
@@ -2083,6 +2154,7 @@ class HovalWaermepumpeKachel extends IPSModule
         $state = $this->GetCtlState();
         $state['curveActive'] = false;
         $state['flowMaxActive'] = false;
+        $state['activeSnap'] = 'orig';
         $this->SetCtlState($state);
         $this->LogMessage('Hoval-Originalwerte wiederhergestellt: ' . json_encode($orig), KL_MESSAGE);
         return 'Hoval-Werte wiederhergestellt (' . implode(', ', $done) . ')';
@@ -2151,6 +2223,16 @@ class HovalWaermepumpeKachel extends IPSModule
         foreach (self::CURVE_BINS as $b) {
             $old[$b] = $this->SymconCurve((float) $b, 20.0, $learn);
         }
+        // bisherigen Hoval-Stand als Rücksetzpunkt sichern, falls er weder dem Original noch einem Rücksetzpunkt entspricht
+        $now = $this->HovalCurveValues();
+        $known = array_merge([json_decode($this->ReadAttributeString('HovalOriginal'), true) ?: []], $this->Snapshots());
+        $same = false;
+        foreach ($known as $k) {
+            $same = $same || (isset($k['foot'], $k['design']) && $now['foot'] !== null && abs($k['foot'] - $now['foot']) < 0.05 && abs($k['design'] - $now['design']) < 0.05);
+        }
+        if (!$same && $now['foot'] !== null && $now['design'] !== null) {
+            $this->AddSnapshot('hoval', $now);
+        }
         @RequestAction($this->ReadPropertyInteger('WriteCurveFoot'), $fit['foot']);
         @RequestAction($this->ReadPropertyInteger('WriteCurveDesign'), $fit['design']);
         // Symcon-Grundkurve = übernommene Kurve; Lernwerte so umrechnen, dass die Symcon-Kurve gleich bleibt
@@ -2175,6 +2257,10 @@ class HovalWaermepumpeKachel extends IPSModule
         $state['curveNow'] = null;
         $state['curveTransfer'] = ['ts' => time(), 'foot' => $fit['foot'], 'design' => $fit['design'], 'designAT' => $fit['designAT'],
                                    'oldFoot' => $fit['hovalFoot'], 'oldDesign' => $fit['hovalDesign']];
+        $this->AddSnapshot('symcon', ['strategy' => $strategy == 3 ? 1.0 : $strategy, 'foot' => $fit['foot'], 'design' => $fit['design'],
+                                      'designAT' => $fit['designAT'], 'vlMax' => $this->Value('CurveVlMax')], ['maxDev' => $fit['maxDev']]);
+        $snaps = $this->Snapshots();
+        $state['activeSnap'] = $snaps ? end($snaps)['id'] : null;
         $this->SetCtlState($state);
         $this->LogMessage('Gelernte Heizkurve in Hoval übernommen: ' . json_encode($state['curveTransfer']), KL_MESSAGE);
         return ['ok' => true, 'msg' => 'In Hoval übernommen: Fußpunkt ' . $this->Number($fit['foot'], 1) . ' °C, Auslegepunkt '
@@ -2207,6 +2293,8 @@ class HovalWaermepumpeKachel extends IPSModule
         return [
             'fit'       => $fit,
             'transfer'  => $state['curveTransfer'] ?? null,
+            'snapshots' => $this->Snapshots(),
+            'activeSnap' => $state['activeSnap'] ?? null,
             'mode'      => $this->Setting('curveMode'),
             'out'       => $out === null ? null : round($out, 1),
             'now'       => $state['curveNow'] ?? null,
@@ -4134,7 +4222,7 @@ class HovalWaermepumpeKachel extends IPSModule
         $fmt = fn ($v) => number_format((float) $v, 1, ',', '');
 
         // ---- passwortgeschützt: Entsperren, Funktionen, Einstellungen, Räume, max. Warmwassertemperatur ----
-        if (in_array($a, ['unlock', 'feature', 'settings', 'room', 'maxTemp', 'curveMode', 'curveBackup', 'curveRestore', 'curveLearnReset', 'curveFromHoval', 'curveToHoval'], true)) {
+        if (in_array($a, ['unlock', 'feature', 'settings', 'room', 'maxTemp', 'curveMode', 'curveBackup', 'curveRestore', 'curveLearnReset', 'curveFromHoval', 'curveToHoval', 'snapRestore', 'snapDelete'], true)) {
             $error = $this->CheckPassword($action['pw'] ?? '');
             if ($error !== null) {
                 return ['ok' => false, 'msg' => $error, 'locked' => true];
@@ -4185,11 +4273,17 @@ class HovalWaermepumpeKachel extends IPSModule
                     return ['ok' => true, 'msg' => 'Heizkurve: Hoval'];
                 case 'curveBackup':
                     $error = $this->BackupHoval(true);
-                    return $error === null ? ['ok' => true, 'msg' => 'Hoval-Werte gesichert'] : ['ok' => false, 'msg' => $error];
+                    return $error === null ? ['ok' => true, 'msg' => 'Aktueller Hoval-Stand als Rücksetzpunkt gesichert'] : ['ok' => false, 'msg' => $error];
                 case 'curveRestore':
                     return ['ok' => true, 'msg' => $this->RestoreHoval()];
                 case 'curveToHoval':
                     return $this->CurveToHoval();
+                case 'snapRestore':
+                    return $this->RestoreSnapshot((string) ($action['id'] ?? ''));
+                case 'snapDelete':
+                    $id = (string) ($action['id'] ?? '');
+                    $this->WriteAttributeString('CurveSnapshots', json_encode(array_values(array_filter($this->Snapshots(), fn ($x) => $x['id'] !== $id))));
+                    return ['ok' => true, 'msg' => 'Rücksetzpunkt gelöscht'];
                 case 'curveFromHoval':
                     $orig = json_decode($this->ReadAttributeString('HovalOriginal'), true) ?: [];
                     $values = ['cFoot' => $this->Value('CurveFoot') ?? ($orig['foot'] ?? null), 'cDesign' => $this->Value('CurveDesign') ?? ($orig['design'] ?? null),
