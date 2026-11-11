@@ -280,6 +280,9 @@ Dauer, Speichertemperatur oben vorher/nachher, Temperaturanstieg, Strom und Ø A
 Außentemperatur liegt (Hinweis auf verkalkten Wärmetauscher, zu wenig Volumenstrom, Fühlerproblem); geprüft wird direkt nach jeder Ladung.
 Die Spreizung (VL − RL) steht im Wärmepumpen-Symbol, im Betrieb farbig bewertet (grün 2,5–8 K).
 
+**Version 5.4:** Instanz-Formular: Hinweis bei „Heizkurve / Regelung“, dass diese Datenpunkte nur gelesen werden (Anzeige der Heizkurve,
+Sicherung der Originalwerte, Vorschläge, Rückkontrolle).
+
 **Version 5.3:** Instanz-Formular: Auswahlfelder breiter (720 px), damit die Bezeichnungen mit Registeradresse vollständig lesbar sind;
 Bereich „Heizkurve schreiben“ übersichtlicher (Register vorne, kurze Erklärungen je Gruppe).
 

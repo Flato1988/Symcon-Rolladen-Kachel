@@ -548,6 +548,12 @@ class HovalWaermepumpeKachel extends IPSModule
                     $items[] = ['type' => 'Label', 'caption' => 'Alle Werte S32 (2 Register, Startadresse „high“), Funktion 3. Temperaturen und Drehzahlen Faktor 0,1; '
                         . 'Niederdruck, Hochdruck und Überhitzung Faktor 0,01 (laut Messwerten, abweichend von der Hoval-Liste).'];
                     break;
+                case 'Heizkurve / Regelung (optional)':
+                    array_unshift($items,
+                        ['type' => 'Label', 'caption' => 'Nur LESEN – hier wird nichts verstellt. Verwendet für: Anzeige der Hoval-Heizkurve in der Kachel (Steuerung › Heizkurve),'],
+                        ['type' => 'Label', 'caption' => 'Sicherung der Hoval-Originalwerte vor dem Umschalten auf die Symcon-Heizkurve, Heizkurven-Vorschläge (Tipps)'],
+                        ['type' => 'Label', 'caption' => 'und Rückkontrolle, ob geschriebene Werte übernommen wurden. Zum Verstellen: unten „Heizkurve schreiben“ (dieselbe Variable ist möglich).']);
+                    break;
                 case 'Externer Zähler':
                     $items[] = ['type' => 'NumberSpinner', 'name' => 'PricePerKWh', 'caption' => 'Strompreis (Wärmepumpentarif)', 'suffix' => '€/kWh', 'digits' => 4, 'minimum' => 0];
                     $items[] = ['type' => 'NumberSpinner', 'name' => 'ReturnSetSpread', 'caption' => 'Soll-Spreizung für „RL-Soll“ im Leistungsdiagramm (RL-Soll = VL-Soll − Spreizung)', 'suffix' => 'K', 'digits' => 1, 'minimum' => 0];
