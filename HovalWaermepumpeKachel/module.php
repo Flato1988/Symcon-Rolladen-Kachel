@@ -3345,7 +3345,9 @@ class HovalWaermepumpeKachel extends IPSModule
                 'ctlOn' => $this->ReadPropertyBoolean('ControlEnabled'), 'roomsOn' => $this->ReadPropertyBoolean('RoomDemandEnabled'),
                 'limitOn' => $this->ReadPropertyBoolean('PowerLimitEnabled'), 'pvOn' => false,
                 'dhwComfort' => 50.0, 'dhwBoost' => 58.0, 'dhwHyst' => 0.0, 'optOn' => false, 'optMax' => 3.0, 'hcMaxOn' => false, 'hcMax' => 40.0,
-                'curveMode' => 'hoval', 'cLearn' => true, 'cFoot' => 24.0, 'cDesign' => 35.0, 'cDesignAT' => -12.0, 'cVlMin' => 20.0, 'cVlMax' => 45.0,
+                'curveMode' => 'hoval', 'cLearn' => true,
+                // Symcon-Grundkurve: solange nicht selbst eingestellt, gleich der aktuellen Hoval-Kurve
+                'cFoot' => $this->Value('CurveFoot') ?? 24.0, 'cDesign' => $this->Value('CurveDesign') ?? 35.0, 'cDesignAT' => $this->Value('CurveDesignAT') ?? -12.0, 'cVlMin' => 20.0, 'cVlMax' => 45.0,
                 'cRoomFactor' => 1.5, 'pvMethod' => 'sg', 'pvVlBoost' => 2.0, 'pvBufMax' => 45.0,
                 'seasonMode' => $this->ReadPropertyInteger('SeasonMode'), 'winterBelow' => $this->ReadPropertyFloat('SeasonWinterBelow'),
                 'summerAbove' => $this->ReadPropertyFloat('SeasonSummerAbove'), 'ecoWinter' => $this->ReadPropertyFloat('EcoWinter'),
@@ -3364,6 +3366,15 @@ class HovalWaermepumpeKachel extends IPSModule
             // Warmwassersteuerung war bis 4.3 Teil der Heizungssteuerung: beim ersten Mal deren Zustand übernehmen
             $defaults['dhwOn'] = $stored['ctlOn'] ?? $defaults['ctlOn'];
             $this->settingsCache = $stored + $defaults;
+            if (empty($this->settingsCache['cSet']) && $this->settingsCache['curveMode'] !== 'symcon') {
+                // Symcon-Grundkurve noch nie selbst eingestellt: immer der aktuellen Hoval-Kurve folgen
+                foreach (['cFoot' => 'CurveFoot', 'cDesign' => 'CurveDesign', 'cDesignAT' => 'CurveDesignAT'] as $k => $dp) {
+                    $v = $this->Value($dp);
+                    if ($v !== null) {
+                        $this->settingsCache[$k] = $v;
+                    }
+                }
+            }
         }
         return $this->settingsCache;
     }
@@ -3418,6 +3429,9 @@ class HovalWaermepumpeKachel extends IPSModule
                 }
                 $settings[$key] = $rows;
             }
+        }
+        if (array_intersect_key($changes, array_flip(['cFoot', 'cDesign', 'cDesignAT']))) {
+            $settings['cSet'] = true; // ab jetzt eigene Grundkurve
         }
         $this->WriteAttributeString('Settings', json_encode($settings));
         $this->settingsCache = null;
@@ -4017,7 +4031,7 @@ class HovalWaermepumpeKachel extends IPSModule
         $fmt = fn ($v) => number_format((float) $v, 1, ',', '');
 
         // ---- passwortgeschützt: Entsperren, Funktionen, Einstellungen, Räume, max. Warmwassertemperatur ----
-        if (in_array($a, ['unlock', 'feature', 'settings', 'room', 'maxTemp', 'curveMode', 'curveBackup', 'curveRestore', 'curveLearnReset'], true)) {
+        if (in_array($a, ['unlock', 'feature', 'settings', 'room', 'maxTemp', 'curveMode', 'curveBackup', 'curveRestore', 'curveLearnReset', 'curveFromHoval'], true)) {
             $error = $this->CheckPassword($action['pw'] ?? '');
             if ($error !== null) {
                 return ['ok' => false, 'msg' => $error, 'locked' => true];
@@ -4071,6 +4085,15 @@ class HovalWaermepumpeKachel extends IPSModule
                     return $error === null ? ['ok' => true, 'msg' => 'Hoval-Werte gesichert'] : ['ok' => false, 'msg' => $error];
                 case 'curveRestore':
                     return ['ok' => true, 'msg' => $this->RestoreHoval()];
+                case 'curveFromHoval':
+                    $orig = json_decode($this->ReadAttributeString('HovalOriginal'), true) ?: [];
+                    $values = ['cFoot' => $this->Value('CurveFoot') ?? ($orig['foot'] ?? null), 'cDesign' => $this->Value('CurveDesign') ?? ($orig['design'] ?? null),
+                               'cDesignAT' => $this->Value('CurveDesignAT') ?? ($orig['designAT'] ?? null)];
+                    if ($values['cFoot'] === null || $values['cDesign'] === null) {
+                        return ['ok' => false, 'msg' => 'Hoval-Heizkurve unbekannt – Fuß- und Auslegepunkt (30618, 30615) als Datenpunkte eintragen.'];
+                    }
+                    $this->SaveSettings(array_filter($values, fn ($v) => $v !== null));
+                    return ['ok' => true, 'msg' => 'Symcon-Grundkurve = Hoval-Kurve (Fußpunkt ' . $values['cFoot'] . ' °C, Auslegepunkt ' . $values['cDesign'] . ' °C)'];
                 case 'curveLearnReset':
                     $this->WriteAttributeString('CurveLearn', '');
                     return ['ok' => true, 'msg' => 'Lernwerte zurückgesetzt'];

@@ -1056,7 +1056,7 @@
                 <div class="chart-wrap" style="min-height:190px"><svg id="cvChart" class="tchart"></svg><div id="cvTip" class="tip"></div></div>
                 <div class="hint" id="cvLearn"></div>
                 <div class="hint" id="cvOrig"></div>
-                <div class="setbar" id="cvButtons"><button class="btn" id="cvBackup">Originalwerte sichern</button><button class="btn" id="cvLearnReset">Lernwerte zurücksetzen</button>
+                <div class="setbar" id="cvButtons"><button class="btn" id="cvBackup">Originalwerte sichern</button><button class="btn" id="cvLearnReset">Lernwerte zurücksetzen</button><button class="btn" id="cvFromHoval" title="Fuß- und Auslegepunkt der Symcon-Grundkurve auf die aktuelle Hoval-Kurve setzen">Grundkurve = Hoval</button>
                     <button class="btn warn" id="cvRestore">Auf Hoval-Werte zurücksetzen</button></div>
                 <div class="warnbox" id="cvMissing" hidden></div>
                 <details class="ed" data-sec="curve"><summary>⚙ Symcon-Heizkurve einstellen <button class="info" data-info="ed-curve" title="Erklärung">i</button></summary><div class="edbody"></div></details>
@@ -1971,6 +1971,7 @@
     document.querySelectorAll('#cvMode button').forEach(b => b.addEventListener('click', () => { if (unlocked) ctlSend({ a: 'curveMode', pw: pwMem, v: b.dataset.v }); }));
     $('cvBackup').addEventListener('click', () => ctlSend({ a: 'curveBackup', pw: pwMem }));
     $('cvLearnReset').addEventListener('click', () => ctlSend({ a: 'curveLearnReset', pw: pwMem }));
+    $('cvFromHoval').addEventListener('click', () => { drafts.curve = null; ctlSend({ a: 'curveFromHoval', pw: pwMem }); });
     let cvRestoreArmed = 0;
     $('cvRestore').addEventListener('click', () => {
         if (Date.now() - cvRestoreArmed > 4000) { cvRestoreArmed = Date.now(); toast('Zum Zurücksetzen nochmal tippen'); return; }
