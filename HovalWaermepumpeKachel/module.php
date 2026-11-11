@@ -625,14 +625,16 @@ class HovalWaermepumpeKachel extends IPSModule
             ['type' => 'Button', 'caption' => 'Testnachricht senden', 'onClick' => 'HWP_TestNotification($id);']
         ]];
         $elements[] = ['type' => 'ExpansionPanel', 'caption' => 'Heizkurve schreiben / Symcon-Heizkurve (optional)', 'items' => [
-            ['type' => 'Label', 'caption' => 'Damit Heizkurven-Vorschläge per Knopfdruck übernommen werden können: Modbus-Geräte mit Funktion 6, Faktor 0,1, S16. '
-                . 'Dieselben Geräte können oben unter „Heizkurve / Regelung“ auch zum Lesen eingetragen werden.'],
-            ['type' => 'SelectVariable', 'name' => 'WriteCurveFoot', 'caption' => 'Fußpunkt VL-Temperatur Heizkennlinie schreiben (30618)'],
-            ['type' => 'SelectVariable', 'name' => 'WriteCurveDesign', 'caption' => 'Auslegepunkt VL-Temperatur Heizkennlinie schreiben (30615)'],
-            ['type' => 'Label', 'caption' => 'Für die selbstlernende Symcon-Heizkurve (Umschalter in der Kachel): Hoval wird auf Konstantregelung gestellt und Symcon gibt den Vorlauf-Soll vor.'],
-            ['type' => 'SelectVariable', 'name' => 'WriteStrategy', 'caption' => 'Regelstrategie HK1 schreiben (27510, U8, Faktor 1)'],
-            ['type' => 'SelectVariable', 'name' => 'WriteFlowConst', 'caption' => 'Vorlauf-Soll Konstantanforderung Heizen HK1 schreiben (1490, S16, Faktor 0,1)'],
-            ['type' => 'SelectVariable', 'name' => 'WriteFlowMax', 'caption' => 'Max. Vorlauftemperatur HK1 schreiben (30690, S16, Faktor 0,1) – Maximaltemperatur Heizkreis']
+            ['type' => 'Label', 'caption' => 'Schreib-Variablen = Modbus-Geräte mit Funktion 6 (Write Single Register). Temperaturen: S16, Faktor 0,1; Regelstrategie: U8, Faktor 1.'],
+            ['type' => 'Label', 'caption' => 'Dieselben Register können oben unter „Heizkurve / Regelung (optional)“ zusätzlich zum Lesen eingetragen werden (Rückkontrolle).'],
+            ['type' => 'Label', 'caption' => '▸ Heizkurven-Vorschläge per Knopfdruck übernehmen:'],
+            ['type' => 'SelectVariable', 'name' => 'WriteCurveFoot', 'caption' => '30618 – Fußpunkt VL-Temperatur Heizkennlinie (schreiben)'],
+            ['type' => 'SelectVariable', 'name' => 'WriteCurveDesign', 'caption' => '30615 – Auslegepunkt VL-Temperatur Heizkennlinie (schreiben)'],
+            ['type' => 'Label', 'caption' => '▸ Selbstlernende Symcon-Heizkurve (Umschalter in der Kachel): Hoval auf Konstantregelung, Symcon gibt den Vorlauf-Soll vor:'],
+            ['type' => 'SelectVariable', 'name' => 'WriteStrategy', 'caption' => '27510 – Regelstrategie HK1 (schreiben, U8)'],
+            ['type' => 'SelectVariable', 'name' => 'WriteFlowConst', 'caption' => '1490 – Vorlauf-Soll Konstantanforderung Heizen HK1 (schreiben)'],
+            ['type' => 'Label', 'caption' => '▸ Maximaltemperatur Heizkreis (Einstellung in der Kachel unter Steuerung › Heizung):'],
+            ['type' => 'SelectVariable', 'name' => 'WriteFlowMax', 'caption' => '30690 – Max. Vorlauftemperatur HK1 (schreiben)']
         ]];
 
         // Eigene Klartexte für Status, Betriebsarten, Störungen
@@ -657,7 +659,7 @@ class HovalWaermepumpeKachel extends IPSModule
         $baseline = json_decode($this->ReadAttributeString('Baseline'), true);
         $since = $baseline ? date('d.m.Y H:i', $baseline['ts']) : 'noch nicht gestartet';
         return json_encode([
-            'elements' => $elements,
+            'elements' => self::WidenSelects($elements),
             'actions'  => [
                 ['type' => 'Label', 'caption' => 'Vergleichszeitraum für Energie und JAZ seit: ' . $since],
                 ['type' => 'Button', 'caption' => 'Speicherbedarf der Aufzeichnungen berechnen', 'onClick' => 'HWP_StorageInfo($id);'],
@@ -665,6 +667,20 @@ class HovalWaermepumpeKachel extends IPSModule
                  'confirm' => 'Energie- und JAZ-Vergleich ab jetzt neu beginnen?']
             ]
         ]);
+    }
+
+    /** Auswahlfelder breiter machen, damit die langen Bezeichnungen (mit Registeradresse) vollständig lesbar sind */
+    private static function WidenSelects(array $elements): array
+    {
+        foreach ($elements as &$e) {
+            if (isset($e['items']) && is_array($e['items'])) {
+                $e['items'] = self::WidenSelects($e['items']);
+            }
+            if (in_array($e['type'] ?? '', ['SelectVariable', 'Select', 'ValidationTextBox', 'PasswordTextBox'], true) && !isset($e['width'])) {
+                $e['width'] = '720px';
+            }
+        }
+        return $elements;
     }
 
     public function GetVisualizationTile()

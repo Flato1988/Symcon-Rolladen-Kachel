@@ -280,6 +280,9 @@ Dauer, Speichertemperatur oben vorher/nachher, Temperaturanstieg, Strom und Ø A
 Außentemperatur liegt (Hinweis auf verkalkten Wärmetauscher, zu wenig Volumenstrom, Fühlerproblem); geprüft wird direkt nach jeder Ladung.
 Die Spreizung (VL − RL) steht im Wärmepumpen-Symbol, im Betrieb farbig bewertet (grün 2,5–8 K).
 
+**Version 5.3:** Instanz-Formular: Auswahlfelder breiter (720 px), damit die Bezeichnungen mit Registeradresse vollständig lesbar sind;
+Bereich „Heizkurve schreiben“ übersichtlicher (Register vorne, kurze Erklärungen je Gruppe).
+
 **Version 5.2:**
 - **Warmwasser-Hysterese (Symcon):** In Ladezeiten (Absenken/Eigene) wird erst nachgeladen, wenn der Speicher oben unter Soll − Hysterese
   fällt, dann bis zum Soll; dazwischen Standby. Startet Hoval nicht von selbst, wird der Hoval-Soll nach 20 min angehoben. 0 = Hoval.
