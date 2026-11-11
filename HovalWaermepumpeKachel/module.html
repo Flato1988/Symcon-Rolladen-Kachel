@@ -382,7 +382,14 @@
     #crChart .bb { fill: rgba(128, 128, 128, .55); }
     #crChart .ta { fill: none; stroke: var(--cold); stroke-width: 1.8; }
     #crChart .tb { fill: none; stroke: var(--cold); stroke-width: 1.4; stroke-dasharray: 4 3; opacity: .6; }
-    #crTip { white-space: normal; max-width: 92%; }
+    #crTip, #hvTip, #hsTip { white-space: normal; max-width: 92%; }
+    #hvChart, #hsChart { flex: 1; width: 100%; min-height: 0; display: block; touch-action: pan-y; }
+    #hvChart text, #hsChart text { fill: var(--fg); font-size: 10px; opacity: .65; }
+    #hvChart .grid, #hsChart .grid { stroke: rgba(128, 128, 128, .22); stroke-width: 1; }
+    #hvChart .hh { fill: var(--heat); opacity: .85; } #hvChart .hw { fill: var(--hot); opacity: .85; } #hvChart .h { fill: var(--acc); opacity: .85; }
+    #hvChart .t { fill: none; stroke: var(--cold); stroke-width: 1.8; }
+    #hsChart .pt { fill: var(--acc); opacity: .35; } #hsChart .pt.sel { fill: var(--heat); opacity: .95; }
+    #hsChart .fit { stroke: var(--fg); stroke-width: 1.5; stroke-dasharray: 5 4; opacity: .6; fill: none; }
     #crChart .sel { fill: rgba(128, 128, 128, .14); }
     .tbl td.up { color: #e5484d; } .tbl td.down { color: #16a34a; }
     .tbl td:first-child, .tbl th:first-child { text-align: left; }
@@ -746,7 +753,7 @@
     </div>
 
     <div class="view" id="viewStats" hidden>
-        <div class="subnav" id="sMode"><button data-m="energy" class="on">Energie</button><button data-m="cost">Kosten</button><button data-m="year">Jahre</button><button data-m="dhw">Warmwasser</button><button data-m="mon">Überwachung <span id="sMonDot"></span></button><button data-m="tips">💡 Tipps</button></div>
+        <div class="subnav" id="sMode"><button data-m="energy" class="on">Energie</button><button data-m="cost">Kosten</button><button data-m="heat">Wärme</button><button data-m="year">Jahre</button><button data-m="dhw">Warmwasser</button><button data-m="mon">Überwachung <span id="sMonDot"></span></button><button data-m="tips">💡 Tipps</button></div>
         <div class="smode" id="sModeEnergy">
         <div class="stats-bar">
             <span class="seg" id="sPeriod">
@@ -795,6 +802,22 @@
             </div>
             <table class="tbl" id="cTable"></table>
             <div class="hint">Erfahrungswerte aus allen vollständigen Tagen. ≈ €/Monat = Ø Kosten je Tag × 30,4 bei gleichbleibender Außentemperatur.</div>
+        </div>
+        <div class="smode" id="sModeHeat" hidden>
+            <div class="sec-title">Erzeugte Wärme je Tag und Ø Außentemperatur</div>
+            <div class="crow"><span class="seg" id="hvQ"><button data-q="7">7 Tage</button><button data-q="30">30 Tage</button><button data-q="90">90 Tage</button><button data-q="365">Jahr</button></span>
+                <button class="nav" id="hvPrev" title="früher">‹</button><button class="nav" id="hvNext" title="später">›</button></div>
+            <div class="crow"><input type="date" id="hvF"> – <input type="date" id="hvT"></div>
+            <div class="cost-cards" id="hvCards"></div>
+            <div class="legend" style="margin:0"><span><i style="background:var(--heat)"></i>Heizen</span><span><i style="background:var(--hot)"></i>Warmwasser</span>
+                <span><i style="background:var(--acc)"></i>Wärme gesamt (ohne Aufteilung)</span><span><i style="background:var(--cold);height:3px"></i>Ø Außen</span></div>
+            <div class="chart-wrap" style="min-height:190px"><svg id="hvChart"></svg><div id="hvTip" class="tip"></div>
+                <div id="hvEmpty" class="empty">Für diesen Zeitraum gibt es noch keine Wärmewerte (Hoval-Wärmezähler oder Volumenstrom nötig).</div></div>
+            <div class="sec-title">Heizwärme je Tag über Ø Außentemperatur <span class="hint">· ohne Warmwasser, alle vollständigen Tage, gewählter Zeitraum orange</span></div>
+            <div class="chart-wrap" style="min-height:210px"><svg id="hsChart"></svg><div id="hsTip" class="tip"></div>
+                <div id="hsEmpty" class="empty">Noch zu wenig vollständige Tage.</div></div>
+            <div class="hint" id="hsLine"></div>
+            <details><summary class="hint">Tageswerte als Liste</summary><div style="overflow-x:auto"><table class="tbl" id="hvTbl"></table></div></details>
         </div>
         <div class="smode" id="sModeDhw" hidden>
             <div class="cost-cards" id="wCards"></div>
@@ -1889,7 +1912,7 @@
         $('cvState').innerHTML = sym && n
             ? `Außen Ø 3 h <b>${num(n.out, 1)} °C</b> → Vorlauf-Soll <b>${num(n.target, 1)} °C</b> <span class="hint">(Kurve ${num(n.base, 1)} ${n.room >= 0 ? '+' : '−'} Raum ${num(Math.abs(n.room), 1)} ${n.learn >= 0 ? '+' : '−'} gelernt ${num(Math.abs(n.learn), 1)}${n.pv ? ' + PV ' + num(n.pv, 1) : ''})</span>`
             : sym ? '<span class="hint">wartet auf Werte …</span>'
-            : `Hoval regelt selbst${hv.strategy !== null && hv.strategy !== undefined ? ' · ' + esc(ctl.strategy || '') : ''}${hv.foot !== null ? ` · Fußpunkt ${num(hv.foot, 1)} °C, Auslegepunkt ${num(hv.design, 1)} °C bei ${num(hv.designAT, 0)} °C` : ''}`;
+            : `Hoval regelt selbst${hv.strategy !== null && hv.strategy !== undefined ? ' · ' + esc(ctl.strategy || '') : ''}${hv.foot !== null ? ` · Fußpunkt ${num(hv.foot, 1)} °C, Auslegepunkt ${num(hv.design, 1)} °C bei ${num(hv.designAT, 0)} °C` : ''}${hv.boost !== null && hv.boost !== undefined ? ` · Überhöhung an WP ${num(hv.boost, 1)} K` : ''}`;
         const offs = c.offsets || {}, keys = Object.keys(offs).map(Number).sort((a, b) => a - b);
         $('cvLearn').innerHTML = keys.length ? 'Gelernt: ' + keys.map(k => `${k} °C <b style="color:${offs[k] > 0 ? 'var(--hot)' : 'var(--cold)'}">${offs[k] > 0 ? '+' : ''}${num(offs[k], 1)} K</b>`).join(' · ')
             : (sym ? 'Lernt aus der Raumabweichung (langsam, je Außentemperatur – ein paar Tage Geduld).' : '');
@@ -2639,6 +2662,8 @@
         $('sModeDhw').hidden = m !== 'dhw';
         $('sModeTips').hidden = m !== 'tips';
         $('sModeYear').hidden = m !== 'year';
+        $('sModeHeat').hidden = m !== 'heat';
+        if (m === 'heat') { hvInit(); drawHeatView(); hvRequest(); }
         if (m === 'year') { drawYear(); requestAction('Year', ''); }
         if (m === 'tips') { drawTips(); requestAction('Advice', JSON.stringify({ a: 'list' })); }
         if (m === 'dhw') { drawDhw(); requestAction('Dhw', ''); }
@@ -2836,6 +2861,142 @@
             crGeo = { L, slot, n, da, db };
         }
     }
+    // ---------- Wärme je Tag und Ø Außentemperatur ----------
+    let hvData = null, hvGeo = null, hsGeo = null, hvQ = '30';
+    function hvQuick(q) { hvQ = q; const today = isoD(new Date()); $('hvT').value = today; $('hvF').value = addD(today, -(Number(q) - 1)); }
+    function hvInit() {
+        if ($('hvF').value) return;
+        try { const s = JSON.parse(localStorage.getItem('hwpHv') || 'null'); if (s && s.f && s.t) { hvQ = s.q || 'x'; if (hvQ !== 'x') hvQuick(hvQ); else { $('hvF').value = s.f; $('hvT').value = s.t; } return; } } catch (e) {}
+        hvQuick('30');
+    }
+    function hvRequest() {
+        document.querySelectorAll('#hvQ button').forEach(b => b.classList.toggle('on', b.dataset.q === hvQ));
+        const f = $('hvF').value, t = $('hvT').value;
+        if (!f || !t) return;
+        try { localStorage.setItem('hwpHv', JSON.stringify({ q: hvQ, f, t })); } catch (e) {}
+        requestAction('HeatView', JSON.stringify({ a: [f, t] }));
+    }
+    document.querySelectorAll('#hvQ button').forEach(b => b.addEventListener('click', () => { hvQuick(b.dataset.q); hvRequest(); }));
+    ['hvF', 'hvT'].forEach(id => $(id).addEventListener('change', () => { hvQ = 'x'; if ($('hvF').value > $('hvT').value && $('hvT').value) { const x = $('hvF').value; $('hvF').value = $('hvT').value; $('hvT').value = x; } hvRequest(); }));
+    function hvShift(dir) {
+        const f = $('hvF').value, t = $('hvT').value; if (!f || !t) return;
+        const n = spanD(f, t), nf = addD(f, dir * n), today = isoD(new Date());
+        if (nf > today) return;
+        const nt = addD(t, dir * n);
+        $('hvF').value = nf; $('hvT').value = nt > today ? today : nt; hvRequest();
+    }
+    $('hvPrev').addEventListener('click', () => hvShift(-1));
+    $('hvNext').addEventListener('click', () => hvShift(1));
+    const kwh0 = (v) => v === null || v === undefined ? '–' : num(v, v >= 100 ? 0 : 1) + ' kWh';
+    function drawHeatView() {
+        if ($('sModeHeat').hidden) return;
+        const v = hvData;
+        if (!v) return;
+        const s = v.sum, days = v.days || [];
+        const card = (label, val, sub) => `<div class="kpi"><div class="label">${label}</div><div class="value">${val}</div><div class="sub">${sub}</div></div>`;
+        $('hvCards').innerHTML = card('Wärme erzeugt', kwh0(s.h), s.hw !== null ? `Heizen ${kwh0(s.hh)} · WW ${kwh0(s.hw)}` : `${s.n} Tage`)
+            + card('Ø je Tag', kwh0(s.hDay), s.max ? `max. ${kwh0(s.max[1])} (${dTxt(s.max[0])})` : '')
+            + card('Ø Außentemperatur', s.t === null ? '–' : num(s.t, 1) + ' °C', `${s.n} Tage mit Werten`)
+            + card('Arbeitszahl', s.az === null ? '–' : num(s.az, 2), 'Wärme ÷ Strom');
+        // Tabelle zuerst (Höhe steht), dann die Diagramme messen
+        $('hvTbl').innerHTML = '<tr><th>Tag</th><th>Ø außen</th><th>min/max</th><th>Wärme</th><th>Heizen</th><th>WW</th><th>Strom</th><th>AZ</th></tr>'
+            + days.slice().reverse().map(d => d.h === null ? `<tr><td>${dTxt(d.d)}</td><td>${d.t !== null && d.t !== undefined ? num(d.t, 1) + ' °C' : '–'}</td><td colspan="6" style="text-align:left;opacity:.5">keine Wärmewerte</td></tr>`
+                : `<tr><td>${dTxt(d.d)}${d.p ? ' …' : ''}</td><td>${d.t !== null ? num(d.t, 1) + ' °C' : '–'}</td><td>${d.tmin !== null && d.tmin !== undefined ? num(d.tmin, 0) + ' / ' + num(d.tmax, 0) : '–'}</td>`
+                + `<td>${num(d.h, 1)}</td><td>${d.hh !== null && d.hh !== undefined ? num(d.hh, 1) : '–'}</td><td>${d.hw !== null && d.hw !== undefined ? num(d.hw, 1) : '–'}</td><td>${d.e !== null && d.e !== undefined ? num(d.e, 1) : '–'}</td><td>${d.az !== null && d.az !== undefined ? num(d.az, 2) : '–'}</td></tr>`).join('');
+        const ln = v.line;
+        $('hsLine').innerHTML = ln ? `Ausgleichsgerade aus ${ln.n} Heiztagen (${ln.heatOnly ? 'Wärme Heizen ohne Warmwasser' : 'Wärme gesamt'}): je 1 K kälter ca. <b>${num(-ln.a, 1)} kWh/Tag</b> mehr · `
+            + `Heizgrenze ca. <b>${num(ln.limit, 1)} °C</b> · mittlere Heizlast bei −12 °C ca. <b>${num(ln.load12, 1)} kW</b>` + (ln.r2 !== null ? ` <span style="opacity:.7">(Bestimmtheit R² ${num(ln.r2, 2)})</span>` : '')
+            : 'Die Ausgleichsgerade (Heizgrenze, Heizlast) erscheint ab 7 vollständigen Heiztagen unter 14 °C.';
+        // Diagramm 1: Wärme je Tag (gestapelt Heizen/WW, wenn bekannt) + Ø Außentemperatur
+        const svg = $('hvChart'); svg.innerHTML = ''; hvGeo = null;
+        const any = days.some(d => d.h !== null);
+        $('hvEmpty').style.display = any ? 'none' : 'flex';
+        let W = svg.clientWidth, H = svg.clientHeight;
+        if (any && W > 60 && H > 50) {
+            svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+            const n = days.length, L = 40, R = 30, T = 10, B = 22, slot = (W - L - R) / n;
+            const max = niceCeil(Math.max(1, ...days.filter(d => d.h !== null).map(d => d.h)));
+            const ts = days.filter(d => d.t !== null && d.t !== undefined).map(d => d.t);
+            const tMin = ts.length ? Math.floor(Math.min(...ts) - 1) : 0, tMax = ts.length ? Math.ceil(Math.max(...ts) + 1) : 10;
+            const y = (val) => H - B - val / max * (H - T - B), yt = (val) => H - B - (val - tMin) / Math.max(1, tMax - tMin) * (H - T - B);
+            for (let i = 0; i <= 4; i++) {
+                const yy = T + i * (H - T - B) / 4;
+                svgEl('line', { x1: L, x2: W - R, y1: yy, y2: yy, class: 'grid' }, svg);
+                svgEl('text', { x: L - 4, y: yy + 3, 'text-anchor': 'end' }, svg).textContent = axisNum(max * (4 - i) / 4) + ' kWh';
+                svgEl('text', { x: W - R + 4, y: yy + 3 }, svg).textContent = num(tMax - i * (tMax - tMin) / 4, 0) + '°';
+            }
+            const bw = Math.max(1, Math.min(30, slot * 0.72));
+            days.forEach((d, i) => {
+                if (d.h === null) return;
+                const x0 = L + i * slot + (slot - bw) / 2;
+                if (d.hw !== null && d.hw !== undefined && d.hh !== null && d.hh !== undefined) {
+                    svgEl('rect', { x: x0, y: y(d.hh), width: bw, height: Math.max(0, H - B - y(d.hh)), class: 'hh' }, svg);
+                    svgEl('rect', { x: x0, y: y(d.hh + d.hw), width: bw, height: Math.max(0, y(d.hh) - y(d.hh + d.hw)), class: 'hw' }, svg);
+                } else svgEl('rect', { x: x0, y: y(d.h), width: bw, height: Math.max(0.5, H - B - y(d.h)), class: 'h' }, svg);
+            });
+            let path = '', pen = false;
+            days.forEach((d, i) => { if (d.t === null || d.t === undefined) { pen = false; return; } path += (pen ? 'L' : 'M') + (L + i * slot + slot / 2).toFixed(1) + ' ' + yt(d.t).toFixed(1); pen = true; });
+            if (path) svgEl('path', { d: path, class: 't' }, svg);
+            const step = Math.max(1, Math.ceil(n / Math.max(1, (W - L - R) / 42)));
+            days.forEach((d, i) => { if (i % step) return; const dt = parseD(d.d); svgEl('text', { x: L + i * slot + slot / 2, y: H - 8, 'text-anchor': 'middle' }, svg).textContent = dt.getDate() + '.' + (dt.getMonth() + 1) + '.'; });
+            hvGeo = { L, slot, n, days };
+        }
+        // Diagramm 2: Punktwolke Wärme über Außentemperatur
+        const sv = $('hsChart'); sv.innerHTML = ''; hsGeo = null;
+        const pts = v.points || [];
+        $('hsEmpty').style.display = pts.length >= 3 ? 'none' : 'flex';
+        W = sv.clientWidth; H = sv.clientHeight;
+        if (pts.length >= 3 && W > 60 && H > 50) {
+            sv.setAttribute('viewBox', `0 0 ${W} ${H}`);
+            const L = 40, R = 20, T = 10, B = 24;
+            const xs = pts.map(p => p[1]), x0 = Math.floor(Math.min(...xs, -5) / 5) * 5, x1 = Math.ceil(Math.max(...xs, 15) / 5) * 5;
+            const max = niceCeil(Math.max(1, ...pts.map(p => p[4])));
+            const x = (t) => L + (t - x0) / (x1 - x0) * (W - L - R), y = (val) => H - B - val / max * (H - T - B);
+            for (let i = 0; i <= 4; i++) {
+                const yy = T + i * (H - T - B) / 4;
+                svgEl('line', { x1: L, x2: W - R, y1: yy, y2: yy, class: 'grid' }, sv);
+                svgEl('text', { x: L - 4, y: yy + 3, 'text-anchor': 'end' }, sv).textContent = axisNum(max * (4 - i) / 4) + ' kWh';
+            }
+            for (let t = x0; t <= x1; t += 5) {
+                svgEl('line', { x1: x(t), x2: x(t), y1: T, y2: H - B, class: 'grid' }, sv);
+                svgEl('text', { x: x(t), y: H - 8, 'text-anchor': 'middle' }, sv).textContent = t + ' °C';
+            }
+            const inSel = (d) => v.from && d >= v.from && d <= v.to;
+            pts.filter(p => !inSel(p[0])).forEach(p => svgEl('circle', { cx: x(p[1]), cy: y(p[4]), r: 2.6, class: 'pt' }, sv));
+            pts.filter(p => inSel(p[0])).forEach(p => svgEl('circle', { cx: x(p[1]), cy: y(p[4]), r: 3.4, class: 'pt sel' }, sv));
+            if (ln) {
+                const a = Math.max(x0, -20), b = Math.min(x1, ln.limit);
+                if (b > a) svgEl('path', { d: `M${x(a).toFixed(1)} ${y(Math.max(0, ln.a * a + ln.b)).toFixed(1)}L${x(b).toFixed(1)} ${y(Math.max(0, ln.a * b + ln.b)).toFixed(1)}`, class: 'fit' }, sv);
+            }
+            hsGeo = { x, y, pts };
+        }
+    }
+    function showHvTip(e) {
+        const tip = $('hvTip'); if (!hvGeo) return;
+        const r = $('hvChart').getBoundingClientRect(), i = Math.floor((e.clientX - r.left - hvGeo.L) / hvGeo.slot), d = hvGeo.days[i];
+        if (!d) { tip.style.display = 'none'; return; }
+        tip.innerHTML = `<b>${dTxt(d.d)}</b>: ` + (d.h === null ? 'keine Wärmewerte' : `${num(d.h, 1)} kWh Wärme` + (d.hw !== null && d.hw !== undefined ? ` (Heizen ${num(d.hh, 1)} · WW ${num(d.hw, 1)})` : '')
+            + (d.az !== null && d.az !== undefined ? ` · AZ ${num(d.az, 2)}` : '')) + (d.t !== null && d.t !== undefined ? ` · Ø ${num(d.t, 1)} °C` : '');
+        tip.style.display = 'block';
+        tip.style.left = Math.min(Math.max(0, hvGeo.L + (i + 0.5) * hvGeo.slot - tip.offsetWidth / 2), r.width - tip.offsetWidth) + 'px';
+    }
+    function showHsTip(e) {
+        const tip = $('hsTip'); if (!hsGeo) return;
+        const r = $('hsChart').getBoundingClientRect(), px = e.clientX - r.left, py = e.clientY - r.top;
+        let best = null;
+        hsGeo.pts.forEach(p => { const dd = Math.hypot(hsGeo.x(p[1]) - px, hsGeo.y(p[4]) - py); if (!best || dd < best.dd) best = { dd, p }; });
+        if (!best || best.dd > 16) { tip.style.display = 'none'; return; }
+        const p = best.p;
+        tip.innerHTML = `<b>${dTxt(p[0])}</b>: Heizen ${num(p[4], 1)} kWh${p[3] === null ? ' (geschätzt)' : ''} · gesamt ${num(p[2], 1)} kWh · Ø ${num(p[1], 1)} °C`;
+        tip.style.display = 'block';
+        tip.style.left = Math.min(Math.max(0, hsGeo.x(p[1]) - tip.offsetWidth / 2), r.width - tip.offsetWidth) + 'px';
+    }
+    $('hvChart').addEventListener('pointermove', showHvTip); $('hvChart').addEventListener('pointerdown', showHvTip);
+    $('hvChart').addEventListener('pointerleave', () => { $('hvTip').style.display = 'none'; });
+    $('hsChart').addEventListener('pointermove', showHsTip); $('hsChart').addEventListener('pointerdown', showHsTip);
+    $('hsChart').addEventListener('pointerleave', () => { $('hsTip').style.display = 'none'; });
+    window.addEventListener('resize', () => { if (!$('sModeHeat').hidden) drawHeatView(); });
+
     function showCrTip(e) {
         const tip = $('crTip');
         if (!crGeo) return;
@@ -3298,6 +3459,7 @@
         }
         if (msg.cost) { costData = msg.cost; drawCost(); return; }
         if (msg.costRange) { crData = msg.costRange; drawCostRange(); return; }
+        if (msg.heatView) { hvData = msg.heatView; drawHeatView(); return; }
         if (msg.dhw) { dhwData = msg.dhw; drawDhw(); return; }
         if (msg.advice) { tipsData = msg.advice; drawTips(); return; }
         if (msg.year) { yearData = msg.year; drawYear(); return; }

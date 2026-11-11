@@ -280,6 +280,12 @@ Dauer, Speichertemperatur oben vorher/nachher, Temperaturanstieg, Strom und Ø A
 Außentemperatur liegt (Hinweis auf verkalkten Wärmetauscher, zu wenig Volumenstrom, Fühlerproblem); geprüft wird direkt nach jeder Ladung.
 Die Spreizung (VL − RL) steht im Wärmepumpen-Symbol, im Betrieb farbig bewertet (grün 2,5–8 K).
 
+**Version 5.5:**
+- Instanz-Formular: „Heizkurve / Regelung – lesen“ und „– schreiben“ direkt hintereinander, gleiche Reihenfolge. Neu: 30612 Auslegepunkt AT
+  schreiben (für das Zurücksetzen auf die Hoval-Werte) und 30684 „WEZ Überhöhung/Abschlag VL-Sollwert“ lesen (Anzeige in der Heizkurven-Karte).
+- Auswertung **Wärme**: erzeugte Wärme je Tag (Heizen/Warmwasser gestapelt, wenn der Hoval-Zähler Warmwasser 27488 eingetragen ist) mit
+  Ø Außentemperatur, frei wählbarer Zeitraum; Punktwolke Heizwärme über Außentemperatur mit Ausgleichsgerade (Heizgrenze, Heizlast bei −12 °C).
+
 **Version 5.4:** Instanz-Formular: Hinweis bei „Heizkurve / Regelung“, dass diese Datenpunkte nur gelesen werden (Anzeige der Heizkurve,
 Sicherung der Originalwerte, Vorschläge, Rückkontrolle).
 
