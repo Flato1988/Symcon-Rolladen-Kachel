@@ -1845,7 +1845,7 @@
                  hint: 'Grundkurve linear zwischen Fuß- und Auslegepunkt (für 20 °C Raum). Dazu: Raumsoll-Verschiebung und der gelernte Anteil je Außentemperatur. Beim ersten Einschalten werden die Hoval-Werte übernommen.' },
         pv: { seg: ['pvMethod', 'Verfahren', [['sg', 'Smart Grid (Offsets)'], ['vl', 'Vorlauf anheben']], false],
               fields: 'pvStart:Einschalten ab kW Überschuss,pvStartMin:… für mindestens min,pvStop:Ausschalten unter kW,pvStopMin:… für mindestens min,pvMinRun:Mindestlaufzeit min,pvOffRoom:Offset Raum HK1 K,pvOffDHW:Offset Warmwasser K,pvOffBuffer:Offset Puffer K,pvVlBoost:Vorlauf anheben ohne Puffer K (max. 3),pvBufMax:mit Puffer: Vorlauf bis °C',
-              hint: 'Überschuss = Einspeisung + aktuelle WP-Leistung. „Smart Grid“: Offsets und Vorzugsbetrieb. „Vorlauf anheben“ (braucht die Symcon-Heizkurve): ohne Puffer Vorlauf +1…3 K, mit Puffer bis zum Maximalwert, bis der Puffer unten durchgewärmt ist.' }
+              hint: 'Überschuss = Einspeisung + aktuelle WP-Leistung. „Smart Grid“: Offsets und Vorzugsbetrieb. „Vorlauf anheben“ ohne Smart Grid: mit der Symcon-Heizkurve Vorlauf +1…3 K (mit Puffer bis zum Maximalwert, bis er unten durchgewärmt ist); mit der Hoval-Kurve (auch „Hoval + Raum“) wird stattdessen das Raum-Soll an die Hoval um „Offset Raum HK1“ angehoben.' }
     };
     const secKeys = (sec) => { const c = SEC[sec]; if (c.keys) return c.keys; return [...(c.seg ? [c.seg[0]] : []), ...(c.fields ? c.fields.split(',').map(e => e.split(':')[0]) : []), ...(c.prog ? [c.prog] : [])]; };
     function renderEd(sec) {
@@ -3400,7 +3400,7 @@
         limit: ['Leistungsbegrenzung', 'Rechnet laufend die Energie der aktuellen Viertelstunde (Haus + WP) mit und gibt der WP über Smart Grid (27536) nur so viel Leistung frei, dass die 15-min-Spitze unter dem Grenzwert bleibt.'],
         'ed-limit': ['Grenzwerte', 'max. 15-min-Spitze: Grenze für Haus + WP.\nSicherheitsabstand: Reserve unter der Grenze.\nWP mindestens: darunter wird nie begrenzt.\nWP max. elektrisch: Leistung, bei der keine Begrenzung nötig ist.'],
         pv: ['PV-Überschuss', 'Überschuss = Einspeisung + aktuelle WP-Leistung.\nLiegt er die eingestellte Zeit über der Einschaltschwelle, wird die WP stärker genutzt; nach Mindestlaufzeit und Ausschaltverzögerung endet es wieder.'],
-        'ed-pv': ['PV-Einstellungen', 'Smart Grid: Offsets für Raum, Warmwasser und Puffer + Vorzugsbetrieb (Hoval-Anwendungsfall 8).\nVorlauf anheben: ohne Smart Grid, nur mit der Symcon-Heizkurve. Ohne Puffer +1…3 K, mit Puffer bis zum Maximalwert, bis der Puffer unten durchgewärmt ist.\n\nSchwellen in kW, Zeiten in Minuten.']
+        'ed-pv': ['PV-Einstellungen', 'Smart Grid: Offsets für Raum, Warmwasser und Puffer + Vorzugsbetrieb (Hoval-Anwendungsfall 8).\nVorlauf anheben (ohne Smart Grid): mit der Symcon-Heizkurve Vorlauf +1…3 K, mit Puffer bis zum Maximalwert, bis der Puffer unten durchgewärmt ist. Mit der Hoval-Kurve (auch „Hoval + Raum“) wird das Raum-Soll an die Hoval um „Offset Raum HK1“ angehoben – die Hoval-Kurve verschiebt sich dadurch nach oben, mit Raumaufschaltung zusätzlich um Raumeinfluss × Anhebung.\n\nKeine der Varianten braucht die Konstantregelung.\n\nSchwellen in kW, Zeiten in Minuten.']
     };
     function showInfo(key) {
         const i = INFO[key];

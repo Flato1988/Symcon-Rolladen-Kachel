@@ -3997,7 +3997,12 @@ class HovalWaermepumpeKachel extends IPSModule
                 $this->WriteTo('WriteHC1Mode', 0, 0.01, 1800, 'HC1Mode'); // Standby = Frostschutz
             } else {
                 // Rückkontrolle der Raumtemperatur über 1493 nur ohne PV-Offset (der hebt den Hoval-Sollwert an)
-                $this->WriteTo('WriteHC1Room', max(10, min(30, $target)), 0.01, 1800, empty($state['pvActive']) ? 'RoomSetpoint' : null);
+                // PV „Vorlauf anheben“ ohne Symcon-Heizkurve: Raum-Soll an die Hoval anheben (verschiebt die Hoval-Kurve nach oben,
+                // mit Raumaufschaltung kommt die Korrektur Raumeinfluss × Anhebung noch dazu) – Symcon-Räume/Lernen bleiben beim echten Soll
+                $pvRoom = ($this->Setting('pvOn') && $this->Setting('pvMethod') === 'vl' && $this->Setting('curveMode') !== 'symcon' && !empty($state['pvActive']))
+                    ? (float) $this->Setting('pvOffRoom') : 0.0;
+                $state['pvRoomBoost'] = $pvRoom;
+                $this->WriteTo('WriteHC1Room', max(10, min(30, $target + $pvRoom)), 0.01, 1800, empty($state['pvActive']) ? 'RoomSetpoint' : null);
                 $this->WriteTo('WriteHC1Mode', 4, 0.01, 1800, 'HC1Mode'); // Konstant mit Normal-Raumtemperatur
             }
             $heatingNow = !($holidayFrost || ($holiday === null && ($state['mode'] === 'frost' || ($state['mode'] === 'auto' && $program['kind'] === 'off'))) || !$demand);

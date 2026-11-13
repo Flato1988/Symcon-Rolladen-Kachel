@@ -280,6 +280,9 @@ Dauer, Speichertemperatur oben vorher/nachher, Temperaturanstieg, Strom und Ø A
 Außentemperatur liegt (Hinweis auf verkalkten Wärmetauscher, zu wenig Volumenstrom, Fühlerproblem); geprüft wird direkt nach jeder Ladung.
 Die Spreizung (VL − RL) steht im Wärmepumpen-Symbol, im Betrieb farbig bewertet (grün 2,5–8 K).
 
+**Version 6.1:** PV-Überschuss „Vorlauf anheben“ funktioniert jetzt auch mit der Hoval-Kurve und „Hoval + Raum“: statt des Vorlaufs wird das
+Raum-Soll an die Hoval um „Offset Raum HK1“ angehoben (Hoval-Kurve verschiebt sich nach oben). Keine PV-Variante braucht die Konstantregelung.
+
 **Version 6.0:**
 - Heizkurve **„Hoval + Raum“** (Raumaufschaltung): Die Hoval regelt mit ihrer eigenen Heizkurve und Regelstrategie 1 (Witterungsführung mit
   Raumaufschaltung); Symcon schreibt alle 5 min den Raumdurchschnitt nach 1510 (Raum-Ist HK1, neue Schreib-Variable „WriteRoomActual“,
