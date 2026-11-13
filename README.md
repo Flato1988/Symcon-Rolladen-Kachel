@@ -280,6 +280,14 @@ Dauer, Speichertemperatur oben vorher/nachher, Temperaturanstieg, Strom und Ø A
 Außentemperatur liegt (Hinweis auf verkalkten Wärmetauscher, zu wenig Volumenstrom, Fühlerproblem); geprüft wird direkt nach jeder Ladung.
 Die Spreizung (VL − RL) steht im Wärmepumpen-Symbol, im Betrieb farbig bewertet (grün 2,5–8 K).
 
+**Version 6.0:**
+- Heizkurve **„Hoval + Raum“** (Raumaufschaltung): Die Hoval regelt mit ihrer eigenen Heizkurve und Regelstrategie 1 (Witterungsführung mit
+  Raumaufschaltung); Symcon schreibt alle 5 min den Raumdurchschnitt nach 1510 (Raum-Ist HK1, neue Schreib-Variable „WriteRoomActual“,
+  Lesen über den Datenpunkt „Heizkreis 1 – Raum-Ist“). Rückkontrolle: übernimmt die Hoval den Wert 15 min nicht oder fehlen Raumwerte,
+  wird auf die Original-Strategie zurückgeschaltet. Raumeinfluss 03-007 am Bedienteil einstellen (FBH: 2). Fällt Symcon aus, regelt die
+  Hoval witterungsgeführt weiter.
+- **Heartbeat-URL** (Push-Benachrichtigungen): wird alle 5 min aufgerufen, z.B. healthchecks.io – meldet einen Ausfall von Symcon selbst.
+
 **Version 5.9:** Rücksetzpunkte der Heizkurve: ⭐ Original (zuerst gesicherte Hoval-Werte, wird nie überschrieben), „Hoval-Stand“
 (Knopf „Hoval-Stand sichern“ bzw. automatisch vor einer Übernahme) und jede übernommene Symcon-Kurve – je mit Datum, Werten und
 „Übernehmen“ (schreibt in die Hoval und schaltet auf Hoval-Regelung); max. 12 plus Original.

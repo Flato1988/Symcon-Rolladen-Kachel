@@ -37,6 +37,7 @@ class HovalWaermepumpeKachel extends IPSModule
         'HC1Status'       => ['Heizkreis 1 – Status', 1501, 'map:hc'],
         'HC1Mode'         => ['Heizkreis 1 – Betriebswahl', 1478, 'map:hcmode'],
         'RoomSetpoint'    => ['Heizkreis 1 – Raum-Soll', 1493, 'setp'],
+        'RoomActual'      => ['Heizkreis 1 – Raum-Ist (Hoval)', 1510, 'setp'],
         'HC1Pump'         => ['Heizkreis 1 – Umwälzpumpe', 19706, 'map:onoff'],
         'DHWSetpoint'     => ['Warmwasser – Solltemperatur', 1499, 'setp'],
         'StorageTop'      => ['Warmwasser – Isttemperatur oben (SF1)', 1500, 'temp'],
@@ -79,7 +80,7 @@ class HovalWaermepumpeKachel extends IPSModule
                                              'FlowTemp', 'ReturnTemp', 'WEZPower', 'FlowRate', 'PumpCP', 'ThermPower', 'ElecPower', 'COPPump', 'JAZPump', 'Hours', 'Cycles'],
         'Energiezähler (Hoval)'          => ['ElecEnergy', 'ThermEnergyHeat', 'ThermEnergyDHW'],
         'Externer Zähler'                => ['MeasuredPower', 'MeasuredEnergy'],
-        'Heizkreis 1 (FBH)'              => ['HC1FlowTemp', 'HC1FlowSetpoint', 'HC1Status', 'HC1Mode', 'RoomSetpoint', 'HC1Pump'],
+        'Heizkreis 1 (FBH)'              => ['HC1FlowTemp', 'HC1FlowSetpoint', 'HC1Status', 'HC1Mode', 'RoomSetpoint', 'RoomActual', 'HC1Pump'],
         'Warmwasser'                     => ['DHWSetpoint', 'StorageTop', 'StorageBottom', 'DHWStatus', 'DHWMode'],
         'Pufferspeicher'                 => ['BufferTemp', 'BufferTop', 'BufferBottom', 'BufferSetpoint', 'BufferStatus'],
         'Kältekreis (Gateway ab V2.38)'  => ['AirIntake', 'SuctionGas', 'HotGas', 'Superheat', 'LowPressure', 'HighPressure',
@@ -167,7 +168,9 @@ class HovalWaermepumpeKachel extends IPSModule
         $this->RegisterPropertyInteger('WriteStrategy', 0);
         $this->RegisterPropertyInteger('WriteFlowConst', 0);
         $this->RegisterPropertyInteger('WriteFlowMax', 0);
-        $this->RegisterPropertyInteger('WriteCurveDesignAT', 0); // 30612 Auslegepunkt AT (schreiben, nur Wiederherstellen)      // 30690 max. Vorlauftemperatur HK1 (schreiben)
+        $this->RegisterPropertyInteger('WriteCurveDesignAT', 0);
+        $this->RegisterPropertyInteger('WriteRoomActual', 0);   // 1510 Raum-Ist HK1 (schreiben) – Raumaufschaltung
+        $this->RegisterPropertyString('HeartbeatURL', '');      // Überwachung von außen (z.B. healthchecks.io), alle 5 min aufrufen // 30612 Auslegepunkt AT (schreiben, nur Wiederherstellen)      // 30690 max. Vorlauftemperatur HK1 (schreiben)
         // Push-Benachrichtigungen über eine Visualisierung (Kachel-Visualisierung oder WebFront)
         $this->RegisterPropertyInteger('NotifyVisuID', 0);
         $this->RegisterPropertyBoolean('NotifyError', true);
@@ -639,7 +642,10 @@ class HovalWaermepumpeKachel extends IPSModule
             ['type' => 'CheckBox', 'name' => 'NotifyMonitor', 'caption' => 'Überwachung: Auffälligkeiten (z.B. Effizienz, Kältekreis, Warmwasser)'],
             ['type' => 'CheckBox', 'name' => 'NotifyControl', 'caption' => 'Steuerung: Vorgabe wird nicht übernommen, Urlaubsmodus beendet'],
             ['type' => 'CheckBox', 'name' => 'NotifyAdvice', 'caption' => 'Einsparempfehlungen: Ergebnis nach einer umgesetzten Empfehlung'],
-            ['type' => 'Button', 'caption' => 'Testnachricht senden', 'onClick' => 'HWP_TestNotification($id);']
+            ['type' => 'Button', 'caption' => 'Testnachricht senden', 'onClick' => 'HWP_TestNotification($id);'],
+            ['type' => 'Label', 'caption' => 'Meldung, wenn Symcon selbst ausfällt (Rechner defekt, Stromausfall): kostenloses Konto z.B. bei healthchecks.io anlegen, „Check“ mit'],
+            ['type' => 'Label', 'caption' => 'Periode 5 min und Toleranz 10 min erstellen und dessen Ping-URL hier eintragen. Bleibt der Aufruf aus, meldet der Dienst den Ausfall (E-Mail, App, Telegram …).'],
+            ['type' => 'ValidationTextBox', 'name' => 'HeartbeatURL', 'caption' => 'Heartbeat-URL (wird alle 5 min aufgerufen)']
         ]];
 
         // Eigene Klartexte für Status, Betriebsarten, Störungen
@@ -685,7 +691,9 @@ class HovalWaermepumpeKachel extends IPSModule
             ['type' => 'SelectVariable', 'name' => 'WriteCurveDesign', 'caption' => '30615 – Auslegepunkt VL-Temperatur Heizkennlinie (Vorschläge übernehmen)'],
             ['type' => 'SelectVariable', 'name' => 'WriteCurveDesignAT', 'caption' => '30612 – Auslegepunkt Außentemperatur Heizkennlinie (nur Zurücksetzen auf Hoval-Werte)'],
             ['type' => 'SelectVariable', 'name' => 'WriteFlowConst', 'caption' => '1490 – Vorlauf-Soll Konstantanforderung Heizen HK1 (Symcon-Heizkurve)'],
-            ['type' => 'SelectVariable', 'name' => 'WriteFlowMax', 'caption' => '30690 – Max. Vorlauftemperatur HK1 (Maximaltemperatur Heizkreis)']
+            ['type' => 'SelectVariable', 'name' => 'WriteFlowMax', 'caption' => '30690 – Max. Vorlauftemperatur HK1 (Maximaltemperatur Heizkreis)'],
+            ['type' => 'SelectVariable', 'name' => 'WriteRoomActual', 'caption' => '1510 – Raum-Ist HK1 (Raumaufschaltung: Symcon liefert den Raumdurchschnitt)'],
+            ['type' => 'Label', 'caption' => 'Für die Raumaufschaltung zusätzlich am Hoval-Bedienteil den Raumeinfluss 03-007 einstellen (Fußbodenheizung: 2).']
         ]];
     }
 
@@ -735,6 +743,7 @@ class HovalWaermepumpeKachel extends IPSModule
         $this->TrackDhwCharge($now);
         $this->TrackLock($now);
         $this->CheckAlerts();
+        $this->Heartbeat($now);
         $this->UpdateDayStats($now);
         foreach (array_keys(self::DATAPOINTS) as $key) {
             $this->UpdateMirror($key);
@@ -1902,14 +1911,20 @@ class HovalWaermepumpeKachel extends IPSModule
         $symcon = $this->Setting('curveMode') === 'symcon' && $this->Setting('ctlOn')
             && $this->ReadPropertyInteger('WriteStrategy') > 0 && $this->ReadPropertyInteger('WriteFlowConst') > 0;
         if (!$symcon) {
+            $orig = json_decode($this->ReadAttributeString('HovalOriginal'), true) ?: [];
+            $origStrategy = (float) ($orig['strategy'] ?? 1);
+            if ($origStrategy == 3) {
+                $origStrategy = 1.0;
+            }
             if (!empty($state['curveActive'])) {
-                $orig = json_decode($this->ReadAttributeString('HovalOriginal'), true) ?: [];
-                $this->WriteTo('WriteStrategy', (float) ($orig['strategy'] ?? 1), 0.01, 0);
+                $this->WriteTo('WriteStrategy', $origStrategy, 0.01, 0);
                 $state['curveActive'] = false;
             }
+            $this->RoomFeed($state, $origStrategy, $now);
             $state['curveNow'] = null;
             return;
         }
+        $state['roomFeed'] = null;
         $out = $this->OutdoorDamped();
         if ($out === null) {
             return;
@@ -1944,6 +1959,56 @@ class HovalWaermepumpeKachel extends IPSModule
         if ($this->Setting('cLearn') && !$holiday) {
             $this->CurveLearnTick($state, $now, $heating && $this->CurrentSeason($state) !== 'summer', $roomSet);
         }
+    }
+
+    /**
+     * Raumaufschaltung (Hoval-Kurve + Raum): Raumdurchschnitt alle 5 min nach 1510 (Raum-Ist HK1) schreiben und Regelstrategie 1
+     * (Witterungsführung mit Raumaufschaltung). Fehlen Raumwerte (Fühler ausgefallen) oder übernimmt die Hoval den Raumwert nicht
+     * (Rückkontrolle über den gelesenen Datenpunkt 1510), wird auf die Original-Strategie zurückgeschaltet.
+     */
+    private function RoomFeed(array &$state, float $origStrategy, int $now): void
+    {
+        $active = $this->Setting('curveMode') === 'hovalroom' && $this->Setting('ctlOn')
+            && $this->ReadPropertyInteger('WriteRoomActual') > 0 && $this->ReadPropertyInteger('WriteStrategy') > 0;
+        $feed = $state['roomFeed'] ?? null;
+        if (!$active) {
+            if ($feed !== null) {
+                $this->WriteTo('WriteStrategy', $origStrategy, 0.01, 0); // Raumaufschaltung beendet
+                $state['roomFeed'] = null;
+            }
+            return;
+        }
+        $ist = $state['roomStats']['avgIst'] ?? null;
+        $feed = ($feed ?? ['since' => $now, 'bad' => 0]) + ['bad' => 0];
+        if ($ist !== null) {
+            $value = round($ist, 1);
+            $this->WriteTo('WriteRoomActual', $value, 0.05, 300, 'RoomActual');
+            $read = $this->Value('RoomActual');
+            // Rückkontrolle: zeigt die Hoval nach 15 min immer noch einen anderen Raum-Ist, wird der Wert nicht übernommen
+            $feed['bad'] = ($read !== null && abs($read - $value) > 0.3) ? ($feed['bad'] ?: $now) : 0;
+            $feed['sent'] = $value;
+            $feed['read'] = $read;
+        }
+        $ok = $ist !== null && !($feed['bad'] && $now - $feed['bad'] > 900);
+        $feed['ok'] = $ok;
+        $feed['reason'] = $ist === null ? 'Keine gültigen Raumtemperaturen' : ($ok ? null : 'Hoval übernimmt den Raum-Ist (1510) nicht');
+        $this->WriteTo('WriteStrategy', $ok ? 1.0 : $origStrategy, 0.01, 1800, 'ControlStrategy');
+        $state['roomFeed'] = $feed;
+    }
+
+    /** Überwachung von außen: Heartbeat-URL alle 5 min aufrufen – bleibt der Aufruf aus, meldet der Dienst den Ausfall */
+    private function Heartbeat(int $now): void
+    {
+        $url = trim($this->ReadPropertyString('HeartbeatURL'));
+        if ($url === '' || !preg_match('~^https?://~i', $url) || intdiv($now, 60) % 5 !== 0) {
+            return;
+        }
+        if (function_exists('Sys_GetURLContentEx')) {
+            $ok = @Sys_GetURLContentEx($url, ['Timeout' => 5000]);
+        } else {
+            $ok = @file_get_contents($url, false, stream_context_create(['http' => ['timeout' => 5]]));
+        }
+        $this->SendDebug('Heartbeat', $ok === false ? 'fehlgeschlagen' : 'ok', 0);
     }
 
     /** Gedämpfte Außentemperatur (Mittel über ca. 3 h, wie die Gebäudeträgheit) */
@@ -2294,6 +2359,8 @@ class HovalWaermepumpeKachel extends IPSModule
             'fit'       => $fit,
             'transfer'  => $state['curveTransfer'] ?? null,
             'snapshots' => $this->Snapshots(),
+            'roomFeed'  => $state['roomFeed'] ?? null,
+            'canRoom'   => $this->ReadPropertyInteger('WriteRoomActual') > 0 && $this->ReadPropertyInteger('WriteStrategy') > 0,
             'activeSnap' => $state['activeSnap'] ?? null,
             'mode'      => $this->Setting('curveMode'),
             'out'       => $out === null ? null : round($out, 1),
@@ -3592,7 +3659,7 @@ class HovalWaermepumpeKachel extends IPSModule
             } elseif ($key === 'cInit') {
                 $settings[$key] = (bool) $value;
             } elseif ($key === 'curveMode') {
-                $settings[$key] = $value === 'symcon' ? 'symcon' : 'hoval';
+                $settings[$key] = in_array($value, ['symcon', 'hovalroom'], true) ? $value : 'hoval';
             } elseif ($key === 'pvMethod') {
                 $settings[$key] = $value === 'vl' ? 'vl' : 'sg';
             } elseif ($key === 'roomExcluded') {
@@ -3985,7 +4052,7 @@ class HovalWaermepumpeKachel extends IPSModule
             $state['dhwReturn'] = false;
             $state['dhwActive'] = true;
         }
-        if (!$control && !empty($state['curveActive'])) {
+        if (!$control && (!empty($state['curveActive']) || !empty($state['roomFeed']))) {
             $this->CurveControl($state, $now, false, 20.0, false); // Heizungssteuerung aus: Hoval-Regelstrategie wiederherstellen
         }
         if (!$control && !empty($state['ctlActive'])) {
@@ -4268,6 +4335,20 @@ class HovalWaermepumpeKachel extends IPSModule
                         }
                         $this->SaveSettings(['curveMode' => 'symcon']);
                         return ['ok' => true, 'msg' => 'Heizkurve: Symcon (selbstlernend) – Hoval-Werte sind gesichert'];
+                    }
+                    if (($action['v'] ?? '') === 'hovalroom') {
+                        if ($this->ReadPropertyInteger('WriteStrategy') <= 0 || $this->ReadPropertyInteger('WriteRoomActual') <= 0) {
+                            return ['ok' => false, 'msg' => 'In der Instanz die Schreib-Variablen für 27510 (Regelstrategie) und 1510 (Raum-Ist) eintragen.'];
+                        }
+                        if ((($this->GetCtlState()['roomStats'] ?? [])['avgIst'] ?? null) === null) {
+                            return ['ok' => false, 'msg' => 'Keine Raumtemperaturen – zuerst Räume in der Instanz eintragen.'];
+                        }
+                        $error = $this->BackupHoval();
+                        if ($error !== null) {
+                            return ['ok' => false, 'msg' => $error];
+                        }
+                        $this->SaveSettings(['curveMode' => 'hovalroom']);
+                        return ['ok' => true, 'msg' => 'Heizkurve: Hoval mit Raumaufschaltung (Raumeinfluss 03-007 am Bedienteil einstellen)'];
                     }
                     $this->SaveSettings(['curveMode' => 'hoval']);
                     return ['ok' => true, 'msg' => 'Heizkurve: Hoval'];

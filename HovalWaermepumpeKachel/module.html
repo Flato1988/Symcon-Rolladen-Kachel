@@ -1055,7 +1055,7 @@
             </div>
             <div class="card" id="cCurve" data-page="heat">
                 <h3>Heizkurve <button class="info" data-info="curve" title="Erklärung">i</button><span class="badge" id="cvBadge">–</span></h3>
-                <div class="row"><span class="seg" id="cvMode"><button data-v="hoval">Hoval</button><button data-v="symcon">Symcon (selbstlernend)</button></span>
+                <div class="row"><span class="seg" id="cvMode"><button data-v="hoval">Hoval</button><button data-v="hovalroom">Hoval + Raum</button><button data-v="symcon">Symcon (selbstlernend)</button></span>
                     <span class="hint" id="cvLockHint"></span></div>
                 <div class="state" id="cvState"></div>
                 <div class="legend" style="margin:0"><span><i class="dash" style="color:#9aa7b1"></i>Hoval</span><span><i class="dash" style="color:var(--heat)"></i>Symcon Grundkurve</span>
@@ -1913,7 +1913,8 @@
         $('cCurve').hidden = $('cCurve').hidden || !c;
         if (!c) return;
         const sym = c.mode === 'symcon';
-        $('cvBadge').textContent = sym ? 'Symcon' : 'Hoval';
+        const room = c.mode === 'hovalroom', rf = c.roomFeed;
+        $('cvBadge').textContent = sym ? 'Symcon' : room ? 'Hoval + Raum' : 'Hoval';
         $('cvBadge').className = 'badge' + (sym ? ' ok' : '');
         document.querySelectorAll('#cvMode button').forEach(b => { b.classList.toggle('on', b.dataset.v === c.mode); b.disabled = !unlocked; });
         $('cvLockHint').textContent = unlocked ? '' : '🔒 zum Umschalten in „Funktionen“ entsperren';
@@ -1921,6 +1922,9 @@
         $('cvState').innerHTML = sym && n
             ? `Außen Ø 3 h <b>${num(n.out, 1)} °C</b> → Vorlauf-Soll <b>${num(n.target, 1)} °C</b> <span class="hint">(Kurve ${num(n.base, 1)} ${n.room >= 0 ? '+' : '−'} Raum ${num(Math.abs(n.room), 1)} ${n.learn >= 0 ? '+' : '−'} gelernt ${num(Math.abs(n.learn), 1)}${n.pv ? ' + PV ' + num(n.pv, 1) : ''})</span>`
             : sym ? '<span class="hint">wartet auf Werte …</span>'
+            : room ? (rf && rf.ok ? `Hoval regelt mit <b>Raumaufschaltung</b> · Raum Ø an Hoval <b>${num(rf.sent, 1)} °C</b>${rf.read !== null && rf.read !== undefined ? ` <span class="hint">(Hoval zeigt ${num(rf.read, 1)} °C)</span>` : ''}`
+                : `<span style="color:var(--hot)">⚠ Raumaufschaltung nicht aktiv – ${esc((rf && rf.reason) || 'wartet auf Werte')}</span> · Hoval regelt rein witterungsgeführt`)
+              + ` <span class="hint">· Raumeinfluss 03-007 am Bedienteil (FBH: 2)</span>`
             : `Hoval regelt selbst${hv.strategy !== null && hv.strategy !== undefined ? ' · ' + esc(ctl.strategy || '') : ''}${hv.foot !== null ? ` · Fußpunkt ${num(hv.foot, 1)} °C, Auslegepunkt ${num(hv.design, 1)} °C bei ${num(hv.designAT, 0)} °C` : ''}${hv.boost !== null && hv.boost !== undefined ? ` · Überhöhung an WP ${num(hv.boost, 1)} K` : ''}`;
         const offs = c.offsets || {}, keys = Object.keys(offs).map(Number).sort((a, b) => a - b);
         $('cvLearn').innerHTML = keys.length ? 'Gelernt: ' + keys.map(k => `${k} °C <b style="color:${offs[k] > 0 ? 'var(--hot)' : 'var(--cold)'}">${offs[k] > 0 ? '+' : ''}${num(offs[k], 1)} K</b>`).join(' · ')
@@ -1965,6 +1969,7 @@
         $('cvButtons').hidden = !unlocked;
         $('cvRestore').disabled = !o;
         const miss = [];
+        if (room && !c.canRoom) miss.push('Für „Hoval + Raum“ in der Instanz „1510 – Raum-Ist HK1“ und „27510 – Regelstrategie“ unter „Heizkurve / Regelung – schreiben“ eintragen.');
         if (!c.canSymcon) miss.push('Für die Symcon-Heizkurve in der Instanz „Regelstrategie HK1 schreiben (27510)“ und „Vorlauf-Soll Konstant schreiben (1490)“ eintragen.');
         if (hv.strategy === null || hv.strategy === undefined) miss.push('Zum Sichern der Originalwerte die Datenpunkte 27510, 1490, 30618, 30615, 30612 (Heizkurve / Regelung) eintragen.');
         $('cvMissing').hidden = !miss.length;
@@ -3382,7 +3387,7 @@
         holiday: ['Urlaub', 'Senkt während der Abwesenheit ab und endet automatisch.\n\nHeizung: „Absenkung“ = Absenktemperatur der aktuellen Saison, „Frostschutz“ = Heizkreis im Standby.\nWarmwasser: „aus“ = Standby (Hoval-Frostschutz bleibt aktiv), „40 °C“ = niedrige Temperatur.\n\nPlanbar im Voraus (Beginn in der Zukunft).'],
         heat: ['Heizung', 'Automatik: Zeitprogramm der Saison (Komfort, Absenkung oder eigene Temperatur je Zeit).\nFrostschutz: Heizkreis im Standby.\nDauer: feste Raumtemperatur ohne Zeitprogramm.\n\nSaison: Winter / Übergang / Sommer – manuell oder automatisch nach Ø 24 h Außentemperatur. Im Sommer heizt die Anlage nur in eigenen Zeiten.\n\nKomfort- und Absenktemperatur lassen sich auch direkt im Anlagenschema über „Soll ändern“ einstellen.'],
         'ed-heat': ['Zeitprogramm', 'Je Saison stellst du die Komfort- und Absenktemperatur einmal ein. Jede Zeit wählt dann nur die Stufe:\nKomfort / Absenkung / Eigene (eigene Temperatur nur für diese Zeit).\n\nAußerhalb der Zeiten gilt die Absenkung (im Sommer: aus).\nDie Wochenübersicht zeigt je Tag, was gilt.\n\nSaison automatisch: Winter unter X °C, Sommer über Y °C, dazwischen Übergang (Ø der letzten 24 h, mit 1 K Hysterese).\n\nAufheizoptimierung und Maximaltemperatur stehen unten im Editor.'],
-        curve: ['Heizkurve', 'Hoval: Die Wärmepumpe berechnet den Vorlauf selbst aus ihrer Heizkurve.\n\nSymcon (selbstlernend): Hoval wird auf Konstantregelung gestellt, Symcon gibt den Vorlauf-Soll vor:\nGrundkurve (Fuß-/Auslegepunkt) + Verschiebung durch das Raum-Soll + gelernter Anteil je Außentemperatur.\nIst es im Schnitt zu kalt, hebt Symcon die Kurve bei dieser Außentemperatur langsam an (max. 0,3 K/h), ist es zu warm, senkt es sie ab.\n\nDie Hoval-Originalwerte werden vorher gesichert – „Auf Hoval-Werte zurücksetzen“ stellt alles wieder her.'],
+        curve: ['Heizkurve', 'Hoval: Die Wärmepumpe berechnet den Vorlauf selbst aus ihrer Heizkurve.\n\nHoval + Raum: wie Hoval, zusätzlich liefert Symcon alle 5 min den Raumdurchschnitt an die Hoval (1510) und stellt die Regelstrategie auf „Witterungsführung mit Raumaufschaltung“. Die Hoval korrigiert dann den Vorlauf: Raumeinfluss (03-007, am Bedienteil) × Raumabweichung. Ist es zu warm, schaltet sie früher ab. Fällt Symcon aus, regelt die Hoval mit ihrer Heizkurve weiter – die sicherste Variante. Fehlen Raumwerte oder übernimmt die Hoval den Wert nicht, schaltet Symcon auf die Original-Strategie zurück.\n\nSymcon (selbstlernend): Hoval wird auf Konstantregelung gestellt, Symcon gibt den Vorlauf-Soll vor:\nGrundkurve (Fuß-/Auslegepunkt) + Verschiebung durch das Raum-Soll + gelernter Anteil je Außentemperatur.\nIst es im Schnitt zu kalt, hebt Symcon die Kurve bei dieser Außentemperatur langsam an (max. 0,3 K/h), ist es zu warm, senkt es sie ab.\n\nDie Hoval-Originalwerte werden vorher gesichert – „Auf Hoval-Werte zurücksetzen“ stellt alles wieder her.'],
         'ed-curve': ['Symcon-Heizkurve', 'Fußpunkt: Vorlauf bei 20 °C außen (für 20 °C Raum).\nAuslegepunkt: Vorlauf bei der Auslegungs-Außentemperatur (z.B. −12 °C).\nVorlauf min/max: Grenzen für den Sollwert.\nRaumsoll-Einfluss: um wie viel K der Vorlauf je 1 K höherem Raum-Soll steigt (Fußbodenheizung ca. 1,5).\nLernen: aus = feste Kurve ohne Anpassung.'],
         dhw: ['Warmwasser', 'Zeigt den aktuellen Zustand (Laden, Standby, Aufheizen).\n\nAufheizen: einmalig für 1–6 Stunden auf eine höhere Temperatur (z.B. vor dem Baden oder für den Legionellenschutz). Danach gilt wieder das Programm.\n\nDie maximale Warmwassertemperatur begrenzt alle Werte und ist nur mit Passwort änderbar.\n\nAufheizen geht auch direkt im Anlagenschema (Knopf neben dem Speicher).'],
         'ed-dhw': ['Ladezeiten', 'Absenken: die normale (niedrigere) Ladetemperatur.\nAufheizen: die höhere Temperatur für bestimmte Zeiten.\nJede Ladezeit wählt Absenken, Aufheizen oder eine eigene Temperatur.\n\nAußerhalb der Ladezeiten: Standby (keine Ladung).\nOhne Ladezeiten regelt Hoval das Warmwasser selbst.\n\nHysterese (Symcon): In den Ladezeiten wird erst nachgeladen, wenn der Speicher oben unter Soll − Hysterese fällt (z.B. 50 °C − 7 K = unter 43 °C), dann bis zum Soll geladen. Weniger, dafür längere Ladungen = weniger Verdichterstarts. 0 = Hoval-Schaltdifferenz.\nStartet Hoval die Ladung nicht von selbst (eigene Schaltdifferenz größer), hebt Symcon den Hoval-Sollwert nach 20 min an und beendet die Ladung beim eingestellten Soll.'],
