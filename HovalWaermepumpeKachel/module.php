@@ -561,7 +561,7 @@ class HovalWaermepumpeKachel extends IPSModule
                     break;
                 case 'Heizkurve / Regelung – lesen (optional)':
                     array_unshift($items,
-                        ['type' => 'Label', 'caption' => 'Nur LESEN – hier wird nichts verstellt. Verwendet für: Anzeige der Hoval-Heizkurve in der Kachel (Steuerung › Heizkurve),'],
+                        ['type' => 'Label', 'caption' => 'Nur LESEN – hier wird nichts verstellt. Verwendet für: Anzeige der Hoval-Heizkurve in der Kachel (Einstellungen › Heizkurve),'],
                         ['type' => 'Label', 'caption' => 'Sicherung der Hoval-Originalwerte vor dem Umschalten auf die Symcon-Heizkurve, Heizkurven-Vorschläge (Tipps)'],
                         ['type' => 'Label', 'caption' => 'und Rückkontrolle, ob geschriebene Werte übernommen wurden. Zum Verstellen: direkt darunter „Heizkurve / Regelung – schreiben“ (dieselbe Variable ist möglich).']);
                     break;
@@ -1940,9 +1940,9 @@ class HovalWaermepumpeKachel extends IPSModule
                 if ($bufBottom >= $bufMax - 2) {
                     $state['pvBufDone'] = true;
                 }
-                $pvBoost = empty($state['pvBufDone']) ? max(0, $bufMax - $vl) : min(3, (float) $this->Setting('pvVlBoost'));
+                $pvBoost = empty($state['pvBufDone']) ? max(0, $bufMax - $vl) : min(3, (float) $this->Setting('pvVlBoost')) * $this->PVFactor($state);
             } else {
-                $pvBoost = min(3, (float) $this->Setting('pvVlBoost'));
+                $pvBoost = round(min(3, (float) $this->Setting('pvVlBoost')) * $this->PVFactor($state), 1);
             }
         } else {
             $state['pvBufDone'] = false;
@@ -2092,7 +2092,8 @@ class HovalWaermepumpeKachel extends IPSModule
                 $learn['log'][] = [$learn['hour'] * 3600, round($o, 1), round($dev, 2), round($step, 2)];
                 $learn['log'] = array_slice($learn['log'], -336); // 14 Tage Stundenwerte
             }
-            $learn = ['offsets' => $learn['offsets'], 'hour' => $hour, 'devSum' => 0, 'outSum' => 0, 'n' => 0, 'log' => $learn['log']];
+            $learn = ['offsets' => $learn['offsets'], 'hour' => $hour, 'devSum' => 0, 'outSum' => 0, 'n' => 0, 'log' => $learn['log']]
+                + array_intersect_key($learn, ['doneSig' => 1]);
         }
         if ($ok) {
             $learn['devSum'] += $rs['avgIst'] - $rs['avgSoll'];
@@ -2332,6 +2333,54 @@ class HovalWaermepumpeKachel extends IPSModule
             . $this->Number($fit['design'], 1) . ' °C – Hoval regelt wieder selbst'];
     }
 
+    /**
+     * Lernphase abgeschlossen? (nur bei aktiver Symcon-Heizkurve) – mind. 3 gelernte Stützstellen, in den letzten 72 h mind. 24 Lernstunden,
+     * Kurve kaum noch verschoben (Summe der Schritte ≤ 0,5 K), Räume im Mittel innerhalb ±0,3 K, Hoval-Gerade passt (≤ 1 K) und weicht
+     * von der aktuellen Hoval-Kurve um mind. 0,3 K ab. Liefert Vorschlag und Verschiebungen, sonst null.
+     */
+    private function LearnDone(): ?array
+    {
+        if ($this->Setting('curveMode') !== 'symcon') {
+            return null;
+        }
+        $learn = $this->CurveLearnState();
+        if (count($learn['offsets']) < 3) {
+            return null;
+        }
+        $since = time() - 72 * 3600;
+        $recent = array_values(array_filter($learn['log'], fn ($l) => $l[0] >= $since));
+        if (count($recent) < 24) {
+            return null;
+        }
+        $net = abs(array_sum(array_column($recent, 3)));
+        $dev = array_sum(array_column($recent, 2)) / count($recent);
+        if ($net > 0.5 || abs($dev) > 0.3) {
+            return null;
+        }
+        $fit = $this->CurveFitToHoval();
+        if ($fit === null || $fit['maxDev'] > 1.0 || $fit['hovalFoot'] === null || $fit['hovalDesign'] === null) {
+            return null;
+        }
+        $orig = json_decode($this->ReadAttributeString('HovalOriginal'), true) ?: [];
+        $hAT = (float) ($this->Value('CurveDesignAT') ?? ($orig['designAT'] ?? $fit['designAT']));
+        $old = fn ($t) => $fit['hovalFoot'] + ($fit['hovalDesign'] - $fit['hovalFoot']) * (20 - $t) / max(1, 20 - $hAT);
+        $new = fn ($t) => $fit['foot'] + ($fit['design'] - $fit['foot']) * (20 - $t) / max(1, 20 - $fit['designAT']);
+        $at = [];
+        foreach ([10, 0, -10] as $t) {
+            $at[] = ['t' => $t, 'old' => round($old($t), 1), 'new' => round($new($t), 1)];
+        }
+        $dFoot = round($fit['foot'] - $fit['hovalFoot'], 1);
+        $dDesign = round($fit['design'] - $fit['hovalDesign'], 1);
+        if (max(abs($dFoot), abs($dDesign)) < 0.3) {
+            return null; // Hoval-Kurve passt schon
+        }
+        $bins = array_map('intval', array_keys($learn['offsets']));
+        sort($bins);
+        return ['foot' => $fit['foot'], 'design' => $fit['design'], 'designAT' => $fit['designAT'], 'oldFoot' => $fit['hovalFoot'],
+                'oldDesign' => $fit['hovalDesign'], 'dFoot' => $dFoot, 'dDesign' => $dDesign, 'at' => $at, 'maxDev' => $fit['maxDev'],
+                'from' => $bins[0], 'to' => end($bins), 'dev' => round($dev, 2), 'canWrite' => $fit['canWrite']];
+    }
+
     /** Daten für die Kachel: Kurven zum Vergleich, aktueller Punkt, Lernwerte */
     private function CurveView(array $state): array
     {
@@ -2357,6 +2406,7 @@ class HovalWaermepumpeKachel extends IPSModule
         $out = $this->OutdoorDamped();
         return [
             'fit'       => $fit,
+            'learnDone' => $this->LearnDone(),
             'transfer'  => $state['curveTransfer'] ?? null,
             'snapshots' => $this->Snapshots(),
             'roomFeed'  => $state['roomFeed'] ?? null,
@@ -2649,6 +2699,27 @@ class HovalWaermepumpeKachel extends IPSModule
                             'title' => sprintf('Warmwasser %s °C – etwas niedriger reicht meist', number_format($dhwSet, 0)),
                             'text' => 'Je 1 K weniger Warmwassertemperatur sinkt der Warmwasser-Strom um ca. 2–3 %. 48–50 °C reichen im Alltag meist; '
                                 . 'für Legionellenschutz lieber gezielt einmal pro Woche „Aufheizen“.'];
+            }
+        }
+        // Lernphase der Symcon-Heizkurve abgeschlossen → Übernahme in die Hoval empfehlen (nur auf Bestätigung)
+        $ld = $this->LearnDone();
+        if ($ld) {
+            $num = fn ($v) => number_format($v, 1, ',', '');
+            $shift = fn ($v) => ($v > 0 ? '+' : ($v < 0 ? '−' : '±')) . $num(abs($v)) . ' K';
+            $txt = sprintf('Die selbstlernende Kurve hat sich eingependelt (gelernt von %d bis %d °C außen, Räume im Mittel %s). Übernahme in die Hoval: '
+                . 'Fußpunkt %s → %s °C (%s), Auslegepunkt %s → %s °C (%s). Vorlauf bei 0 °C außen %s → %s °C. Danach regelt die Hoval wieder selbst '
+                . '(witterungsgeführt) – die Übernahme erscheint als Rücksetzpunkt.',
+                $ld['from'], $ld['to'], $shift($ld['dev']), $num($ld['oldFoot']), $num($ld['foot']), $shift($ld['dFoot']),
+                $num($ld['oldDesign']), $num($ld['design']), $shift($ld['dDesign']), $num($ld['at'][1]['old']), $num($ld['at'][1]['new']));
+            $items[] = ['id' => 'curve-learned:' . $ld['foot'] . '/' . $ld['design'], 'metric' => 'dev', 'value' => $ld['dev'], 'icon' => '🎓',
+                        'title' => 'Lernphase abgeschlossen – Heizkurve in die Hoval übernehmen', 'text' => $txt, 'learn' => $ld];
+            $learn = $this->CurveLearnState();
+            $sig = $ld['foot'] . '/' . $ld['design'];
+            if (($learn['doneSig'] ?? '') !== $sig) {
+                $this->Notify('curve-learned', 'Wärmepumpe – Heizkurve', 'Lernphase abgeschlossen: Fußpunkt ' . $num($ld['oldFoot']) . ' → ' . $num($ld['foot'])
+                    . ' °C, Auslegepunkt ' . $num($ld['oldDesign']) . ' → ' . $num($ld['design']) . ' °C. Übernahme in der Kachel unter Tipps bestätigen.', 'advice');
+                $learn['doneSig'] = $sig;
+                $this->WriteAttributeString('CurveLearn', json_encode($learn));
             }
         }
         // Nachverfolgung umgesetzter Empfehlungen
@@ -3396,6 +3467,8 @@ class HovalWaermepumpeKachel extends IPSModule
             'rows'    => $rows,
             'valve'   => $this->GetValvePosition(),
             'heating' => $c['running'],
+            // Lüfter im Schema: dreht, solange der Verdichter läuft – schneller bei höherer Verdichter-Drehzahl (Lüfter selbst ist nicht im Modbus)
+            'fan'     => $this->CompressorRunning() ? ($this->Value('CompressorSpeed') ?? $this->Value('WEZPower') ?? 60) : 0,
             'error'   => ($error !== null && (int) $error !== 255) ? $this->Format('ErrorCode') : null,
             'defrost' => [
                 'active' => $this->GetValue('DefrostActive'),
@@ -3591,7 +3664,7 @@ class HovalWaermepumpeKachel extends IPSModule
         'cRoomFactor' => [0, 5], 'pvVlBoost' => [0, 5], 'pvBufMax' => [25, 65],
         'roomHyst' => [0.1, 2], 'roomMin' => [0, 120], 'maxPeak' => [1, 100], 'margin' => [0, 5], 'minHP' => [0, 20], 'hpMax' => [0.5, 30],
         'pvStart' => [0.1, 30], 'pvStop' => [0, 30], 'pvStartMin' => [0, 60], 'pvStopMin' => [0, 60], 'pvMinRun' => [0, 240],
-        'pvOffRoom' => [0, 12], 'pvOffDHW' => [0, 30], 'pvOffBuffer' => [0, 30]
+        'pvOffRoom' => [0, 12], 'pvOffDHW' => [0, 30], 'pvOffBuffer' => [0, 30], 'pvS2' => [0.2, 30], 'pvS3' => [0.3, 40]
     ];
 
     /** Einstellungen (Visualisierung) – fehlende Werte kommen aus den früheren Instanz-Einstellungen bzw. Vorgaben */
@@ -3618,7 +3691,7 @@ class HovalWaermepumpeKachel extends IPSModule
                 'maxPeak' => $this->ReadPropertyFloat('MaxPeak15'), 'margin' => $this->ReadPropertyFloat('PowerMargin'),
                 'minHP' => $this->ReadPropertyFloat('MinHPPower'), 'hpMax' => $this->ReadPropertyFloat('HPMaxPower'),
                 'pvStart' => 1.5, 'pvStop' => 0.5, 'pvStartMin' => 5, 'pvStopMin' => 10, 'pvMinRun' => 30,
-                'pvOffRoom' => 2.0, 'pvOffDHW' => 10.0, 'pvOffBuffer' => 0.0, 'monOn' => true
+                'pvOffRoom' => 2.0, 'pvOffDHW' => 10.0, 'pvOffBuffer' => 0.0, 'pvStaged' => false, 'pvS2' => 1.5, 'pvS3' => 2.5, 'monOn' => true
             ];
             $stored = json_decode($this->ReadAttributeString('Settings'), true) ?: [];
             // Warmwassersteuerung war bis 4.3 Teil der Heizungssteuerung: beim ersten Mal deren Zustand übernehmen
@@ -3650,7 +3723,7 @@ class HovalWaermepumpeKachel extends IPSModule
             if (isset(self::SETTING_LIMITS[$key])) {
                 [$min, $max] = self::SETTING_LIMITS[$key];
                 $settings[$key] = round(max($min, min($max, (float) $value)), 2);
-            } elseif (in_array($key, ['ctlOn', 'dhwOn', 'roomsOn', 'limitOn', 'pvOn', 'monOn', 'cLearn', 'optOn', 'hcMaxOn'], true)) {
+            } elseif (in_array($key, ['ctlOn', 'dhwOn', 'roomsOn', 'limitOn', 'pvOn', 'monOn', 'cLearn', 'optOn', 'hcMaxOn', 'pvStaged'], true)) {
                 $settings[$key] = (bool) $value;
             } elseif ($key === 'seasonMode') {
                 $settings[$key] = (int) $value === 0 ? 0 : 1;
@@ -4000,7 +4073,7 @@ class HovalWaermepumpeKachel extends IPSModule
                 // PV „Vorlauf anheben“ ohne Symcon-Heizkurve: Raum-Soll an die Hoval anheben (verschiebt die Hoval-Kurve nach oben,
                 // mit Raumaufschaltung kommt die Korrektur Raumeinfluss × Anhebung noch dazu) – Symcon-Räume/Lernen bleiben beim echten Soll
                 $pvRoom = ($this->Setting('pvOn') && $this->Setting('pvMethod') === 'vl' && $this->Setting('curveMode') !== 'symcon' && !empty($state['pvActive']))
-                    ? (float) $this->Setting('pvOffRoom') : 0.0;
+                    ? round((float) $this->Setting('pvOffRoom') * $this->PVFactor($state) * 2) / 2 : 0.0;
                 $state['pvRoomBoost'] = $pvRoom;
                 $this->WriteTo('WriteHC1Room', max(10, min(30, $target + $pvRoom)), 0.01, 1800, empty($state['pvActive']) ? 'RoomSetpoint' : null);
                 $this->WriteTo('WriteHC1Mode', 4, 0.01, 1800, 'HC1Mode'); // Konstant mit Normal-Raumtemperatur
@@ -4313,7 +4386,7 @@ class HovalWaermepumpeKachel extends IPSModule
                     return ['ok' => true, 'msg' => $names[$key] . (!empty($action['v']) ? ' aktiviert' : ' deaktiviert')];
                 case 'settings':
                     $error = $this->SaveSettings(array_intersect_key((array) ($action['values'] ?? []),
-                        self::SETTING_LIMITS + array_flip(['seasonMode', 'roomMode', 'heatPrograms', 'dhwPrograms', 'pvMethod', 'cLearn', 'optOn', 'hcMaxOn'])));
+                        self::SETTING_LIMITS + array_flip(['seasonMode', 'roomMode', 'heatPrograms', 'dhwPrograms', 'pvMethod', 'cLearn', 'optOn', 'hcMaxOn', 'pvStaged'])));
                     return $error === null ? ['ok' => true, 'msg' => 'Einstellungen gespeichert'] : ['ok' => false, 'msg' => $error];
                 case 'room':
                     $excluded = array_values(array_diff($this->Setting('roomExcluded'), [(string) ($action['name'] ?? '')]));
@@ -4574,7 +4647,55 @@ class HovalWaermepumpeKachel extends IPSModule
         }
         $state['pvSince'] = $since;
         $state['pvActive'] = $active;
+        $this->PVStage($state, $now, $avail, $active);
         return $active;
+    }
+
+    /**
+     * Stufen nach Höhe des Überschusses (gleitendes Mittel ca. 10 min): Stufe 1 ab Einschaltschwelle, 2 ab „Stufe 2“, 3 ab „Stufe 3“.
+     * Herunter erst 0,3 kW unter der Schwelle; ein Stufenwechsel frühestens 15 min nach dem letzten (Wolken, träge WP).
+     * Ohne Stufen gilt immer der volle Offset (Stufe 3).
+     */
+    private function PVStage(array &$state, int $now, float $avail, bool $active): void
+    {
+        $avg = $state['pvAvg'] ?? $avail;
+        $avg += ($avail - $avg) / 10;
+        $state['pvAvg'] = round($avg, 3);
+        if (!$active) {
+            $state['pvStage'] = 0;
+            return;
+        }
+        if (!$this->Setting('pvStaged')) {
+            $state['pvStage'] = 3;
+            return;
+        }
+        $s2 = (float) $this->Setting('pvS2');
+        $s3 = max($s2 + 0.1, (float) $this->Setting('pvS3'));
+        $cur = (int) ($state['pvStage'] ?? 0);
+        $want = $avg >= $s3 ? 3 : ($avg >= $s2 ? 2 : 1);
+        if ($cur >= 1 && $want < $cur) {
+            // Hysterese beim Zurückschalten
+            $lower = $cur === 3 ? $s3 : $s2;
+            if ($avg >= $lower - 0.3) {
+                $want = $cur;
+            }
+        }
+        if ($cur === 0) {
+            $state['pvStage'] = $want;
+            $state['pvStageSince'] = $now;
+        } elseif ($want !== $cur && $now - ($state['pvStageSince'] ?? 0) >= 900) {
+            $state['pvStage'] = $want;
+            $state['pvStageSince'] = $now;
+        }
+    }
+
+    /** Anteil der PV-Offsets je Stufe (1/3, 2/3, 1); ohne Stufen 1 */
+    private function PVFactor(array $state): float
+    {
+        if (empty($state['pvActive'])) {
+            return 0.0;
+        }
+        return $this->Setting('pvStaged') ? max(1, min(3, (int) ($state['pvStage'] ?? 1))) / 3 : 1.0;
     }
 
     /**
@@ -4626,9 +4747,10 @@ class HovalWaermepumpeKachel extends IPSModule
         }
         $this->WriteTo('WriteSGTrigger', 2);                          // 2 = Systembus (aktiviert 27545)
         // Offsets zuerst, damit der Vorzugsbetrieb nie mit falschen Offsets startet
-        $this->WriteTo('WriteSGOffsetRoom', $pv ? (float) $this->Setting('pvOffRoom') : 0);
-        $this->WriteTo('WriteSGOffsetDHW', $pv ? (float) $this->Setting('pvOffDHW') : 0);
-        $this->WriteTo('WriteSGOffsetBuffer', $pv ? (float) $this->Setting('pvOffBuffer') : 0);
+        $fac = $pv ? $this->PVFactor($state) : 0.0;
+        $this->WriteTo('WriteSGOffsetRoom', round((float) $this->Setting('pvOffRoom') * $fac * 2) / 2);
+        $this->WriteTo('WriteSGOffsetDHW', round((float) $this->Setting('pvOffDHW') * $fac));
+        $this->WriteTo('WriteSGOffsetBuffer', round((float) $this->Setting('pvOffBuffer') * $fac));
         if ($pv || $limitNeed) {
             $this->WriteTo('WriteSGPower', $calc !== null ? $calc['allowed'] : $hpMax, 0.1, 300);
             $this->WriteTo('WriteSGMode', 1);                         // Vorzugsbetrieb
@@ -4705,7 +4827,7 @@ class HovalWaermepumpeKachel extends IPSModule
         $dhw = $this->DHWProgramAt($now);
         $avg = $this->ReadAttributeFloat('TempAvg');
         $limit = (bool) $settings['limitOn'];
-        $editable = array_intersect_key($settings, self::SETTING_LIMITS + array_flip(['seasonMode', 'roomMode', 'heatPrograms', 'dhwPrograms', 'pvMethod', 'cLearn', 'optOn', 'hcMaxOn']));
+        $editable = array_intersect_key($settings, self::SETTING_LIMITS + array_flip(['seasonMode', 'roomMode', 'heatPrograms', 'dhwPrograms', 'pvMethod', 'cLearn', 'optOn', 'hcMaxOn', 'pvStaged']));
         return [
             'ctl'      => (bool) $settings['ctlOn'],
             'dhwCtl'   => (bool) $settings['dhwOn'],
@@ -4763,6 +4885,9 @@ class HovalWaermepumpeKachel extends IPSModule
                 'active'  => !empty($state['pvActive']),
                 'since'   => $state['pvSince'] ?? 0,
                 'started' => $state['pvStarted'] ?? 0,
+                'stage'   => $state['pvStage'] ?? 0,
+                'avg'     => isset($state['pvAvg']) ? round($state['pvAvg'], 2) : null,
+                'factor'  => $this->PVFactor($state),
                 'hasVar'  => $this->ReadPropertyInteger('PVPowerID') > 0
             ]
         ];

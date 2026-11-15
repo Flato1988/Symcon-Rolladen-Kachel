@@ -271,7 +271,7 @@
     #schema .sbtn text { fill: var(--acc); font-size: 6.6px; font-weight: 600; }
     #schema .sbtn.on rect { fill: var(--hot); fill-opacity: .18; stroke: var(--hot); }
     #schema .sbtn.on text { fill: var(--hot); }
-    .pop { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 6; min-width: 250px; max-width: 92%;
+    .pop { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 40; min-width: 250px; max-width: 92%;
            background: var(--pop-bg, #fff); color: #1a1a1a; border-radius: 12px; box-shadow: 0 6px 30px rgba(0, 0, 0, .25); padding: 12px 14px;
            display: flex; flex-direction: column; gap: 10px; font-size: 12.5px; }
     .pop .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
@@ -279,7 +279,34 @@
     .pop .linkbtn { border: 0; background: none; color: var(--acc); font: inherit; font-size: 11.5px; padding: 0; cursor: pointer; text-align: left; }
     .info { border: 1px solid rgba(128, 128, 128, .35); background: transparent; color: inherit; font: inherit; font-size: 10.5px; font-weight: 600;
             width: 18px; height: 18px; border-radius: 50%; padding: 0; cursor: pointer; opacity: .7; margin-left: 6px; vertical-align: 1px; line-height: 16px; }
-    #infoPop { max-width: min(420px, 92%); }
+    /* Bauteil-Fenster */
+    #schema .tap { fill: transparent; cursor: pointer; }
+    #schema .tap:active { fill: var(--acc); fill-opacity: .08; }
+    #schema #gridTap text { font-size: 8px; font-weight: 600; }
+    .schema-hint { text-align: center; font-size: 10.5px; opacity: .55; margin-top: 2px; }
+    .kpi[data-key="OutdoorTemp"] { cursor: pointer; }
+    #sheet { position: absolute; inset: 0; z-index: 30; }
+    #sheet .sh-back { position: absolute; inset: 0; background: rgba(0, 0, 0, .35); }
+    #sheet .sh-panel { position: absolute; left: 50%; bottom: 0; transform: translateX(-50%); width: min(780px, 100%); max-height: calc(100% - 46px);
+                       display: flex; flex-direction: column; border-radius: 16px 16px 0 0; box-shadow: 0 -6px 30px rgba(0, 0, 0, .3);
+                       background: var(--sheet-bg, #fff); color: var(--fg); box-sizing: border-box; padding: 10px 12px 12px; }
+    #sheet .sh-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 15px; padding: 2px 2px 8px; }
+    #sheet .sh-head .btn { min-width: 40px; min-height: 36px; font-size: 15px; }
+    #sheet .sh-tabs { align-self: flex-start; margin-bottom: 8px; flex-wrap: wrap; }
+    #sheet .sh-tabs:empty { display: none; }
+    #sheet .sh-body { overflow-y: auto; overflow-x: hidden; display: flex; flex-direction: column; gap: 8px; min-height: 0; flex: 1 1 auto; -webkit-overflow-scrolling: touch; }
+    #sheet .shpart { display: flex; flex-direction: column; gap: 8px; }
+    #sheet .shpart > .view { display: flex; flex-direction: column; gap: 8px; }
+    #sheet .shpart .chart-wrap { min-height: 240px; flex: 0 0 auto; }
+    #sheet .shpart #daily { height: 240px; }
+    #sheet .card { margin: 0; }
+    .linkbtn.info-link { border: 0; background: none; color: var(--acc); font: inherit; font-size: 11.5px; padding: 2px 0; cursor: pointer; text-align: left; align-self: flex-start; }
+    @media (max-width: 600px) { #sheet .sh-panel { height: calc(100% - 40px); } }
+    .shrows { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 6px 14px; font-size: 12.5px; }
+    .shrows div { display: flex; justify-content: space-between; gap: 8px; border-bottom: 1px solid rgba(128, 128, 128, .15); padding: 3px 0; }
+    .shrows span { opacity: .65; }
+    .shlinks { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+    #infoPop { max-width: min(460px, 94vw); max-height: 86vh; overflow-y: auto; position: fixed; z-index: 40; }
     #infoPop .itext { font-size: 12px; line-height: 1.45; white-space: pre-line; }
     #tempPop { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 6; min-width: 240px; max-width: 92%;
                background: var(--pop-bg, #fff); color: #1a1a1a; border-radius: 12px; box-shadow: 0 6px 30px rgba(0, 0, 0, .25); padding: 12px 14px;
@@ -330,7 +357,7 @@
     .pwbox input { font: inherit; font-size: 12px; padding: 3px 6px; border-radius: 6px; border: 1px solid rgba(128, 128, 128, .4);
                    background: transparent; color: inherit; width: 110px; }
     #ctlToast { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); padding: 6px 14px; border-radius: 16px;
-                background: rgba(30, 30, 30, .88); color: #fff; font-size: 12px; display: none; z-index: 5; }
+                background: rgba(30, 30, 30, .88); color: #fff; font-size: 12px; display: none; z-index: 45; }
     #ctlToast.err { background: var(--hot); }
     .stats-bar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
     .seg { display: inline-flex; border: 1px solid rgba(128, 128, 128, .3); border-radius: 12px; overflow: hidden; }
@@ -570,7 +597,7 @@
     /* Lüfter dreht sich im Betrieb */
     @keyframes spin { to { transform: rotate(360deg); } }
     #fan { transform-box: fill-box; transform-origin: center; }
-    #schemaFx.heating #fan { animation: spin 1.6s linear infinite; }
+    #schemaFx.fanon #fan { animation: spin var(--fan, 1.6s) linear infinite; }
     #schemaFx.heating .blade { fill: var(--acc); opacity: .9; }
     #schema.heating .fan-ring { stroke: var(--acc); }
     /* Abtauung: Lüfter blau */
@@ -592,13 +619,13 @@
 
     <div class="tabs">
         <button id="tabSchema" class="on">Anlage</button>
-        <button id="tabDaily">Verlauf</button>
+        <button id="tabDaily" hidden>Verlauf</button>
         <button id="tabStats">Auswertung<span class="dot"></span></button>
         <button id="tabPower">Leistung</button>
         <button id="tabRefri" hidden>Kältekreis</button>
-        <button id="tabCtl" hidden>Steuerung</button>
+        <button id="tabCtl" hidden>Einstellungen</button>
         <span class="spacer"></span>
-        <span id="rangeBtns" hidden><button data-days="14" class="on">14 Tage</button> <button data-days="30">30 Tage</button></span>
+        <span id="rangeBtns" class="seg" hidden><button data-days="14" class="on">14 Tage</button> <button data-days="30">30 Tage</button></span>
     </div>
 
     <div id="body">
@@ -609,7 +636,7 @@
         <div class="row" id="tpEcoRow"><span>Absenkung</span><span class="step"><button class="btn" data-t="eco" data-d="-0.5">−</button><span id="tpEco">–</span><button class="btn" data-t="eco" data-d="0.5">+</button></span></div>
         <div class="row" style="justify-content:flex-end"><button class="btn" id="tpCancel">Abbrechen</button><button class="btn primary" id="tpSave">Übernehmen</button></div>
         <div class="hint">Gilt für die aktive Saison. Zeitprogramm, Saison, Heizkurve und alle weiteren Einstellungen:</div>
-        <button class="linkbtn" id="tpGoto">→ Steuerung › Heizung öffnen (Zeitprogramm, Saison, Heizkurve)</button>
+        <button class="linkbtn" id="tpGoto">→ Heizung öffnen (Zeitprogramm, Saison, Heizkurve, Verlauf)</button>
     </div>
     <div id="dhwPop" class="pop" hidden>
         <div class="row"><b>Warmwasser aufheizen</b><span class="hint" id="dpNow"></span></div>
@@ -619,7 +646,7 @@
             <div class="row"><span>auf</span><span class="step"><button class="btn" data-d="-1">−</button><span id="dpT">–</span><button class="btn" data-d="1">+</button></span></div>
         </div>
         <div class="row" style="justify-content:flex-end"><button class="btn" id="dpCancel">Schließen</button><button class="btn primary" id="dpGo">Aufheizen</button></div>
-        <button class="linkbtn" id="dpGoto">→ Ladezeiten und Temperaturen: Steuerung › Warmwasser</button>
+        <button class="linkbtn" id="dpGoto">→ Warmwasser öffnen (Ladezeiten, Temperaturen, Verlauf)</button>
     </div>
     <div class="schema-wrap">
     <svg id="schema" viewBox="0 0 440 232" preserveAspectRatio="xMidYMid meet">
@@ -645,6 +672,12 @@
         <text x="102" y="179" text-anchor="end" id="tElec">–</text>
         <text class="small" x="14" y="192">Betriebsstd.</text>
         <text x="102" y="192" text-anchor="end" id="tWezPower">–</text>
+        <rect class="tap" data-sheet="hp" x="6" y="30" width="104" height="176" rx="10"/>
+        <!-- Strom / PV (antippen: Fenster Strom · PV) -->
+        <g id="gridTap" class="sbtn" data-sheet="grid">
+            <rect x="6" y="4" width="104" height="22" rx="7"/>
+            <text class="center" x="58" y="18.5" id="tGrid">⚡ Strom</text>
+        </g>
 
         <!-- Vorlauf bis zum Y-Ventil -->
         <path class="pipe-bg hot" d="M110 60 H148"/>
@@ -683,6 +716,7 @@
         <text class="small center on-tank" x="224" y="118" id="tDhw"></text>
         <text class="tank-temp" x="224" y="178" id="tBottom">–</text>
         <text class="small center on-tank" x="224" y="189">unten</text>
+        <rect class="tap" data-sheet="dhw" x="196" y="22" width="56" height="174" rx="14"/>
 
         <!-- Pufferspeicher (nur sichtbar, wenn eine Puffertemperatur eingetragen ist) -->
         <g id="bufferGroup">
@@ -692,6 +726,7 @@
         <text class="title center" x="322" y="104" id="tBufTitle">Puffer</text>
         <text class="center" x="322" y="118" id="tBufMid" style="font-weight:600"></text>
         <text class="tank-temp" x="322" y="164" id="tBufBottom"></text>
+        <rect class="tap" data-sheet="buf" x="296" y="40" width="52" height="136" rx="12"/>
 
         <!-- Fußbodenheizung am Puffer -->
         <path class="pipe-bg hot" d="M348 62 H372"/>
@@ -713,6 +748,7 @@
         <!-- unter der FBH wie früher: Titel und Vorlauf -->
         <text class="title center" x="400" y="162">FBH</text>
         <text class="center" x="400" y="175" id="tHc1"></text>
+        <rect class="tap" data-sheet="heat" x="372" y="60" width="62" height="120" rx="6"/>
         <!-- Warmwasser aufheizen (bei aktiver Warmwassersteuerung), zwischen Speicher und Puffer -->
         <g id="dhwTap" class="sbtn">
             <rect x="254" y="94" width="40" height="30" rx="7"/>
@@ -744,6 +780,7 @@
     <!-- eigene Ebene nur für die wandernden Lichtreflexe: neu gezeichnet wird nur diese, nicht das ganze Schema -->
     <svg id="schemaFx" viewBox="0 0 440 232" preserveAspectRatio="xMidYMid meet" aria-hidden="true"></svg>
     </div>
+    <div class="hint schema-hint">Bauteile antippen: Wärmepumpe, ⚡ Strom, WW-Speicher, Fußbodenheizung, Außen-Kachel – dort stehen Verlauf und Einstellungen.</div>
     </div>
 
     <div class="view" id="viewDaily" hidden>
@@ -992,7 +1029,7 @@
 
     <div class="view" id="viewCtl" hidden>
         <div class="subnav" id="cNav">
-            <button data-p="main">Übersicht</button><button data-p="heat">Heizung</button><button data-p="dhw">Warmwasser</button><button data-p="rooms">Räume</button><button data-p="limit">Leistung</button><button data-p="pv">PV</button>
+            <button data-p="main">Übersicht</button><button data-p="heat">Heizung</button><button data-p="dhw">Warmwasser</button><button data-p="rooms">Räume</button><button data-p="grid">Strom · PV</button>
         </div>
         <div class="ctl-grid">
             <div class="card" id="cSum" data-page="main">
@@ -1068,6 +1105,7 @@
                 <div class="setbar" id="cvButtons"><button class="btn" id="cvBackup">Hoval-Stand sichern</button><button class="btn" id="cvLearnReset">Lernwerte zurücksetzen</button><button class="btn" id="cvFromHoval" title="Fuß- und Auslegepunkt der Symcon-Grundkurve auf die aktuelle Hoval-Kurve setzen">Grundkurve = Hoval</button>
                     <button class="btn warn" id="cvRestore" hidden>Auf Hoval-Werte zurücksetzen</button></div>
                 <div class="warnbox" id="cvMissing" hidden></div>
+                <button class="linkbtn info-link" data-info="regelung">ℹ Wie hängt das zusammen? (Strategie, Konstantregelung, Raumeinfluss, PV)</button>
                 <details class="ed" data-sec="curve"><summary>⚙ Symcon-Heizkurve einstellen <button class="info" data-info="ed-curve" title="Erklärung">i</button></summary><div class="edbody"></div></details>
             </div>
             <div class="card" id="cDhw" data-page="dhw">
@@ -1106,7 +1144,7 @@
                 <div class="rooms sel" id="cRoomList"></div>
                 <details class="ed" data-sec="rooms"><summary>⚙ Verfahren und Hysterese <button class="info" data-info="ed-rooms" title="Erklärung">i</button></summary><div class="edbody"></div></details>
             </div>
-            <div class="card" id="cLimit" data-page="limit">
+            <div class="card" id="cLimit" data-page="grid">
                 <h3>Leistungsbegrenzung <button class="info" data-info="limit" title="Erklärung">i</button><small id="cLimEnd"></small></h3>
                 <div class="lim-bar" id="cLimBar"><div class="used" id="cLimUsed"></div><div class="fc" id="cLimFc"></div></div>
                 <div class="row hint" id="cLimText"></div>
@@ -1116,12 +1154,13 @@
                 </div>
                 <details class="ed" data-sec="limit"><summary>⚙ Grenzwerte <button class="info" data-info="ed-limit" title="Erklärung">i</button></summary><div class="edbody"></div></details>
             </div>
-            <div class="card" id="cPv" data-page="pv">
+            <div class="card" id="cPv" data-page="grid">
                 <h3>PV-Überschuss <button class="info" data-info="pv" title="Erklärung">i</button><span class="badge" id="cPvBadge">–</span></h3>
                 <div class="lim-vals">
                     <div>Überschuss verfügbar<b id="cPvAvail">–</b></div><div>Einschalten ab<b id="cPvStart">–</b></div><div>Ausschalten unter<b id="cPvStop">–</b></div>
                 </div>
                 <div class="row hint" id="cPvText"></div>
+                <button class="linkbtn info-link" data-info="regelung">ℹ Wie hängt das zusammen? (PV-Stufen, Raumeinfluss, Konstantregelung)</button>
                 <details class="ed" data-sec="pv"><summary>⚙ Schwellen, Zeiten und Offsets <button class="info" data-info="ed-pv" title="Erklärung">i</button></summary><div class="edbody"></div></details>
             </div>
         </div>
@@ -1141,6 +1180,23 @@
         <div class="row"><b id="ipTitle">Info</b><button class="btn" id="ipClose">✕</button></div>
         <div class="itext" id="ipText"></div>
         <button class="linkbtn" id="ipGoto" hidden>→ zur Einstellungsseite</button>
+    </div>
+    <!-- Bauteil-Fenster: Inhalte werden beim Öffnen aus den Seiten hierher verschoben und beim Schließen zurückgelegt -->
+    <div id="sheet" hidden>
+        <div class="sh-back" id="shBack"></div>
+        <div class="sh-panel">
+            <div class="sh-head"><b id="shTitle"></b><button class="btn" id="shClose" title="Schließen">✕</button></div>
+            <div class="sh-tabs seg" id="shTabs"></div>
+            <div class="sh-body" id="shBody"></div>
+        </div>
+    </div>
+    <div id="shStore" hidden>
+        <div id="shHp" class="card"></div>
+        <div id="shHeatTop" class="card"></div>
+        <div id="shDhwInfo" class="card"></div>
+        <div id="shBuf" class="card"></div>
+        <div id="shOut" class="card"></div>
+        <div id="shGrid" class="card"></div>
     </div>
     <div id="diag" hidden></div>
 </div>
@@ -1179,6 +1235,7 @@
     document.addEventListener('DOMContentLoaded', fitHeight);
     const NS = 'http://www.w3.org/2000/svg';
     let values = {};
+    let sheetOpen = null, sheetTab = 0;   // offenes Bauteil-Fenster (hp, heat, dhw, buf, out, grid) und gewählter Unterreiter
 
     const f = (key) => values[key] ? values[key].f : '–';          // formatiert (Profil)
     const n = (key) => values[key] ? Number(values[key].v) : null;  // Zahl
@@ -1335,6 +1392,7 @@
         saveView.t = setTimeout(() => requestAction('View', JSON.stringify({ v: curView, c: ctlPage, s: sMode, r: pwRange, h: pwHidden || 'x' })), 300);
     }
     function showView(name) {
+        if (sheetOpen) closeSheet();
         curView = name;
         saveView();
         $('viewSchema').hidden = name !== 'schema';
@@ -1414,8 +1472,8 @@
     const vTxt = (v, d, u) => v === null || v === undefined ? '–' : num(v, d) + u;
 
     function drawRefri() {
-        $('tabRefri').hidden = !refri;
-        if (!refri && gotData && !$('viewRefri').hidden) showView('schema'); // keine Kältekreis-Werte eingetragen
+        $('tabRefri').hidden = true; // Kältekreis gibt es im Wärmepumpen-Fenster
+        if (!refri && gotData && !$('viewRefri').hidden && !sheetOpen) showView('schema'); // keine Kältekreis-Werte eingetragen
         if (!refri || $('viewRefri').hidden) return;
         const v = refri.v;
         // Kennwerte mit Bewertung
@@ -1595,13 +1653,14 @@
     function drawCtl() {
         $('tabCtl').hidden = !ctl;
         if (!ctl && gotData && !$('viewCtl').hidden) showView('schema'); // Steuerung in der Instanz deaktiviert
-        if (!ctl || $('viewCtl').hidden) return;
+        if (!ctl || ($('viewCtl').hidden && !sheetHasCtl())) return;
         // Unterseiten: nur verfügbare Seiten anbieten; Karten nur auf ihrer Seite zeigen
+        if (ctlPage === 'limit' || ctlPage === 'pv') ctlPage = 'grid';
         const avail = { main: true, heat: ctl.ctl, dhw: ctl.dhwCtl, rooms: ctl.rooms || (ctl.roomList || []).length > 0,
-                        limit: ctl.limit, pv: ctl.pv };
+                        grid: ctl.limit || ctl.pv, limit: ctl.limit, pv: ctl.pv };
         if (!avail[ctlPage]) ctlPage = 'main';
         document.querySelectorAll('#cNav button').forEach(b => { b.hidden = !avail[b.dataset.p]; b.classList.toggle('on', b.dataset.p === ctlPage); });
-        document.querySelectorAll('#viewCtl .card[data-page]').forEach(c => { c.hidden = c.dataset.page !== ctlPage; });
+        document.querySelectorAll('#viewCtl .card[data-page]').forEach(c => { c.hidden = c.dataset.page !== ctlPage || (c.id === 'cLimit' && !ctl.limit) || (c.id === 'cPv' && !ctl.pv); });
         drawFunc();
         drawHoliday();
         drawCurve();
@@ -1695,7 +1754,12 @@
         $('cPvBadge').className = 'badge' + (pv.active ? ' ok' : '');
         let pvt;
         if (!pv.hasVar) pvt = 'In der Instanz ist keine Netz- bzw. Überschussvariable hinterlegt.';
-        else if (pv.active) pvt = `Vorzugsbetrieb seit ${until(pv.started)} · Offsets Raum +${num(st2.pvOffRoom, 1)} K, Warmwasser +${num(st2.pvOffDHW, 1)} K, Puffer +${num(st2.pvOffBuffer, 1)} K`;
+        else if (pv.active) {
+            const fac = pv.factor ?? 1;
+            pvt = `${st2.pvMethod === 'vl' ? 'Vorlauf-/Raum-Anhebung' : 'Vorzugsbetrieb'} seit ${until(pv.started)}`
+                + (st2.pvStaged ? ` · Stufe ${pv.stage}/3 (Ø 10 min ${kwTxt(pv.avg)})` : '')
+                + ` · Offsets Raum +${num(Math.round(st2.pvOffRoom * fac * 2) / 2, 1)} K, Warmwasser +${num(Math.round(st2.pvOffDHW * fac), 0)} K, Puffer +${num(Math.round(st2.pvOffBuffer * fac), 0)} K`;
+        }
         else if (pv.since) pvt = `Überschuss ausreichend seit ${until(pv.since)} – Start nach ${num(st2.pvStartMin, 0)} min`;
         else pvt = 'Zu wenig Überschuss – Wärmepumpe im Normalbetrieb.';
         if (ctl.limit && pv.active) pvt += ' · Leistungsbegrenzung bleibt wirksam';
@@ -1774,10 +1838,10 @@
             items.push(['rooms', '🏠', 'Räume', (ctl.rooms ? (ctl.demand ? 'Anforderung' : 'keine Anforderung') + ' · ' : 'nur Anzeige · ')
                 + `Ø ${tTxt(rs.avgIst)} / Soll ${tTxt(rs.avgSoll)}` + (rs.dev != null ? ` (${rs.dev > 0 ? '+' : ''}${num(rs.dev, 1)} %)` : '')]);
         }
-        items.push(ctl.limit ? ['limit', '⚡', 'Leistungsbegrenzung', ctl.pw ? `Prognose ${kwTxt(ctl.pw.forecast)} von ${kwTxt(ctl.pw.max)}` + (ctl.sgOn ? ' · WP begrenzt' : '') : 'keine Hausleistung']
+        items.push(ctl.limit ? ['grid', '⚡', 'Leistungsbegrenzung', ctl.pw ? `Prognose ${kwTxt(ctl.pw.forecast)} von ${kwTxt(ctl.pw.max)}` + (ctl.sgOn ? ' · WP begrenzt' : '') : 'keine Hausleistung']
                              : ['main', '⚡', 'Leistungsbegrenzung', 'aus', true]);
         const pv = ctl.pvState || {};
-        items.push(ctl.pv ? ['pv', '☀️', 'PV-Überschuss', (pv.active ? 'aktiv' : pv.since ? 'wartet' : 'inaktiv') + ` · ${kwTxt(pv.avail)} verfügbar`]
+        items.push(ctl.pv ? ['grid', '☀️', 'PV-Überschuss', (pv.active ? 'aktiv' : pv.since ? 'wartet' : 'inaktiv') + ` · ${kwTxt(pv.avail)} verfügbar`]
                           : ['main', '☀️', 'PV-Überschuss', 'aus', true]);
         $('cSumList').innerHTML = items.map(([p, icon, name, text, off]) =>
             `<div class="it${off ? ' off' : ''}" data-p="${p}"><span>${icon}</span><span class="t"><b>${name}</b><small>${esc(text)}</small></span><span class="go">${off ? '' : '›'}</span></div>`).join('');
@@ -1844,10 +1908,11 @@
                  fields: 'cFoot:Fußpunkt VL °C (bei 20 °C außen),cDesign:Auslegepunkt VL °C,cDesignAT:Auslegepunkt Außentemp. °C,cVlMin:Vorlauf min °C,cVlMax:Vorlauf max °C,cRoomFactor:Raumsoll-Einfluss K VL je K',
                  hint: 'Grundkurve linear zwischen Fuß- und Auslegepunkt (für 20 °C Raum). Dazu: Raumsoll-Verschiebung und der gelernte Anteil je Außentemperatur. Beim ersten Einschalten werden die Hoval-Werte übernommen.' },
         pv: { seg: ['pvMethod', 'Verfahren', [['sg', 'Smart Grid (Offsets)'], ['vl', 'Vorlauf anheben']], false],
-              fields: 'pvStart:Einschalten ab kW Überschuss,pvStartMin:… für mindestens min,pvStop:Ausschalten unter kW,pvStopMin:… für mindestens min,pvMinRun:Mindestlaufzeit min,pvOffRoom:Offset Raum HK1 K,pvOffDHW:Offset Warmwasser K,pvOffBuffer:Offset Puffer K,pvVlBoost:Vorlauf anheben ohne Puffer K (max. 3),pvBufMax:mit Puffer: Vorlauf bis °C',
+              segs: [['pvStaged', 'Offsets in Stufen nach Überschuss', [[1, 'an'], [0, 'aus']], true]],
+              fields: 'pvS2:Stufe 2 ab kW (Ø 10 min),pvS3:Stufe 3 (voller Offset) ab kW,pvStart:Einschalten ab kW Überschuss,pvStartMin:… für mindestens min,pvStop:Ausschalten unter kW,pvStopMin:… für mindestens min,pvMinRun:Mindestlaufzeit min,pvOffRoom:Offset Raum HK1 K,pvOffDHW:Offset Warmwasser K,pvOffBuffer:Offset Puffer K,pvVlBoost:Vorlauf anheben ohne Puffer K (max. 3),pvBufMax:mit Puffer: Vorlauf bis °C',
               hint: 'Überschuss = Einspeisung + aktuelle WP-Leistung. „Smart Grid“: Offsets und Vorzugsbetrieb. „Vorlauf anheben“ ohne Smart Grid: mit der Symcon-Heizkurve Vorlauf +1…3 K (mit Puffer bis zum Maximalwert, bis er unten durchgewärmt ist); mit der Hoval-Kurve (auch „Hoval + Raum“) wird stattdessen das Raum-Soll an die Hoval um „Offset Raum HK1“ angehoben.' }
     };
-    const secKeys = (sec) => { const c = SEC[sec]; if (c.keys) return c.keys; return [...(c.seg ? [c.seg[0]] : []), ...(c.fields ? c.fields.split(',').map(e => e.split(':')[0]) : []), ...(c.prog ? [c.prog] : [])]; };
+    const secKeys = (sec) => { const c = SEC[sec]; if (c.keys) return c.keys; return [...(c.seg ? [c.seg[0]] : []), ...(c.segs || []).map(x => x[0]), ...(c.fields ? c.fields.split(',').map(e => e.split(':')[0]) : []), ...(c.prog ? [c.prog] : [])]; };
     function renderEd(sec) {
         const el = document.querySelector(`.ed[data-sec="${sec}"]`);
         if (!el || !ctl) return;
@@ -1868,6 +1933,10 @@
             const cur = typeof d[k] === 'boolean' ? (d[k] ? 1 : 0) : d[k];
             h += `<div class="row"><span class="hint">${label}</span><span class="seg">` + options.map(([v, t]) => `<button data-seg="${v}" class="${String(cur) === String(v) ? 'on' : ''}"${dis}>${t}</button>`).join('') + '</span></div>';
         }
+        (c.segs || []).forEach(([k, label, options]) => {
+            const cur = typeof d[k] === 'boolean' ? (d[k] ? 1 : 0) : d[k];
+            h += `<div class="row"><span class="hint">${label}</span><span class="seg">` + options.map(([v, t]) => `<button data-sk="${k}" data-sv="${v}" class="${String(cur) === String(v) ? 'on' : ''}"${dis}>${t}</button>`).join('') + '</span></div>';
+        });
         if (c.fields) h += '<div class="fields">' + c.fields.split(',').map(e => { const [k, label] = e.split(':'); return `<label>${label}<input type="number" step="0.1" data-k="${k}" value="${d[k] ?? ''}"${dis}></label>`; }).join('') + '</div>';
         if (c.prog) {
             const rows = d[c.prog], heat = sec === 'heat';
@@ -1887,6 +1956,11 @@
         q('[data-unlock]').forEach(b => b.addEventListener('click', () => { const v = body.querySelector('.lpw').value; if (v) { pendingPw = v; ctlSend({ a: 'unlock', pw: v }); } }));
         q('.lpw').forEach(i => i.addEventListener('keydown', (e) => { if (e.key === 'Enter' && i.value) { pendingPw = i.value; ctlSend({ a: 'unlock', pw: i.value }); } }));
         q('[data-seg]').forEach(b => b.addEventListener('click', () => { d[c.seg[0]] = c.seg[3] ? Number(b.dataset.seg) : b.dataset.seg; renderEd(sec); }));
+        q('[data-sk]').forEach(b => b.addEventListener('click', () => {
+            q('input[data-k]').forEach(i => { if (i.value !== '') d[i.dataset.k] = Number(i.value); });
+            const def = (c.segs || []).find(x => x[0] === b.dataset.sk);
+            d[b.dataset.sk] = def && def[3] ? b.dataset.sv === '1' : b.dataset.sv; renderEd(sec);
+        }));
         q('input[data-k]').forEach(i => i.addEventListener('change', () => { if (i.value !== '') d[i.dataset.k] = Number(i.value); }));
         q('[data-c]').forEach(e => e.addEventListener('change', () => { const r = d[c.prog][Number(e.dataset.i)]; r[e.dataset.c] = e.dataset.c === 'Temp' ? Number(e.value) : e.value; }));
         q('.del').forEach(b => b.addEventListener('click', () => { d[c.prog].splice(Number(b.dataset.i), 1); renderEd(sec); }));
@@ -1917,7 +1991,7 @@
         $('cvBadge').textContent = sym ? 'Symcon' : room ? 'Hoval + Raum' : 'Hoval';
         $('cvBadge').className = 'badge' + (sym ? ' ok' : '');
         document.querySelectorAll('#cvMode button').forEach(b => { b.classList.toggle('on', b.dataset.v === c.mode); b.disabled = !unlocked; });
-        $('cvLockHint').textContent = unlocked ? '' : '🔒 zum Umschalten in „Funktionen“ entsperren';
+        $('cvLockHint').textContent = unlocked ? '' : '🔒 zum Umschalten unter Einstellungen › Übersicht › Funktionen oder in einem ⚙-Editor entsperren';
         const n = c.now, hv = c.hoval;
         $('cvState').innerHTML = sym && n
             ? `Außen Ø 3 h <b>${num(n.out, 1)} °C</b> → Vorlauf-Soll <b>${num(n.target, 1)} °C</b> <span class="hint">(Kurve ${num(n.base, 1)} ${n.room >= 0 ? '+' : '−'} Raum ${num(Math.abs(n.room), 1)} ${n.learn >= 0 ? '+' : '−'} gelernt ${num(Math.abs(n.learn), 1)}${n.pv ? ' + PV ' + num(n.pv, 1) : ''})</span>`
@@ -1935,6 +2009,8 @@
         $('cvFit').hidden = !f && !tr;
         if (f || tr) {
             let fx = `<div class="sec-title">Gelernte Kurve in die Hoval übernehmen <button class="info" data-info="cvfit" title="Erklärung">i</button></div>`;
+            if (sym && c.learnDone) fx += `<div class="now" style="color:#16a34a">🎓 <b>Lernphase abgeschlossen</b> – die Kurve hat sich eingependelt (gelernt von ${c.learnDone.from} bis ${c.learnDone.to} °C). Übernahme empfohlen.</div>`;
+            else if (sym) fx += '<div class="hint">Lernphase läuft noch – sobald sich die Kurve eingependelt hat, erscheint hier und unter Tipps die Empfehlung (Push).</div>';
             if (f) fx += `<div class="now">Hoval-Kurve, die der gelernten am nächsten kommt: <b>Fußpunkt ${num(f.foot, 1)} °C</b>, <b>Auslegepunkt ${num(f.design, 1)} °C</b> bei ${num(f.designAT, 0)} °C`
                 + (f.hovalFoot !== null && f.hovalFoot !== undefined ? ` <span class="hint">(jetzt in der Hoval ${num(f.hovalFoot, 1)} / ${num(f.hovalDesign, 1)} °C)</span>` : '') + '</div>'
                 + `<div class="hint">Größte Abweichung zur gelernten Kurve zwischen −15 und 15 °C: <b style="color:${f.maxDev > 1.5 ? 'var(--hot)' : 'inherit'}">${num(f.maxDev, 1)} K</b>`
@@ -3211,7 +3287,14 @@
                     + (c.canApply ? `<div class="pwbox"><input type="password" class="tpw" placeholder="Passwort" autocomplete="off"><button class="btn primary" data-apply="${esc(i.id)}">Heizkurve übernehmen</button></div>`
                                   : '<div class="hint">Zum Übernehmen per Knopf: Heizkurve lesen/schreiben in der Instanz eintragen – sonst am Hoval-Bedienteil einstellen.</div>');
             }
-            return `<div class="mon-item warn"><div class="top"><b>${i.icon} ${esc(i.title)}</b></div><div class="hint">${esc(i.text)}</div>${curve}`
+            if (i.learn) {
+                const l = i.learn, sh = (v) => (v > 0 ? '+' : v < 0 ? '−' : '±') + num(Math.abs(v), 1) + ' K';
+                curve = `<div class="vals">Fußpunkt ${num(l.oldFoot, 1)} → <b>${num(l.foot, 1)} °C</b> (${sh(l.dFoot)}) · Auslegepunkt ${num(l.oldDesign, 1)} → <b>${num(l.design, 1)} °C</b> (${sh(l.dDesign)}) bei ${num(l.designAT, 0)} °C</div>`
+                    + '<div class="hint">Vorlauf ' + l.at.map(a => `bei ${a.t} °C: ${num(a.old, 1)} → ${num(a.new, 1)} °C`).join(' · ') + ` · größte Abweichung zur gelernten Kurve ${num(l.maxDev, 1)} K</div>`
+                    + (l.canWrite ? `<div class="pwbox"><input type="password" class="tpw" placeholder="Passwort" autocomplete="off"><button class="btn primary" data-learn="1">In Hoval übernehmen &amp; auf Hoval umschalten</button></div>`
+                                  : '<div class="hint">Zum Übernehmen „30618 Fußpunkt“ und „30615 Auslegepunkt“ unter „Heizkurve / Regelung – schreiben“ eintragen.</div>');
+            }
+            return `<div class="mon-item ${i.learn ? 'ok' : 'warn'}"><div class="top"><b>${i.icon} ${esc(i.title)}</b></div><div class="hint">${esc(i.text)}</div>${curve}`
                 + `<div class="setbar"><button class="btn" data-dismiss="${esc(i.id)}">Ausblenden</button><button class="btn primary" data-done="${esc(i.id)}">Erledigt</button></div></div>`;
         }).join('') : `<div class="mon-item ok"><b>${t.days < t.needDays ? 'Sammelt noch Daten' : 'Keine Empfehlungen'}</b><div class="hint">${t.days < t.needDays
             ? `Es werden ${t.needDays} vollständige Heiztage mit Raumwerten gebraucht (bisher ${t.days}).` : 'Alles im grünen Bereich – Räume, Laufzeiten und Warmwasser sind unauffällig.'}</div></div>`;
@@ -3225,6 +3308,10 @@
         document.querySelectorAll('#sModeTips [data-done]').forEach(b => b.addEventListener('click', () => send({ a: 'done', id: b.dataset.done })));
         document.querySelectorAll('#sModeTips [data-dismiss]').forEach(b => b.addEventListener('click', () => send({ a: 'dismiss', id: b.dataset.dismiss })));
         document.querySelectorAll('#sModeTips [data-forget]').forEach(b => b.addEventListener('click', () => send({ a: 'forget', id: b.dataset.forget })));
+        document.querySelectorAll('#sModeTips [data-learn]').forEach(b => b.addEventListener('click', () => {
+            const pw = b.parentElement.querySelector('.tpw').value;
+            if (pw) { requestAction('Ctl', JSON.stringify({ a: 'curveToHoval', pw })); setTimeout(() => send({ a: 'list' }), 400); }
+        }));
         document.querySelectorAll('#sModeTips [data-apply]').forEach(b => b.addEventListener('click', () => {
             const pw = b.parentElement.querySelector('.tpw').value;
             if (pw) send({ a: 'applyCurve', id: b.dataset.apply, pw });
@@ -3377,12 +3464,177 @@
     $('dpStop').addEventListener('click', () => { ctlSend({ a: 'boostStop' }); $('dhwPop').hidden = true; });
     $('dpCancel').addEventListener('click', () => { $('dhwPop').hidden = true; });
     const gotoCtl = (page) => { $('tempPop').hidden = true; $('dhwPop').hidden = true; showView('ctl'); showCtlPage(page); };
-    $('dpGoto').addEventListener('click', () => gotoCtl('dhw'));
-    $('tpGoto').addEventListener('click', () => gotoCtl('heat'));
+
+    // ---------- Bauteil-Fenster: antippen im Anlagenschema öffnet alles, was zum Bauteil gehört ----------
+    // Die Karten (Heizung, Warmwasser, Heizkurve, Kältekreis, Verlauf …) werden hierher verschoben und beim Schließen zurückgelegt –
+    // so bleibt jede Funktion an einer Stelle programmiert und ist trotzdem direkt am Bauteil erreichbar.
+    const homes = new Map();
+    function sheetDef(name) {
+        const c = ctl || {};
+        const parts = (label, ids) => [label, ids.filter(id => $(id))];
+        switch (name) {
+            case 'hp': return { title: '🌀 Wärmepumpe', tabs: [parts('Übersicht', ['shHp']), ...(c.curve ? [parts('Heizkurve', ['cCurve'])] : []),
+                ...(typeof refri !== 'undefined' && refri ? [parts('Kältekreis', ['viewRefri'])] : []), parts('Verlauf', ['rangeBtns', 'viewDaily'])] };
+            case 'heat': return { title: '🏠 Heizung · Raum', tabs: [parts('Raum', ['shHeatTop', ...(c.ctl ? ['cHeat'] : []), ...((c.roomList || []).length ? ['cRooms'] : [])]),
+                ...(c.curve ? [parts('Heizkurve', ['cCurve'])] : [])] };
+            case 'dhw': return { title: '🚿 Warmwasser', tabs: [parts('', c.dhwCtl ? ['cDhw'] : ['shDhwInfo', 'dcChartBox'])] };
+            case 'buf': return { title: '🛢 Puffer', tabs: [parts('', ['shBuf'])] };
+            case 'out': return { title: '🌡 Außen', tabs: [parts('', ['shOut'])] };
+            case 'grid': return { title: '⚡ Strom · PV', tabs: [parts('', ['shGrid', ...(c.limit ? ['cLimit'] : []), ...(c.pv ? ['cPv'] : [])])] };
+        }
+        return null;
+    }
+    function moveIn(id, into) {
+        const el = $(id);
+        if (!homes.has(id)) {
+            const mark = document.createComment('home:' + id);
+            el.parentNode.insertBefore(mark, el);
+            homes.set(id, { mark, hidden: el.hidden, open: el.tagName === 'DETAILS' ? el.open : null });
+        }
+        into.appendChild(el);
+        el.hidden = false;
+        if (el.tagName === 'DETAILS') el.open = true;
+        el.querySelectorAll(':scope > details#cHeatChartBox, :scope details#dcChartBox, :scope details#cHeatChartBox').forEach(d => { d.open = true; });
+    }
+    function restoreAll() {
+        homes.forEach((h, id) => {
+            const el = $(id);
+            h.mark.parentNode.insertBefore(el, h.mark);
+            h.mark.remove();
+            el.hidden = h.hidden;
+            if (h.open !== null) el.open = h.open;
+        });
+        homes.clear();
+    }
+    function openSheet(name, tab) {
+        const def = sheetDef(name);
+        if (!def) return;
+        if (sheetOpen) restoreAll();
+        $('tempPop').hidden = true; $('dhwPop').hidden = true;
+        sheetOpen = name;
+        sheetTab = Math.min(tab || 0, def.tabs.length - 1);
+        // Hintergrund passend zur Schriftfarbe (helle Schrift = dunkles Design)
+        const fg = getComputedStyle($('tile')).color.match(/\d+/g) || [0, 0, 0];
+        $('sheet').style.setProperty('--sheet-bg', (+fg[0] + +fg[1] + +fg[2]) / 3 > 140 ? '#1f2124' : '#ffffff');
+        $('shTitle').textContent = def.title;
+        const body = $('shBody');
+        body.innerHTML = '';
+        def.tabs.forEach(([label, ids], i) => {
+            const part = document.createElement('div');
+            part.className = 'shpart';
+            part.dataset.i = i;
+            body.appendChild(part);
+            ids.forEach(id => moveIn(id, part));
+        });
+        $('shTabs').innerHTML = def.tabs.length > 1 ? def.tabs.map(([label], i) => `<button data-i="${i}">${label}</button>`).join('') : '';
+        $('shTabs').querySelectorAll('button').forEach(b => b.addEventListener('click', () => { sheetTab = Number(b.dataset.i); showSheetTab(); }));
+        $('sheet').hidden = false;
+        showSheetTab();
+    }
+    function showSheetTab() {
+        document.querySelectorAll('#shBody .shpart').forEach(p => { p.hidden = Number(p.dataset.i) !== sheetTab; });
+        document.querySelectorAll('#shTabs button').forEach(b => b.classList.toggle('on', Number(b.dataset.i) === sheetTab));
+        $('shBody').scrollTop = 0;
+        fillSheet();
+        requestAnimationFrame(sheetRedraw);
+    }
+    function closeSheet() {
+        if (!sheetOpen) return;
+        sheetOpen = null;
+        $('sheet').hidden = true;
+        restoreAll();
+        $('shBody').innerHTML = '';
+        if (curView === 'ctl') drawCtl();
+        if (curView === 'refri') drawRefri();
+        if (curView === 'daily') drawDaily();
+    }
+    // sichtbare Diagramme im Fenster neu zeichnen (die Größe stimmt erst nach dem Einblenden)
+    function sheetRedraw() {
+        if (!sheetOpen) return;
+        const vis = (id) => { const el = $(id); return el && el.closest('#shBody') && !el.closest('.shpart').hidden; };
+        if (ctl) drawCtl();
+        if (vis('viewRefri')) { drawRefri(); requestRefri(); }
+        if (vis('viewDaily')) drawDaily();
+        if (vis('dcChartBox') && $('dcChartBox').open && typeof drawDhwChart === 'function') drawDhwChart();
+        if (vis('cHeatChartBox') && $('cHeatChartBox').open && typeof drawHeatChart === 'function') drawHeatChart();
+    }
+    const sheetHasCtl = () => !!sheetOpen && !!document.querySelector('#shBody .card[data-page], #shBody #cCurve');
+    $('shClose').addEventListener('click', closeSheet);
+    $('shBack').addEventListener('click', closeSheet);
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && sheetOpen) closeSheet(); });
+    document.querySelectorAll('#schema .tap, #schema [data-sheet]').forEach(t => t.addEventListener('click', () => openSheet(t.dataset.sheet)));
+    document.querySelector('.kpi[data-key="OutdoorTemp"]').addEventListener('click', () => openSheet('out'));
+
+    // generierte Inhalte der Fenster (Übersicht WP, Raum, Puffer, Außen, Strom)
+    const row = (label, val) => val === null || val === undefined || val === '–' || val === '' ? '' : `<div><span>${label}</span><b>${val}</b></div>`;
+    const fv = (key) => has(key) ? f(key) : null;
+    const link = (txt, act) => `<button class="btn" data-act="${act}">${txt}</button>`;
+    function fillSheet() {
+        if (!sheetOpen) return;
+        const c = ctl || {};
+        if (sheetOpen === 'hp') {
+            $('shHp').innerHTML = '<div class="shrows">' + row('Wärmeerzeuger', fv('WEZStatus')) + row('Wärmepumpe (WFA)', fv('WFAStatus')) + row('Betriebswahl', fv('OperatingMode'))
+                + row('Vorlauf', fv('FlowTemp')) + row('Rücklauf', fv('ReturnTemp')) + row('Spreizung', $('tSpread').textContent) + row('VL-Soll', fv('WEZSetpoint'))
+                + row('Modulation', fv('WEZPower')) + row('Verdichter', fv('CompressorSpeed')) + row('Leistung el.', $('tElec').textContent)
+                + row('Leistung thermisch', fv('ThermPower')) + row('COP', fv('COPPump')) + row('JAZ', fv('JAZPump')) + row('Volumenstrom', fv('FlowRate'))
+                + row('Umwälzpumpe', fv('PumpCP')) + row('Betriebsstunden', fv('Hours')) + row('Verdichterstarts', fv('Cycles'))
+                + row('Abtauungen heute', $('dfValue').textContent) + row('Fehler', fv('ErrorCode')) + '</div>'
+                + `<div class="shlinks">${link('📊 Auswertung', 'stats')}${link('⚡ Leistung heute', 'power')}</div>`;
+        }
+        if (sheetOpen === 'heat') {
+            const rs = c.roomStats || {}, h = c.heat || {};
+            $('shHeatTop').innerHTML = '<div class="shrows">' + row('Raum Ø', rs.avgIst !== null && rs.avgIst !== undefined ? tTxt(rs.avgIst) : null)
+                + row('Raum-Soll Ø', rs.avgSoll !== null && rs.avgSoll !== undefined ? tTxt(rs.avgSoll) : null) + row('Hoval Raum-Soll', fv('RoomSetpoint'))
+                + row('Heizkreis', fv('HC1Status')) + row('Betriebswahl HK', fv('HC1Mode')) + row('Vorlauf HK', fv('HC1FlowTemp')) + row('VL-Soll HK', fv('HC1FlowSetpoint'))
+                + row('Pumpe HK', fv('HC1Pump')) + '</div>'
+                + `<div class="shlinks">${c.ctl && h.season ? link('✎ Komfort / Absenkung ändern', 'temp') : ''}${c.curve ? link('📈 Heizkurve', 'curvetab') : ''}${link('📊 Wärme je Tag', 'heatstats')}</div>`
+                + (!c.ctl ? '<div class="hint">Heizungssteuerung ist aus – Zeitprogramm und Temperaturen gibt es nach dem Einschalten unter Einstellungen › Übersicht › Funktionen.</div>' : '');
+        }
+        if (sheetOpen === 'dhw') {
+            $('shDhwInfo').innerHTML = '<div class="shrows">' + row('oben', fv('StorageTop')) + row('unten', fv('StorageBottom')) + row('Soll', fv('DHWSetpoint'))
+                + row('Status', fv('DHWStatus')) + row('Betriebswahl', fv('DHWMode')) + '</div>'
+                + '<div class="hint">Warmwassersteuerung ist aus – Hoval regelt. Ladezeiten, Hysterese und „Aufheizen“ gibt es nach dem Einschalten unter Einstellungen › Übersicht › Funktionen.</div>'
+                + `<div class="shlinks">${link('📊 Warmwasser-Auswertung', 'dhwstats')}</div>`;
+        }
+        if (sheetOpen === 'buf') {
+            $('shBuf').innerHTML = '<div class="shrows">' + row('oben', fv('BufferTop')) + row('unten', fv('BufferBottom')) + row('Puffer (WPF)', fv('BufferTemp'))
+                + row('Soll', fv('BufferSetpoint')) + row('Status', fv('BufferStatus')) + '</div>';
+        }
+        if (sheetOpen === 'out') {
+            const h = c.heat || {}, SN = { winter: 'Winter', transition: 'Übergang', summer: 'Sommer' };
+            $('shOut').innerHTML = '<div class="shrows">' + row('Außen jetzt', fv('OutdoorTemp')) + row('heute', $('kOutSub').textContent) + row('Luftfeuchte', fv('Humidity'))
+                + row('Ø 24 h', h.tAvg !== null && h.tAvg !== undefined ? tTxt(h.tAvg) : null) + row('Saison', SN[h.season])
+                + row('erkannt', h.detected ? SN[h.detected] : null) + '</div>'
+                + '<div class="hint">Die Heizgrenze deines Hauses (ab welcher Außentemperatur keine Heizwärme mehr nötig ist) zeigt die Auswertung „Wärme“ – zum Vergleich mit 03-021 am Bedienteil.</div>'
+                + `<div class="shlinks">${link('📊 Wärme je Tag / Heizgrenze', 'heatstats')}${c.ctl ? link('⚙ Saison einstellen', 'season') : ''}</div>`;
+        }
+        if (sheetOpen === 'grid') {
+            const pv = c.pvState || {};
+            $('shGrid').innerHTML = '<div class="shrows">' + row('WP jetzt', $('tElec').textContent) + row('Energie heute', $('pwEnergy') ? $('pwEnergy').textContent : null)
+                + row('Kosten heute', $('pwCost') ? $('pwCost').textContent : null) + row('PV-Überschuss', c.pv ? kwTxt(pv.avail) : null)
+                + row('PV-Betrieb', c.pv ? (pv.active ? 'aktiv' + (c.settings && c.settings.pvStaged ? ` · Stufe ${pv.stage}/3` : '') : 'inaktiv') : null) + '</div>'
+                + `<div class="shlinks">${link('⚡ Leistung (Tagesverlauf)', 'power')}${link('💶 Kosten', 'cost')}</div>`
+                + (!c.limit && !c.pv ? '<div class="hint">Leistungsbegrenzung und PV-Überschuss sind aus – einschalten unter Einstellungen › Übersicht › Funktionen.</div>' : '');
+        }
+        document.querySelectorAll('#shBody [data-act]').forEach(b => { b.onclick = () => sheetAct(b.dataset.act); });
+    }
+    function sheetAct(a) {
+        if (a === 'temp') { $('roomTap').dispatchEvent(new Event('click')); return; }
+        if (a === 'curvetab') { const i = [...document.querySelectorAll('#shTabs button')].findIndex(b => b.textContent === 'Heizkurve'); if (i >= 0) { sheetTab = i; showSheetTab(); } return; }
+        closeSheet();
+        if (a === 'stats') showView('stats');
+        if (a === 'power') showView('power');
+        if (a === 'heatstats') { showView('stats'); showStatsMode('heat'); }
+        if (a === 'dhwstats') { showView('stats'); showStatsMode('dhw'); }
+        if (a === 'cost') { showView('stats'); showStatsMode('cost'); }
+        if (a === 'season') gotoCtl('heat');
+    }
+    $('dpGoto').addEventListener('click', () => { $('dhwPop').hidden = true; openSheet('dhw'); });
+    $('tpGoto').addEventListener('click', () => { $('tempPop').hidden = true; openSheet('heat'); });
 
     // ---------- Erklärungen (ℹ) zu allen Regeleinstellungen ----------
     const INFO = {
-        'schema-room': ['Raumtemperatur', '„Raumtemperatur ändern“ stellt die Komfort- und die Absenktemperatur der aktiven Saison ein – sofort wirksam, ohne Passwort.\n\nUnter der Fußbodenheizung: Vorlauf, Ø Raumtemperatur der berücksichtigten Räume, Soll und Abweichung (grün bis ±0,5 K, orange bis ±1,5 K).\n\nZeitprogramm, Saison, Heizkurve und Räume findest du unter Steuerung › Heizung bzw. › Räume.', 'heat'],
+        'schema-room': ['Raumtemperatur', '„Raumtemperatur ändern“ stellt die Komfort- und die Absenktemperatur der aktiven Saison ein – sofort wirksam, ohne Passwort.\n\nUnter der Fußbodenheizung: Vorlauf, Ø Raumtemperatur der berücksichtigten Räume, Soll und Abweichung (grün bis ±0,5 K, orange bis ±1,5 K).\n\nAlles zur Heizung – Zeitprogramm, Saison, Heizkurve, Räume und Verlauf – öffnet sich mit Antippen der Fußbodenheizung (oder unter Einstellungen › Heizung).', 'heat'],
         func: ['Funktionen', 'Hier werden die Steuerungsfunktionen mit dem Passwort ein- und ausgeschaltet.\n\nHeizungssteuerung: Symcon übernimmt Betriebsart, Zeitprogramm und Raum-Soll von Heizkreis 1.\nWarmwassersteuerung: Symcon übernimmt Ladezeiten und Temperaturen.\nRaumanforderung: Heizkreis nur freigeben, wenn ein Raum (oder der Durchschnitt) zu kalt ist.\nLeistungsbegrenzung: hält die 15-min-Spitze von Haus + WP unter dem Grenzwert.\nPV-Überschuss: nutzt Solarstrom-Überschuss als Wärme.\n\nAusschalten gibt die jeweilige Funktion an das Hoval-Programm „Woche 1“ zurück.'],
         holiday: ['Urlaub', 'Senkt während der Abwesenheit ab und endet automatisch.\n\nHeizung: „Absenkung“ = Absenktemperatur der aktuellen Saison, „Frostschutz“ = Heizkreis im Standby.\nWarmwasser: „aus“ = Standby (Hoval-Frostschutz bleibt aktiv), „40 °C“ = niedrige Temperatur.\n\nPlanbar im Voraus (Beginn in der Zukunft).'],
         heat: ['Heizung', 'Automatik: Zeitprogramm der Saison (Komfort, Absenkung oder eigene Temperatur je Zeit).\nFrostschutz: Heizkreis im Standby.\nDauer: feste Raumtemperatur ohne Zeitprogramm.\n\nSaison: Winter / Übergang / Sommer – manuell oder automatisch nach Ø 24 h Außentemperatur. Im Sommer heizt die Anlage nur in eigenen Zeiten.\n\nKomfort- und Absenktemperatur lassen sich auch direkt im Anlagenschema über „Soll ändern“ einstellen.'],
@@ -3391,6 +3643,24 @@
         'ed-curve': ['Symcon-Heizkurve', 'Fußpunkt: Vorlauf bei 20 °C außen (für 20 °C Raum).\nAuslegepunkt: Vorlauf bei der Auslegungs-Außentemperatur (z.B. −12 °C).\nVorlauf min/max: Grenzen für den Sollwert.\nRaumsoll-Einfluss: um wie viel K der Vorlauf je 1 K höherem Raum-Soll steigt (Fußbodenheizung ca. 1,5).\nLernen: aus = feste Kurve ohne Anpassung.'],
         dhw: ['Warmwasser', 'Zeigt den aktuellen Zustand (Laden, Standby, Aufheizen).\n\nAufheizen: einmalig für 1–6 Stunden auf eine höhere Temperatur (z.B. vor dem Baden oder für den Legionellenschutz). Danach gilt wieder das Programm.\n\nDie maximale Warmwassertemperatur begrenzt alle Werte und ist nur mit Passwort änderbar.\n\nAufheizen geht auch direkt im Anlagenschema (Knopf neben dem Speicher).'],
         'ed-dhw': ['Ladezeiten', 'Absenken: die normale (niedrigere) Ladetemperatur.\nAufheizen: die höhere Temperatur für bestimmte Zeiten.\nJede Ladezeit wählt Absenken, Aufheizen oder eine eigene Temperatur.\n\nAußerhalb der Ladezeiten: Standby (keine Ladung).\nOhne Ladezeiten regelt Hoval das Warmwasser selbst.\n\nHysterese (Symcon): In den Ladezeiten wird erst nachgeladen, wenn der Speicher oben unter Soll − Hysterese fällt (z.B. 50 °C − 7 K = unter 43 °C), dann bis zum Soll geladen. Weniger, dafür längere Ladungen = weniger Verdichterstarts. 0 = Hoval-Schaltdifferenz.\nStartet Hoval die Ladung nicht von selbst (eigene Schaltdifferenz größer), hebt Symcon den Hoval-Sollwert nach 20 min an und beendet die Ladung beim eingestellten Soll.'],
+        regelung: ['Wie hängt die Regelung zusammen?', '① REGELSTRATEGIE – wer bestimmt den Vorlauf?\n'
+            + '0 = Witterungsführung: nur Außentemperatur über die Heizkurve (Fußpunkt bei 20 °C außen, Auslegepunkt bei −15 °C).\n'
+            + '1 = Witterungsführung mit Raumaufschaltung: wie 0, zusätzlich korrigiert durch die Raumtemperatur („Hoval + Raum“).\n'
+            + '3 = Konstantregelung: fester Vorlauf aus 1490 – nur für die selbstlernende Symcon-Kurve.\n\n'
+            + '② WOFÜR BRAUCHT ES DIE KONSTANTREGELUNG?\nNur für „Symcon (selbstlernend)“: Symcon gibt dabei den Vorlauf direkt vor. Alles andere – Zeitprogramm, Aufheizoptimierung, Urlaub, '
+            + 'Warmwasser, PV-Überschuss, Leistungsbegrenzung, Maximaltemperatur – funktioniert ohne. Fällt Symcon bei Konstantregelung aus, bleibt der letzte Vorlauf stehen '
+            + '(nicht witterungsgeführt). Deshalb: lernen lassen, Kurve in die Hoval übernehmen (Empfehlung unter Tipps), dann „Hoval + Raum“.\n\n'
+            + '③ RAUMEINFLUSS (03-007, nur am Bedienteil)\nVorlauf-Korrektur = Raumeinfluss × (Raum-Soll − Raum-Ist). Beispiel mit 2 und Kurve 27 °C:\n'
+            + '• morgens 1,5 K zu kalt → +3 K → 30 °C\n• Sonne, 1 K zu warm → −2 K → 25 °C\n• Kamin, 2 K zu warm → −4 K → 23 °C\n'
+            + 'Fußbodenheizung: 2 (laut Hoval nicht über 4) – sonst pendelt die träge FBH. Symcon liefert dafür den Raumdurchschnitt nach 1510.\n'
+            + 'Raum-Heizgrenzen (nur wenn 03-007 > 0): 03-026 „Heizen aus“ (z.B. 1 K zu warm → aus), 03-025 „forciert Heizen“ (z.B. 2 K zu kalt → heizt auch über der Heizgrenze). '
+            + 'Dämpfung der Raumtemperatur: 03-024 (FBH 20–30 min).\n'
+            + 'Raumeinfluss = schnelle, vorübergehende Korrektur (Sonne, Kamin, nach der Absenkung). Lernkurve = langsame, dauerhafte Korrektur der Kurve je Außentemperatur.\n\n'
+            + '④ VORZEITIGES AUFHEIZEN\nDie Hoval kennt das Symcon-Zeitprogramm nicht – Symcon schreibt den Komfort-Sollwert so früh, dass es zur Startzeit warm ist (gelernte K/h). '
+            + 'Mit Raumaufschaltung heizt die Hoval dann sogar kräftiger an.\n\n'
+            + '⑤ PV-ÜBERSCHUSS\nSmart Grid: Offsets auf Raum, Warmwasser, Puffer + Vorzugsbetrieb (wirkt bei jeder Strategie). „Vorlauf anheben“: mit Symcon-Kurve der Vorlauf, sonst das Raum-Soll an die Hoval. '
+            + 'Mit „Stufen“ steigen die Offsets mit dem Überschuss (Ø 10 min): Stufe 1 ⅓, Stufe 2 ⅔, Stufe 3 voller Offset; Wechsel frühestens nach 15 min. '
+            + 'Raum-Offsets klein halten (0,5–3 K – 1 K Raum ≈ 1,5–3,5 K Vorlauf), Warmwasser/Puffer 5–15 K. Die Maximaltemperatur begrenzt immer.', 'heat'],
         cvsnap: ['Rücksetzpunkte', 'Hier stehen alle gesicherten Stände der Heizkurve – mit „Übernehmen“ wird der Stand in die Hoval geschrieben und die Hoval regelt wieder selbst.\n\n⭐ Original: die Hoval-Werte, die als erstes gesichert wurden (beim ersten Umschalten auf Symcon). Das Original wird nie überschrieben und kann nicht gelöscht werden.\nHoval-Stand: mit „Hoval-Stand sichern“ oder automatisch vor jeder Übernahme einer Symcon-Kurve (falls der Stand noch nicht in der Liste ist).\nSymcon-Kurve übernommen: jede mit „In Hoval übernehmen“ geschriebene gelernte Kurve.\n\nMax. 12 Rücksetzpunkte plus Original – die ältesten fallen weg. „aktiv“ = zuletzt übernommen.'],
         cvfit: ['Gelernte Kurve übernehmen', 'Wenn die Symcon-Kurve gut eingestellt ist, kannst du sie in die Hoval schreiben und wieder auf die Hoval-Regelung umschalten. Fällt Symcon später aus, regelt die Hoval dann witterungsgeführt mit der optimierten Kurve weiter – statt mit einem festen Vorlauf (Konstantregelung).\n\nDie Hoval-Kurve ist eine Gerade zwischen Fußpunkt (20 °C außen) und Auslegepunkt. Symcon sucht die Gerade, die der gelernten Kurve am nächsten kommt (gelernte Bereiche zählen dreifach). „Größte Abweichung“ zeigt, wie gut das passt – unter 1 K ist sehr gut.\n\nBeim Übernehmen werden 30618 und 30615 geschrieben und die gesicherte Original-Regelstrategie wiederhergestellt. Die Symcon-Kurve bleibt erhalten: Schaltest du später wieder auf Symcon, lernt sie dort weiter.\n\nHinweis: Hoval und Symcon verschieben die Kurve bei anderen Raum-Solltemperaturen unterschiedlich stark – nach dem Umschalten ein paar Tage die Raumtemperaturen beobachten.'],
         opt: ['Aufheizoptimierung', 'Beispiel: Absenkung 22:00–6:00 auf 19,5 °C, ab 6:00 Komfort 21,5 °C.\nOhne Optimierung beginnt die Heizung erst um 6:00 – die Fußbodenheizung braucht dann Stunden.\nMit Optimierung rechnet Symcon: (21,5 °C − Raum Ø jetzt) ÷ Aufheizgeschwindigkeit = Vorlaufzeit und beginnt so früh, dass die 21,5 °C um 6:00 erreicht sind.\n\nDie Aufheizgeschwindigkeit (K/h) lernt Symcon bei jedem Anstieg selbst, getrennt nach Außentemperatur (je 5 K). Startwert 0,5 K/h. Unter „Zuletzt“ siehst du, ob es pünktlich war.\n\nmax. Vorlaufzeit: früher wird nie begonnen.\nBraucht Raumtemperaturfühler (Räume) für die Messung.'],
@@ -3412,7 +3682,7 @@
         $('infoPop').hidden = false;
     }
     document.addEventListener('click', (e) => {
-        const b = e.target.closest('.info');
+        const b = e.target.closest('.info, .info-link');
         if (!b) return;
         e.preventDefault();
         e.stopPropagation();
@@ -3586,6 +3856,9 @@
         const pEl = msg.power ? msg.power.current : null;
         $('tElecLabel').textContent = msg.power && msg.power.measured ? 'Strom (gem.)' : 'Strom';
         $('tElec').textContent = pEl === null || pEl === undefined ? '–' : num(pEl, 2) + ' kW';
+        { const pvs = ctl && ctl.pv && ctl.pvState ? ctl.pvState : null;
+          const g = '⚡ ' + (pEl === null || pEl === undefined ? 'Strom' : num(pEl, 2) + ' kW') + (pvs && pvs.avail !== null && pvs.avail !== undefined ? ' · ☀ ' + num(pvs.avail, 1) : '');
+          if ($('tGrid').textContent !== g) $('tGrid').textContent = g; }
         $('tReturn').textContent = f('ReturnTemp');
         $('tFlowRate').textContent = has('FlowRate') ? f('FlowRate') : '';
         $('tPump').textContent = has('PumpCP') ? 'Pumpe ' + f('PumpCP') : '';
@@ -3681,16 +3954,26 @@
         $('schemaFx').classList.toggle('running', pumping);
         $('schema').classList.toggle('heating', !!msg.heating);
         $('schemaFx').classList.toggle('heating', !!msg.heating);
+        // Lüfter dreht nur, wenn der Verdichter läuft; Tempo nach Verdichter-Drehzahl (1 % … 100 % → 3,0 s … 0,8 s je Umdrehung)
+        const fanOn = msg.fan !== undefined ? msg.fan > 0 : !!msg.heating;
+        $('schemaFx').classList.toggle('fanon', fanOn);
+        if (fanOn) {
+            // 0,5-s-Stufen: kein Ruckeln bei kleinen Drehzahländerungen
+            const d = (Math.round((3 - Math.min(100, Math.max(1, msg.fan || 60)) / 100 * 2.2) * 2) / 2).toFixed(1) + 's';
+            if ($('schemaFx').style.getPropertyValue('--fan') !== d) $('schemaFx').style.setProperty('--fan', d);
+        }
         $('schemaFx').classList.toggle('defrosting', defrosting);
         $('schema').classList.toggle('defrosting', defrosting);
         syncGlints();
         // offene Auswertung höchstens einmal pro Minute aktualisieren (laufender Tag/Woche/Monat)
         if (!$('viewStats').hidden && sMode === 'energy' && Date.now() - sLastRequest > 60000) requestStats();
+        if (sheetOpen) fillSheet();
         if (pendingView) {
             const v = pendingView;
             pendingView = null;
-            if ((v !== 'refri' || refri) && (v !== 'ctl' || ctl)) { viewRestoring = true; showView(v); viewRestoring = false; }
+            // Verlauf und Kältekreis gibt es nur noch im Wärmepumpen-Fenster
+            if (v !== 'refri' && v !== 'daily' && (v !== 'ctl' || ctl)) { viewRestoring = true; showView(v); viewRestoring = false; }
         }
     }
-    try { const v = localStorage.getItem('hwpView'); if (['daily', 'stats', 'power', 'ctl', 'refri'].includes(v)) showView(v); } catch (e) {}
+    try { const v = localStorage.getItem('hwpView'); if (['stats', 'power', 'ctl'].includes(v)) showView(v); } catch (e) {}
 </script>

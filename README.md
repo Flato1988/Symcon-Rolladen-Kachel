@@ -280,6 +280,18 @@ Dauer, Speichertemperatur oben vorher/nachher, Temperaturanstieg, Strom und Ø A
 Außentemperatur liegt (Hinweis auf verkalkten Wärmetauscher, zu wenig Volumenstrom, Fühlerproblem); geprüft wird direkt nach jeder Ladung.
 Die Spreizung (VL − RL) steht im Wärmepumpen-Symbol, im Betrieb farbig bewertet (grün 2,5–8 K).
 
+**Version 7.0 – übersichtlichere Bedienung:**
+- **Bauteile im Anlagenschema antippen** öffnet ein Fenster mit allem, was dazugehört: Wärmepumpe (Übersicht, Heizkurve, Kältekreis, Verlauf),
+  WW-Speicher (Status, Aufheizen, Speicherverlauf, Ladezeiten), Fußbodenheizung (Raum, Heizung, Verlauf Soll/Ist, Räume, Heizkurve),
+  Puffer, ⚡ Strom · PV (neues Feld über der WP: Leistung, PV, Leistungsbegrenzung) und die Außen-Kachel (Ø 24 h, Saison, Heizgrenze).
+- Reiter reduziert auf **Anlage · Auswertung · Leistung · Einstellungen** (Verlauf und Kältekreis im Wärmepumpen-Fenster; Leistung und PV als
+  eine Einstellseite „Strom · PV“).
+- **Lernphase abgeschlossen:** Empfehlung unter Tipps und per Push mit der Verschiebung von Fuß-/Auslegepunkt und Vorlauf – Übernahme in die
+  Hoval nur auf Bestätigung (Passwort).
+- **PV-Offsets in Stufen** nach Höhe des Überschusses (Ø 10 min): ⅓ / ⅔ / voller Offset, Wechsel frühestens nach 15 min.
+- Info-Fenster „Wie hängt das zusammen?“ (Regelstrategie, Konstantregelung, Raumeinfluss, Aufheizen, PV).
+- Lüfter im Schema dreht nur bei laufendem Verdichter, Tempo nach Verdichter-Drehzahl.
+
 **Version 6.1:** PV-Überschuss „Vorlauf anheben“ funktioniert jetzt auch mit der Hoval-Kurve und „Hoval + Raum“: statt des Vorlaufs wird das
 Raum-Soll an die Hoval um „Offset Raum HK1“ angehoben (Hoval-Kurve verschiebt sich nach oben). Keine PV-Variante braucht die Konstantregelung.
 
