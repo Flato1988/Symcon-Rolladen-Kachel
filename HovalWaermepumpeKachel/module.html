@@ -340,7 +340,14 @@
     .prow .del { width: 26px; padding: 3px 0; margin-left: auto; }
     .edbody .ok-msg { color: #30a46c; }
     .edbody .err-msg { color: var(--hot); }
-    .ctl-grid > .card { grid-column: 1 / -1; }
+    .ctl-grid > .card:not([data-page="main"]) { grid-column: 1 / -1; }
+    /* Editor allein auf einem Unterreiter: ohne Trennlinie/Aufklapp-Pfeil, immer offen */
+    .ed-card > .ed { border-top: 0; padding-top: 0; }
+    .ed-card > .ed > summary { list-style: none; pointer-events: none; font-size: 14px; }
+    .ed-card > .ed > summary::-webkit-details-marker { display: none; }
+    .ed-card > .ed > summary .info { pointer-events: auto; }
+    #cHeatChartBox > summary, #dcChartBox > summary { list-style: none; pointer-events: none; }
+    #cHeatChartBox > summary::-webkit-details-marker, #dcChartBox > summary::-webkit-details-marker { display: none; }
     /* Reiter überall gleich: verbundene Gruppe, aktiver Reiter gefüllt (wie im Bauteil-Fenster) */
     .subnav, .tabgrp, #sheet .sh-tabs { display: inline-flex; flex-wrap: nowrap; align-self: flex-start; max-width: 100%; overflow-x: auto; overflow-y: hidden;
                      border: 1px solid rgba(128, 128, 128, .3); border-radius: 12px; background: transparent; margin-bottom: 8px; flex-shrink: 0;
@@ -1108,14 +1115,15 @@
 
     <div class="view" id="viewCtl" hidden>
         <div class="subnav" id="cNav">
-            <button data-p="main">Status</button><button data-p="func">Funktionen</button><button data-p="holiday">Urlaub</button><button data-p="heat">Heizung</button><button data-p="curve">Heizkurve</button><button data-p="dhw">Warmwasser</button><button data-p="rooms">Räume</button><button data-p="limit">Leistung</button><button data-p="pv">PV</button>
+            <button data-p="main">Übersicht</button><button data-p="heat">Heizung</button><button data-p="dhw">Warmwasser</button><button data-p="rooms">Räume</button><button data-p="limit">Leistung</button><button data-p="pv">PV</button>
         </div>
+        <div class="subnav sub2" id="cSub" hidden></div>
         <div class="ctl-grid">
             <div class="card" id="cSum" data-page="main">
                 <h3>Status</h3>
                 <div class="sum" id="cSumList"></div>
             </div>
-            <div class="card" id="cHoliday" data-page="holiday">
+            <div class="card" id="cHoliday" data-page="main">
                 <h3>🏖 Urlaub <button class="info" data-info="holiday" title="Erklärung">i</button><span class="badge" id="hBadge">aus</span></h3>
                 <div class="state" id="hState"></div>
                 <div id="hForm">
@@ -1129,7 +1137,7 @@
                 </div>
                 <div class="setbar" id="hStopRow" hidden><button class="btn warn" id="hStop">Urlaub beenden</button></div>
             </div>
-            <div class="card" id="cFunc" data-page="func">
+            <div class="card" id="cFunc" data-page="main">
                 <h3>Funktionen <button class="info" data-info="func" title="Erklärung">i</button><span class="badge" id="cLock">🔒 gesperrt</span></h3>
                 <div class="func">
                     <label class="sw"><input type="checkbox" data-f="ctlOn"><i></i></label><span>Heizungssteuerung</span><span class="hint">Zeitprogramm Heizkreis</span>
@@ -1148,7 +1156,7 @@
                 </div>
                 <div class="hint" id="cNoPw" hidden>In der Instanz ist kein Passwort hinterlegt – ohne Passwort ist keine Aktivierung möglich.</div>
             </div>
-            <div class="card" id="cHeat" data-page="heat">
+            <div class="card" id="cHeat" data-page="heat" data-sub="ov">
                 <h3>Heizung <button class="info" data-info="heat" title="Erklärung">i</button><small id="cHeatHoval"></small></h3>
                 <div class="row"><span class="seg" id="cMode">
                     <button data-v="auto">Automatik</button><button data-v="frost">Frostschutz</button><button data-v="const">Dauer</button>
@@ -1160,16 +1168,18 @@
                 <div class="state" id="cHeatState">–</div>
                 <div class="temps" id="cTemps"></div>
                 <div class="warnbox" id="cWriteIssues" hidden></div>
-                <details class="ed" id="cHeatChartBox"><summary>📈 Verlauf Raum Soll / Ist</summary>
+                <details class="ed" id="cHeatChartBox" open><summary>📈 Verlauf Raum Soll / Ist</summary>
                     <div class="row" style="margin-top:6px"><span class="seg" id="hcRange"><button data-r="day" class="on">24 h</button><button data-r="week">7 Tage</button></span>
                         <span class="legend" style="margin:0"><span><i style="background:#30a46c"></i>Raum Ø Ist</span><span><i class="dash" style="color:#30a46c"></i>Raum Ø Soll</span>
                         <span><i style="background:var(--hot)"></i>Vorlauf</span><span><i style="background:var(--heat)"></i>Außen</span></span></div>
                     <div class="chart-wrap" style="min-height:180px"><svg id="hcChart" class="tchart"></svg><div id="hcTip" class="tip"></div>
                         <div id="hcEmpty" class="empty">Noch keine Werte – die Raumtemperaturen werden ab Version 4.1 je Viertelstunde gesammelt.</div></div>
                 </details>
+            </div>
+            <div class="card ed-card" id="cHeatProg" data-page="heat" data-sub="prog">
                 <details class="ed" id="edHeat" data-sec="heat"><summary>⚙ Zeitprogramm und Temperaturen <button class="info" data-info="ed-heat" title="Erklärung">i</button></summary><div class="edbody"></div></details>
             </div>
-            <div class="card" id="cCurve" data-page="curve">
+            <div class="card" id="cCurve" data-page="heat" data-sub="curve">
                 <h3>Heizkurve <button class="info" data-info="curve" title="Erklärung">i</button><span class="badge" id="cvBadge">–</span></h3>
                 <div class="row"><span class="seg" id="cvMode"><button data-v="hoval">Hoval</button><button data-v="hovalroom">Hoval + Raum</button><button data-v="symcon">Symcon (selbstlernend)</button></span>
                     <span class="hint" id="cvLockHint"></span></div>
@@ -1187,7 +1197,7 @@
                 <button class="linkbtn info-link" data-info="regelung">ℹ Wie hängt das zusammen? (Strategie, Konstantregelung, Raumeinfluss, PV)</button>
                 <details class="ed" data-sec="curve"><summary>⚙ Symcon-Heizkurve einstellen <button class="info" data-info="ed-curve" title="Erklärung">i</button></summary><div class="edbody"></div></details>
             </div>
-            <div class="card" id="cDhw" data-page="dhw">
+            <div class="card" id="cDhw" data-page="dhw" data-sub="ov">
                 <h3>Warmwasser <button class="info" data-info="dhw" title="Erklärung">i</button><small id="cDhwHoval"></small></h3>
                 <div class="state" id="cDhwState">–</div>
                 <div class="row" id="cBoostRun" hidden><span id="cBoostText"></span><button class="btn warn" id="cBoostStop">Beenden</button></div>
@@ -1205,13 +1215,15 @@
                     <button class="btn primary" id="cMaxOk">Speichern</button><button class="btn" id="cMaxCancel">Abbrechen</button>
                 </div>
                 <div class="temps" id="cDhwTemps"></div>
-                <details class="ed" id="dcChartBox"><summary>📈 Verlauf Speichertemperatur oben / unten</summary>
+                <details class="ed" id="dcChartBox" open><summary>📈 Verlauf Speichertemperatur oben / unten</summary>
                     <div class="row" style="margin-top:6px"><span class="seg" id="dcRange"><button data-r="day" class="on">24 h</button><button data-r="week">7 Tage</button></span>
                         <span class="legend" style="margin:0"><span><i style="background:var(--hot)"></i>oben</span><span><i style="background:var(--cold)"></i>unten</span>
                         <span><i class="dash" style="color:var(--fg)"></i>Soll (Hoval)</span></span></div>
                     <div class="chart-wrap" style="min-height:180px"><svg id="dcChart" class="tchart"></svg><div id="dcTip" class="tip"></div>
                         <div id="dcEmpty" class="empty">Noch keine Werte – die Speichertemperaturen werden ab Version 4.4 je Viertelstunde gesammelt.</div></div>
                 </details>
+            </div>
+            <div class="card ed-card" id="cDhwProg" data-page="dhw" data-sub="prog">
                 <details class="ed" id="edDhw" data-sec="dhw"><summary>⚙ Ladezeiten und Temperaturen <button class="info" data-info="ed-dhw" title="Erklärung">i</button></summary><div class="edbody"></div></details>
             </div>
             <div class="card" id="cRooms" data-page="rooms">
@@ -1738,11 +1750,29 @@
         if (!ctl || ($('viewCtl').hidden && !sheetHasCtl())) return;
         // Unterseiten: nur verfügbare Seiten anbieten; Karten nur auf ihrer Seite zeigen
         if (ctlPage === 'grid') ctlPage = ctl.limit ? 'limit' : 'pv';
-        const avail = { main: true, func: true, holiday: true, heat: ctl.ctl, curve: !!ctl.curve, dhw: ctl.dhwCtl, rooms: ctl.rooms || (ctl.roomList || []).length > 0,
+        if (ctlPage === 'func' || ctlPage === 'holiday') ctlPage = 'main';
+        if (ctlPage === 'curve') { ctlPage = 'heat'; ctlSub.heat = 'curve'; }
+        const avail = { main: true, heat: ctl.ctl || !!ctl.curve, dhw: ctl.dhwCtl, rooms: ctl.rooms || (ctl.roomList || []).length > 0,
                         limit: ctl.limit, pv: ctl.pv };
         if (!avail[ctlPage]) ctlPage = 'main';
         document.querySelectorAll('#cNav button').forEach(b => { b.hidden = !avail[b.dataset.p]; b.classList.toggle('on', b.dataset.p === ctlPage); });
-        document.querySelectorAll('#viewCtl .card[data-page]').forEach(c => { c.hidden = c.dataset.page !== ctlPage || (c.id === 'cLimit' && !ctl.limit) || (c.id === 'cPv' && !ctl.pv); });
+        // Unterreiter für Heizung und Warmwasser
+        const subs = ctlPage === 'heat' ? [...(ctl.ctl ? [['ov', 'Übersicht'], ['prog', 'Zeitprogramm']] : []), ...(ctl.curve ? [['curve', 'Heizkurve']] : [])]
+                   : ctlPage === 'dhw' ? [['ov', 'Übersicht'], ['prog', 'Ladezeiten']] : [];
+        let sub = subs.some(x => x[0] === ctlSub[ctlPage]) ? ctlSub[ctlPage] : (subs[0] || [''])[0];
+        const nav = $('cSub');
+        nav.hidden = subs.length < 2;
+        const navKey = ctlPage + ':' + subs.map(x => x[0]).join(',');
+        if (nav.dataset.key !== navKey) {
+            nav.dataset.key = navKey;
+            nav.innerHTML = subs.map(([k, l]) => `<button data-k="${k}">${l}</button>`).join('');
+            nav.querySelectorAll('button').forEach(b => b.addEventListener('click', () => showCtlSub(b.dataset.k)));
+        }
+        nav.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.k === sub));
+        document.querySelectorAll('#viewCtl .card[data-page]').forEach(c => { c.hidden = c.dataset.page !== ctlPage || (!!c.dataset.sub && c.dataset.sub !== sub)
+            || (c.id === 'cLimit' && !ctl.limit) || (c.id === 'cPv' && !ctl.pv); });
+        // Editor auf eigenem Unterreiter: gleich aufgeklappt
+        ['edHeat', 'edDhw'].forEach(id => { const ed = $(id); if (ed.closest('#viewCtl') && !ed.closest('.card').hidden && !ed.open) ed.open = true; });
         drawFunc();
         drawHoliday();
         drawCurve();
@@ -1901,8 +1931,14 @@
     // ---------- Funktionen und Einstellungen (Passwort) ----------
     // Das Passwort wird nur im Speicher der Kachel gehalten (10 min) und bei jeder Änderung vom Modul geprüft.
     let pwMem = '', unlocked = false, unlockTimer = null, drafts = {}, savingSec = null;
-    let ctlPage = 'main';
-    try { ctlPage = localStorage.getItem('hwpCtlPage') || 'main'; } catch (e) {}
+    let ctlPage = 'main', ctlSub = {};
+    try { ctlPage = localStorage.getItem('hwpCtlPage') || 'main'; ctlSub = JSON.parse(localStorage.getItem('hwpCtlSub') || '{}') || {}; } catch (e) {}
+    function showCtlSub(k) {
+        ctlSub[ctlPage] = k;
+        try { localStorage.setItem('hwpCtlSub', JSON.stringify(ctlSub)); } catch (e) {}
+        $('body').scrollTop = 0;
+        drawCtl();
+    }
     function showCtlPage(p) {
         setTimeout(saveView, 0);
         ctlPage = p;
@@ -1917,23 +1953,26 @@
         const items = [];
         if (ctl.ctl) {
             items.push(['heat', '🔥', 'Heizung', plain('cHeatState')]);
-        } else items.push(['func', '🔥', 'Heizungssteuerung', 'aus – Hoval regelt selbst', true]);
-        if (ctl.holiday) items.unshift(['holiday', '🏖', 'Urlaub', (ctl.holiday.from <= Date.now() / 1000 ? 'aktiv' : 'geplant ab ' + dtLong(ctl.holiday.from)) + ' bis ' + dtLong(ctl.holiday.until)]);
+        } else items.push(['main', '🔥', 'Heizungssteuerung', 'aus – Hoval regelt selbst', true]);
+        if (ctl.holiday) items.unshift(['main', '🏖', 'Urlaub', (ctl.holiday.from <= Date.now() / 1000 ? 'aktiv' : 'geplant ab ' + dtLong(ctl.holiday.from)) + ' bis ' + dtLong(ctl.holiday.until)]);
         if (ctl.dhwCtl) items.push(['dhw', '🚿', 'Warmwasser', plain('cDhwState')]);
-        else items.push(['func', '🚿', 'Warmwassersteuerung', 'aus – Hoval regelt selbst', true]);
+        else items.push(['main', '🚿', 'Warmwassersteuerung', 'aus – Hoval regelt selbst', true]);
         if (avail.rooms) {
             const rs = ctl.roomStats || {};
             items.push(['rooms', '🏠', 'Räume', (ctl.rooms ? (ctl.demand ? 'Anforderung' : 'keine Anforderung') + ' · ' : 'nur Anzeige · ')
                 + `Ø ${tTxt(rs.avgIst)} / Soll ${tTxt(rs.avgSoll)}` + (rs.dev != null ? ` (${rs.dev > 0 ? '+' : ''}${num(rs.dev, 1)} %)` : '')]);
         }
         items.push(ctl.limit ? ['limit', '⚡', 'Leistungsbegrenzung', ctl.pw ? `Prognose ${kwTxt(ctl.pw.forecast)} von ${kwTxt(ctl.pw.max)}` + (ctl.sgOn ? ' · WP begrenzt' : '') : 'keine Hausleistung']
-                             : ['func', '⚡', 'Leistungsbegrenzung', 'aus', true]);
+                             : ['main', '⚡', 'Leistungsbegrenzung', 'aus', true]);
         const pv = ctl.pvState || {};
         items.push(ctl.pv ? ['pv', '☀️', 'PV-Überschuss', (pv.active ? 'aktiv' : pv.since ? 'wartet' : 'inaktiv') + ` · ${kwTxt(pv.avail)} verfügbar`]
-                          : ['func', '☀️', 'PV-Überschuss', 'aus', true]);
+                          : ['main', '☀️', 'PV-Überschuss', 'aus', true]);
         $('cSumList').innerHTML = items.map(([p, icon, name, text, off]) =>
             `<div class="it${off ? ' off' : ''}" data-p="${p}"><span>${icon}</span><span class="t"><b>${name}</b><small>${esc(text)}</small></span><span class="go">›</span></div>`).join('');
-        $('cSumList').querySelectorAll('.it').forEach(it => it.addEventListener('click', () => showCtlPage(it.dataset.p)));
+        $('cSumList').querySelectorAll('.it').forEach(it => it.addEventListener('click', () => {
+            if (it.dataset.p !== 'main') { showCtlPage(it.dataset.p); return; }
+            (/Urlaub/.test(it.textContent) ? $('cHoliday') : $('cFunc')).scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }));
     }
     const esc = (t) => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
     const DAYS = [['mo-so', 'Mo–So'], ['mo-fr', 'Mo–Fr'], ['sa-so', 'Sa–So'], ['mo', 'Montag'], ['di', 'Dienstag'], ['mi', 'Mittwoch'],
@@ -2080,7 +2119,7 @@
         $('cvBadge').textContent = sym ? 'Symcon' : room ? 'Hoval + Raum' : 'Hoval';
         $('cvBadge').className = 'badge' + (sym ? ' ok' : '');
         document.querySelectorAll('#cvMode button').forEach(b => { b.classList.toggle('on', b.dataset.v === c.mode); b.disabled = !unlocked; });
-        $('cvLockHint').textContent = unlocked ? '' : '🔒 zum Umschalten unter Einstellungen › Funktionen oder in einem ⚙-Editor entsperren';
+        $('cvLockHint').textContent = unlocked ? '' : '🔒 zum Umschalten unter Einstellungen › Übersicht › Funktionen oder in einem ⚙-Editor entsperren';
         const n = c.now, hv = c.hoval;
         $('cvState').innerHTML = sym && n
             ? `Außen Ø 3 h <b>${num(n.out, 1)} °C</b> → Vorlauf-Soll <b>${num(n.target, 1)} °C</b> <span class="hint">(Kurve ${num(n.base, 1)} ${n.room >= 0 ? '+' : '−'} Raum ${num(Math.abs(n.room), 1)} ${n.learn >= 0 ? '+' : '−'} gelernt ${num(Math.abs(n.learn), 1)}${n.pv ? ' + PV ' + num(n.pv, 1) : ''})</span>`
@@ -3851,12 +3890,12 @@
                 + row('Heizkreis', fv('HC1Status')) + row('Betriebswahl HK', fv('HC1Mode')) + row('Vorlauf HK', fv('HC1FlowTemp')) + row('VL-Soll HK', fv('HC1FlowSetpoint'))
                 + row('Pumpe HK', fv('HC1Pump')) + '</div>'
                 + `<div class="shlinks">${c.ctl && h.season ? link('✎ Komfort / Absenkung ändern', 'temp') : ''}${c.curve ? link('📈 Heizkurve', 'curvetab') : ''}${link('📊 Wärme je Tag', 'heatstats')}</div>`
-                + (!c.ctl ? '<div class="hint">Heizungssteuerung ist aus – Zeitprogramm und Temperaturen gibt es nach dem Einschalten unter Einstellungen › Funktionen.</div>' : '');
+                + (!c.ctl ? '<div class="hint">Heizungssteuerung ist aus – Zeitprogramm und Temperaturen gibt es nach dem Einschalten unter Einstellungen › Übersicht › Funktionen.</div>' : '');
         }
         if (sheetOpen === 'dhw') {
             $('shDhwInfo').innerHTML = '<div class="shrows">' + row('oben', fv('StorageTop')) + row('unten', fv('StorageBottom')) + row('Soll', fv('DHWSetpoint'))
                 + row('Status', fv('DHWStatus')) + row('Betriebswahl', fv('DHWMode')) + '</div>'
-                + '<div class="hint">Warmwassersteuerung ist aus – Hoval regelt. Ladezeiten, Hysterese und „Aufheizen“ gibt es nach dem Einschalten unter Einstellungen › Funktionen.</div>'
+                + '<div class="hint">Warmwassersteuerung ist aus – Hoval regelt. Ladezeiten, Hysterese und „Aufheizen“ gibt es nach dem Einschalten unter Einstellungen › Übersicht › Funktionen.</div>'
                 + `<div class="shlinks">${link('📊 Warmwasser-Auswertung', 'dhwstats')}</div>`;
         }
         if (sheetOpen === 'buf') {
@@ -3878,7 +3917,7 @@
                 + row('PV-Betrieb', c.pv ? (pv.active ? 'aktiv' + (c.settings && c.settings.pvStaged ? ` · Stufe ${pv.stage}/3` : '') + (pv.force ? ' · Abnahmezwang' : '') : 'inaktiv') : null)
                 + row('Hoval Smart Grid', pv.sg ? pv.sg.t : fv('SGStatus')) + '</div>'
                 + `<div class="shlinks">${link('⚡ Leistung (Tagesverlauf)', 'power')}${link('💶 Kosten', 'cost')}</div>`
-                + (!c.limit && !c.pv ? '<div class="hint">Leistungsbegrenzung und PV-Überschuss sind aus – einschalten unter Einstellungen › Funktionen.</div>' : '');
+                + (!c.limit && !c.pv ? '<div class="hint">Leistungsbegrenzung und PV-Überschuss sind aus – einschalten unter Einstellungen › Übersicht › Funktionen.</div>' : '');
         }
         document.querySelectorAll('#shBody [data-act]').forEach(b => { b.onclick = () => sheetAct(b.dataset.act); });
     }

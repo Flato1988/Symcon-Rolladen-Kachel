@@ -280,6 +280,10 @@ Dauer, Speichertemperatur oben vorher/nachher, Temperaturanstieg, Strom und Ø A
 Außentemperatur liegt (Hinweis auf verkalkten Wärmetauscher, zu wenig Volumenstrom, Fühlerproblem); geprüft wird direkt nach jeder Ladung.
 Die Spreizung (VL − RL) steht im Wärmepumpen-Symbol, im Betrieb farbig bewertet (grün 2,5–8 K).
 
+**Version 7.6:** Einstellungen neu gegliedert: **Übersicht** (Status, Funktionen und Urlaub auf einer Seite) · **Heizung** mit Unterreitern
+Übersicht (bis zum Verlauf Raum Soll/Ist) · Zeitprogramm · Heizkurve · **Warmwasser** mit Unterreitern Übersicht (inkl. Speicherverlauf) · Ladezeiten ·
+Räume · Leistung · PV. Die Verlaufsdiagramme sind auf den Übersichten immer offen.
+
 **Version 7.5:**
 - Neue Warmwasser-Stufe **Legionellen** in den Ladezeiten (eigene Temperatur, Vorgabe 60 °C), z.B. nur sonntags 13–15 Uhr. Lädt immer
   (ohne Hysterese, mit Anstoß und EVU-Nachholen), Speicher wird oben und unten durchgewärmt; „Zuletzt erreicht“ wird angezeigt,
