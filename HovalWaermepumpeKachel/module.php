@@ -3662,7 +3662,7 @@ class HovalWaermepumpeKachel extends IPSModule
     private const SETTING_LIMITS = [
         'winterBelow' => [-10, 20], 'summerAbove' => [5, 30], 'ecoWinter' => [10, 25], 'ecoTransition' => [10, 25],
         'comfortWinter' => [10, 30], 'comfortTransition' => [10, 30], 'comfortSummer' => [10, 30],
-        'dhwComfort' => [30, 70], 'dhwBoost' => [30, 70], 'dhwHyst' => [0, 20], 'optMax' => [0.5, 6], 'hcMax' => [25, 60],
+        'dhwComfort' => [30, 70], 'dhwBoost' => [30, 70], 'dhwHyst' => [0, 20], 'dhwSf2Off' => [0, 40], 'optMax' => [0.5, 6], 'hcMax' => [25, 60],
         'cFoot' => [15, 45], 'cDesign' => [20, 65], 'cDesignAT' => [-30, 5], 'cVlMin' => [15, 40], 'cVlMax' => [25, 65],
         'cRoomFactor' => [0, 5], 'pvVlBoost' => [0, 5], 'pvBufMax' => [25, 65],
         'roomHyst' => [0.1, 2], 'roomMin' => [0, 120], 'maxPeak' => [1, 100], 'margin' => [0, 5], 'minHP' => [0, 20], 'hpMax' => [0.5, 30],
@@ -3678,7 +3678,7 @@ class HovalWaermepumpeKachel extends IPSModule
             $defaults = [
                 'ctlOn' => $this->ReadPropertyBoolean('ControlEnabled'), 'roomsOn' => $this->ReadPropertyBoolean('RoomDemandEnabled'),
                 'limitOn' => $this->ReadPropertyBoolean('PowerLimitEnabled'), 'pvOn' => false,
-                'dhwComfort' => 50.0, 'dhwBoost' => 58.0, 'dhwHyst' => 0.0, 'optOn' => false, 'optMax' => 3.0, 'hcMaxOn' => false, 'hcMax' => 40.0,
+                'dhwComfort' => 50.0, 'dhwBoost' => 58.0, 'dhwHyst' => 0.0, 'dhwSf2Off' => 5.0, 'optOn' => false, 'optMax' => 3.0, 'hcMaxOn' => false, 'hcMax' => 40.0,
                 'curveMode' => 'hoval', 'cLearn' => true,
                 // Symcon-Grundkurve: solange nicht selbst eingestellt, gleich der aktuellen Hoval-Kurve
                 'cFoot' => $this->Value('CurveFoot') ?? 24.0, 'cDesign' => $this->Value('CurveDesign') ?? 35.0, 'cDesignAT' => $this->Value('CurveDesignAT') ?? -12.0, 'cVlMin' => 20.0, 'cVlMax' => 45.0,
@@ -4203,14 +4203,22 @@ class HovalWaermepumpeKachel extends IPSModule
             $charge = ['since' => $now, 'temp' => $soll, 't0' => round($top, 1), 'kick' => false];
         }
         if ($charge !== null) {
+            // Ladeende wie bei Hoval (Schichtspeicher, 05-011 = 2): Start über den oberen Fühler, Ende erst, wenn der UNTERE Fühler SF2
+            // Soll − Ausschaltdifferenz (05-056, ab Werk 5 K) erreicht – sonst ist der Speicher unten nicht durchgewärmt.
+            // Zusätzlich gilt: beendet die Hoval die Ladung selbst (Ventil 15 min nicht mehr auf Warmwasser, keine Abtauung), ist sie fertig.
             $loading = $this->GetValvePosition() === 'ww';
-            if ($loading) {
+            $defrost = @$this->GetIDForIdent('DefrostActive') && $this->GetValue('DefrostActive');
+            if ($loading || ($defrost && !empty($charge['seen']))) {
                 $charge['seen'] = true;
+                $charge['last'] = $now;
             }
-            $done = $top >= $soll - 0.3 || $now - $charge['since'] > 4 * 3600
-                || (!empty($charge['seen']) && !$loading && $now - $charge['since'] > 600 && $top >= $soll - 1.5);
+            $bottom = $this->Value('StorageBottom');
+            $doneBottom = $bottom !== null && $bottom >= $soll - (float) $this->Setting('dhwSf2Off');
+            $doneHoval = !empty($charge['seen']) && $now - ($charge['last'] ?? $now) >= 900;
+            $done = $doneBottom || $doneHoval || $now - $charge['since'] > 4 * 3600 || ($bottom === null && $top >= $soll - 0.3);
             if ($done) {
-                $state['dhwLast'] = ['ts' => $now, 't0' => $charge['t0'], 't1' => round($top, 1), 'min' => (int) round(($now - $charge['since']) / 60)];
+                $state['dhwLast'] = ['ts' => $now, 't0' => $charge['t0'], 't1' => round($top, 1), 'b1' => $bottom === null ? null : round($bottom, 1),
+                                     'min' => (int) round(($now - $charge['since']) / 60)];
                 $charge = null;
             }
         }
@@ -4238,8 +4246,11 @@ class HovalWaermepumpeKachel extends IPSModule
     private function DhwKick(array &$state, float $target, int $now): float
     {
         $top = $this->Value('StorageTop');
+        $bottom = $this->Value('StorageBottom');
         $k = $state['dhwKick'] ?? null;
-        if ($top === null || $top >= $target - 1.0) {
+        // Aufheizen soll den ganzen Speicher erwärmen: Anstoß auch, wenn oben fast warm, unten (SF2) aber noch deutlich zu kalt ist
+        $bottomCold = $bottom !== null && $bottom < $target - (float) $this->Setting('dhwSf2Off') - 1.0;
+        if ($top === null || ($top >= $target - 1.0 && !$bottomCold)) {
             $state['dhwKick'] = null;
             return $target;
         }

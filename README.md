@@ -280,6 +280,11 @@ Dauer, Speichertemperatur oben vorher/nachher, Temperaturanstieg, Strom und Ø A
 Außentemperatur liegt (Hinweis auf verkalkten Wärmetauscher, zu wenig Volumenstrom, Fühlerproblem); geprüft wird direkt nach jeder Ladung.
 Die Spreizung (VL − RL) steht im Wärmepumpen-Symbol, im Betrieb farbig bewertet (grün 2,5–8 K).
 
+**Version 7.3:** Warmwasser-Hysterese: Ladeende wie bei Hoval (Schichtspeicher 05-011 = 2) über den **unteren Fühler SF2** – geladen wird, bis
+unten Soll − „Ladeende unten“ (wie 05-056, ab Werk 5 K) erreicht ist (vorher endete die Ladung schon, wenn oben der Soll erreicht war, der
+Speicher war unten nicht durchgewärmt). Beendet die Hoval die Ladung selbst, gilt sie ebenfalls als fertig. Aufheizen wird auch angestoßen,
+wenn oben fast warm, unten aber noch deutlich zu kalt ist.
+
 **Version 7.2:**
 - **Aufheizen absichern:** Die Hoval lädt erst unter Soll − Einschaltdifferenz (05-000, ab Werk 5 K, nicht über Modbus). Startet beim Aufheizen
   (Ladezeit-Stufe „Aufheizen“ oder Knopf) nach 15 min keine Ladung, obwohl der Speicher > 1 K unter dem Ziel liegt, hebt Symcon den Hoval-Soll
