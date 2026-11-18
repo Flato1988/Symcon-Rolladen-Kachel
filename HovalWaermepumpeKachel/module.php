@@ -72,7 +72,8 @@ class HovalWaermepumpeKachel extends IPSModule
         'CurveDesignAT'   => ['Heizkurve Auslegepunkt Außentemperatur', 30612, 'setp'],
         'FlowConst'       => ['Vorlauf-Soll Konstantanforderung Heizen HK1', 1490, 'setp'],
         'CurveVlMax'      => ['Heizkreis 1 – max. Vorlauftemperatur', 30690, 'setp'],
-        'CurveBoost'      => ['Überhöhung/Abschlag VL-Soll an die Wärmepumpe (HK1)', 30684, 'setp']
+        'CurveBoost'      => ['Überhöhung/Abschlag VL-Soll an die Wärmepumpe (HK1)', 30684, 'setp'],
+        'SGStatus'        => ['Smart Grid – Status (21-090)', 27537, 'map:sg']
     ];
 
     private const GROUPS = [
@@ -86,6 +87,7 @@ class HovalWaermepumpeKachel extends IPSModule
         'Kältekreis (Gateway ab V2.38)'  => ['AirIntake', 'SuctionGas', 'HotGas', 'Superheat', 'LowPressure', 'HighPressure',
                                              'CompressorSpeed', 'FanSpeed', 'HPFlowTemp', 'HPReturnTemp'],
         'Heizkurve / Regelung – lesen (optional)' => ['ControlStrategy', 'CurveFoot', 'CurveDesign', 'CurveDesignAT', 'FlowConst', 'CurveVlMax', 'CurveBoost'],
+        'Smart Grid (optional)'            => ['SGStatus'],
         'Sonstiges (nicht in Hoval-Liste)' => ['Humidity', 'WaterPressure']
     ];
 
@@ -135,6 +137,7 @@ class HovalWaermepumpeKachel extends IPSModule
         'dhwmode' => [0 => 'Standby', 1 => 'Woche 1', 2 => 'Woche 2', 4 => 'Konstant', 5 => 'Sparbetrieb'],
         'strategy' => [0 => 'Reine Witterungsführung', 1 => 'Witterungsführung mit Raumaufschaltung', 2 => 'Reine Raumregelung', 3 => 'Konstantregelung',
                        4 => 'Witterungsführung Heizen + Konstant Kühlen', 5 => 'Witterung mit Raumaufschaltung + Konstant Kühlen'],
+        'sg'     => [0 => 'Normalbetrieb', 1 => 'Vorzugsbetrieb', 2 => 'Gesperrt', 3 => 'Abnahmezwang', 255 => 'inaktiv – Grundeinstellung fehlt'],
         'buffer' => [0 => 'Keine Anforderung', 1 => 'Anforderung, Temperatur tief', 2 => 'Ladung läuft', 3 => 'Sollwert erfüllt, Nachlauf',
                      4 => 'Sollwert erfüllt', 6 => 'Energiezwang', 7 => 'Abschöpffunktion', 8 => 'SmartGrid Vorzugsbetrieb', 9 => 'SmartGrid Abnahmezwang']
     ];
@@ -3691,7 +3694,7 @@ class HovalWaermepumpeKachel extends IPSModule
                 'maxPeak' => $this->ReadPropertyFloat('MaxPeak15'), 'margin' => $this->ReadPropertyFloat('PowerMargin'),
                 'minHP' => $this->ReadPropertyFloat('MinHPPower'), 'hpMax' => $this->ReadPropertyFloat('HPMaxPower'),
                 'pvStart' => 1.5, 'pvStop' => 0.5, 'pvStartMin' => 5, 'pvStopMin' => 10, 'pvMinRun' => 30,
-                'pvOffRoom' => 2.0, 'pvOffDHW' => 10.0, 'pvOffBuffer' => 0.0, 'pvStaged' => false, 'pvS2' => 1.5, 'pvS3' => 2.5, 'monOn' => true
+                'pvOffRoom' => 2.0, 'pvOffDHW' => 10.0, 'pvOffBuffer' => 0.0, 'pvStaged' => false, 'pvS2' => 1.5, 'pvS3' => 2.5, 'pvForce' => false, 'monOn' => true
             ];
             $stored = json_decode($this->ReadAttributeString('Settings'), true) ?: [];
             // Warmwassersteuerung war bis 4.3 Teil der Heizungssteuerung: beim ersten Mal deren Zustand übernehmen
@@ -3723,7 +3726,7 @@ class HovalWaermepumpeKachel extends IPSModule
             if (isset(self::SETTING_LIMITS[$key])) {
                 [$min, $max] = self::SETTING_LIMITS[$key];
                 $settings[$key] = round(max($min, min($max, (float) $value)), 2);
-            } elseif (in_array($key, ['ctlOn', 'dhwOn', 'roomsOn', 'limitOn', 'pvOn', 'monOn', 'cLearn', 'optOn', 'hcMaxOn', 'pvStaged'], true)) {
+            } elseif (in_array($key, ['ctlOn', 'dhwOn', 'roomsOn', 'limitOn', 'pvOn', 'monOn', 'cLearn', 'optOn', 'hcMaxOn', 'pvStaged', 'pvForce'], true)) {
                 $settings[$key] = (bool) $value;
             } elseif ($key === 'seasonMode') {
                 $settings[$key] = (int) $value === 0 ? 0 : 1;
@@ -4072,8 +4075,11 @@ class HovalWaermepumpeKachel extends IPSModule
                 // Rückkontrolle der Raumtemperatur über 1493 nur ohne PV-Offset (der hebt den Hoval-Sollwert an)
                 // PV „Vorlauf anheben“ ohne Symcon-Heizkurve: Raum-Soll an die Hoval anheben (verschiebt die Hoval-Kurve nach oben,
                 // mit Raumaufschaltung kommt die Korrektur Raumeinfluss × Anhebung noch dazu) – Symcon-Räume/Lernen bleiben beim echten Soll
-                $pvRoom = ($this->Setting('pvOn') && $this->Setting('pvMethod') === 'vl' && $this->Setting('curveMode') !== 'symcon' && !empty($state['pvActive']))
-                    ? round((float) $this->Setting('pvOffRoom') * $this->PVFactor($state) * 2) / 2 : 0.0;
+                // Smart Grid: der SG-Raum-Offset wirkt laut Hoval nur im Automatikbetrieb (Woche 1/2) – Symcon steuert den Heizkreis aber
+                // mit „Konstant“, darum wird der Raum-Offset hier selbst auf das Raum-Soll gerechnet (auch mit der Symcon-Heizkurve)
+                $pvRoomOn = $this->Setting('pvOn') && !empty($state['pvActive'])
+                    && ($this->Setting('pvMethod') === 'sg' || $this->Setting('curveMode') !== 'symcon');
+                $pvRoom = $pvRoomOn ? round((float) $this->Setting('pvOffRoom') * $this->PVFactor($state) * 2) / 2 : 0.0;
                 $state['pvRoomBoost'] = $pvRoom;
                 $this->WriteTo('WriteHC1Room', max(10, min(30, $target + $pvRoom)), 0.01, 1800, empty($state['pvActive']) ? 'RoomSetpoint' : null);
                 $this->WriteTo('WriteHC1Mode', 4, 0.01, 1800, 'HC1Mode'); // Konstant mit Normal-Raumtemperatur
@@ -4085,7 +4091,7 @@ class HovalWaermepumpeKachel extends IPSModule
             }
             $state['lastTarget'] = $target;
             $this->HeatUpLearn($state, $now, $heatingNow && $holiday === null ? $target : null);
-            $this->CurveControl($state, $now, $heatingNow, $target, $holiday !== null);
+            $this->CurveControl($state, $now, $heatingNow, $target + ($state['pvRoomBoost'] ?? 0), $holiday !== null);
             $state['ctlActive'] = true;
         } elseif ($rooms) {
             // nur Raumanforderung: zwischen Hoval-Programm und Standby umschalten
@@ -4113,7 +4119,17 @@ class HovalWaermepumpeKachel extends IPSModule
                 $state['dhwCharge'] = null;
                 $this->WriteTo('WriteDHWTemp', min($boost['temp'], $this->ReadAttributeFloat('DHWMax')));
                 $this->WriteTo('WriteDHWMode', 4, 0.01, 1800, 'DHWMode');                    // Dauernd Normalbetrieb
+            } elseif ($dhw !== null && $this->Setting('pvOn') && !empty($state['pvActive']) && (float) $this->Setting('pvOffDHW') > 0) {
+                // PV-Überschuss: Warmwasser freigeben (Standby/Hysterese aufheben), sonst gibt es keine Anforderung und der
+                // Smart-Grid-Warmwasser-Offset wirkt nicht. Bei „Vorlauf anheben“ (ohne SG) hebt Symcon die Temperatur selbst an.
+                $state['dhwCharge'] = null;
+                $base = $dhw['kind'] !== 'off' ? (float) $dhw['temp'] : (float) $this->Setting('dhwComfort');
+                $off = $this->Setting('pvMethod') === 'vl' ? round((float) $this->Setting('pvOffDHW') * $this->PVFactor($state)) : 0;
+                $this->WriteTo('WriteDHWTemp', min($this->ReadAttributeFloat('DHWMax'), $base + $off));
+                $this->WriteTo('WriteDHWMode', 4, 0.01, 1800, 'DHWMode');
+                $state['dhwPv'] = true;
             } elseif ($dhw !== null) {
+                $state['dhwPv'] = false;
                 if ($dhw['kind'] === 'on' && (float) $this->Setting('dhwHyst') > 0 && $this->Value('StorageTop') !== null) {
                     $this->DhwHysteresis($state, $dhw, $now);
                 } elseif ($dhw['kind'] !== 'off') {
@@ -4386,7 +4402,7 @@ class HovalWaermepumpeKachel extends IPSModule
                     return ['ok' => true, 'msg' => $names[$key] . (!empty($action['v']) ? ' aktiviert' : ' deaktiviert')];
                 case 'settings':
                     $error = $this->SaveSettings(array_intersect_key((array) ($action['values'] ?? []),
-                        self::SETTING_LIMITS + array_flip(['seasonMode', 'roomMode', 'heatPrograms', 'dhwPrograms', 'pvMethod', 'cLearn', 'optOn', 'hcMaxOn', 'pvStaged'])));
+                        self::SETTING_LIMITS + array_flip(['seasonMode', 'roomMode', 'heatPrograms', 'dhwPrograms', 'pvMethod', 'cLearn', 'optOn', 'hcMaxOn', 'pvStaged', 'pvForce'])));
                     return $error === null ? ['ok' => true, 'msg' => 'Einstellungen gespeichert'] : ['ok' => false, 'msg' => $error];
                 case 'room':
                     $excluded = array_values(array_diff($this->Setting('roomExcluded'), [(string) ($action['name'] ?? '')]));
@@ -4748,12 +4764,15 @@ class HovalWaermepumpeKachel extends IPSModule
         $this->WriteTo('WriteSGTrigger', 2);                          // 2 = Systembus (aktiviert 27545)
         // Offsets zuerst, damit der Vorzugsbetrieb nie mit falschen Offsets startet
         $fac = $pv ? $this->PVFactor($state) : 0.0;
-        $this->WriteTo('WriteSGOffsetRoom', round((float) $this->Setting('pvOffRoom') * $fac * 2) / 2);
+        $this->WriteTo('WriteSGOffsetRoom', $this->Setting('ctlOn') ? 0 : round((float) $this->Setting('pvOffRoom') * $fac * 2) / 2);
         $this->WriteTo('WriteSGOffsetDHW', round((float) $this->Setting('pvOffDHW') * $fac));
         $this->WriteTo('WriteSGOffsetBuffer', round((float) $this->Setting('pvOffBuffer') * $fac));
         if ($pv || $limitNeed) {
             $this->WriteTo('WriteSGPower', $calc !== null ? $calc['allowed'] : $hpMax, 0.1, 300);
-            $this->WriteTo('WriteSGMode', 1);                         // Vorzugsbetrieb
+            // Abnahmezwang (3): Warmwasser und Puffer bis zur Maximaltemperatur – nur bei PV-Stufe 3 und ohne nötige Leistungsbegrenzung
+            $force = $pv && !$limitNeed && !$this->LockActive() && $this->Setting('pvForce') && $this->Setting('pvStaged') && (int) ($state['pvStage'] ?? 0) === 3;
+            $state['sgForce'] = $force;
+            $this->WriteTo('WriteSGMode', $force ? 3 : 1);            // Vorzugsbetrieb bzw. Abnahmezwang
         } else {
             $this->WriteTo('WriteSGMode', 0);                         // Normalbetrieb
             $this->WriteTo('WriteSGPower', $hpMax, 0.1, 1800);
@@ -4827,7 +4846,7 @@ class HovalWaermepumpeKachel extends IPSModule
         $dhw = $this->DHWProgramAt($now);
         $avg = $this->ReadAttributeFloat('TempAvg');
         $limit = (bool) $settings['limitOn'];
-        $editable = array_intersect_key($settings, self::SETTING_LIMITS + array_flip(['seasonMode', 'roomMode', 'heatPrograms', 'dhwPrograms', 'pvMethod', 'cLearn', 'optOn', 'hcMaxOn', 'pvStaged']));
+        $editable = array_intersect_key($settings, self::SETTING_LIMITS + array_flip(['seasonMode', 'roomMode', 'heatPrograms', 'dhwPrograms', 'pvMethod', 'cLearn', 'optOn', 'hcMaxOn', 'pvStaged', 'pvForce']));
         return [
             'ctl'      => (bool) $settings['ctlOn'],
             'dhwCtl'   => (bool) $settings['dhwOn'],
@@ -4888,6 +4907,9 @@ class HovalWaermepumpeKachel extends IPSModule
                 'stage'   => $state['pvStage'] ?? 0,
                 'avg'     => isset($state['pvAvg']) ? round($state['pvAvg'], 2) : null,
                 'factor'  => $this->PVFactor($state),
+                'force'   => !empty($state['sgForce']),
+                'dhwPv'   => !empty($state['dhwPv']),
+                'sg'      => $this->Value('SGStatus') !== null ? ['v' => (int) $this->Value('SGStatus'), 't' => $this->Format('SGStatus')] : null,
                 'hasVar'  => $this->ReadPropertyInteger('PVPowerID') > 0
             ]
         ];

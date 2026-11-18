@@ -280,6 +280,14 @@ Dauer, Speichertemperatur oben vorher/nachher, Temperaturanstieg, Strom und Ø A
 Außentemperatur liegt (Hinweis auf verkalkten Wärmetauscher, zu wenig Volumenstrom, Fühlerproblem); geprüft wird direkt nach jeder Ladung.
 Die Spreizung (VL − RL) steht im Wärmepumpen-Symbol, im Betrieb farbig bewertet (grün 2,5–8 K).
 
+**Version 7.1:**
+- Bauteil-Fenster am Computer **mittig** (am Handy weiter von unten), oben **große Kennwerte** je Bauteil (z.B. Speicher oben/unten/Ziel/Status,
+  Raum Ø/Soll/Abweichung/Vorlauf), zuletzt gewählter Unterreiter wird gemerkt; Speicherverlauf ohne Soll-Linie bei Standby (0 °C).
+- **Smart Grid / PV:** der SG-Raum-Offset wirkt laut Hoval nur im Automatikbetrieb (Woche 1/2) – bei aktiver Symcon-Heizungssteuerung rechnet
+  Symcon den Raum-Offset deshalb selbst auf das Raum-Soll (1481). Bei PV-Überschuss wird das Warmwasser freigegeben (Standby/Hysterese aus),
+  damit der Warmwasser-Offset wirkt. Optional **Abnahmezwang** (27545 = 3) in PV-Stufe 3 (nicht während EVU-Sperre/Leistungsbegrenzung).
+  Neuer Datenpunkt **Smart-Grid-Status (27537)** mit Anzeige „inaktiv – Grundeinstellung fehlt“.
+
 **Version 7.0 – übersichtlichere Bedienung:**
 - **Bauteile im Anlagenschema antippen** öffnet ein Fenster mit allem, was dazugehört: Wärmepumpe (Übersicht, Heizkurve, Kältekreis, Verlauf),
   WW-Speicher (Status, Aufheizen, Speicherverlauf, Ladezeiten), Fußbodenheizung (Raum, Heizung, Verlauf Soll/Ist, Räume, Heizkurve),
