@@ -2402,7 +2402,9 @@
         x += '<div class="week"><span></span><div class="scale">' + [0, 6, 12, 18, 24].map(hh => `<span style="left:${hh / 24 * 100}%">${hh}</span>`).join('') + '</div>';
         [[1, 'Mo'], [2, 'Di'], [3, 'Mi'], [4, 'Do'], [5, 'Fr'], [6, 'Sa'], [0, 'So']].forEach(([wd, label]) => {
             const rank = (r) => (r.Level === 'legio' ? 0 : 10) + (DAYSETS[r.Days] || []).length;   // wie in Symcon: Legionellen, dann der speziellere Tag oben
-            const segs = d.dhwPrograms.filter(r => (DAYSETS[r.Days] || []).includes(wd)).sort((p, q) => rank(q) - rank(p)).map(r => {
+            // gleicher Rang: die obere Zeile gewinnt (wie in Symcon) und wird daher zuletzt (oben) gezeichnet
+            const idx = (r) => d.dhwPrograms.indexOf(r);
+            const segs = d.dhwPrograms.filter(r => (DAYSETS[r.Days] || []).includes(wd)).sort((p, q) => rank(q) - rank(p) || idx(q) - idx(p)).map(r => {
                 const a = toMin(r.From), b = toMin(r.To);
                 if (a === null || b === null) return '';
                 const lvl = r.Level || 'custom', parts = b > a ? [[a, b]] : [[a, 1440], [0, b]];
