@@ -280,6 +280,13 @@ Dauer, Speichertemperatur oben vorher/nachher, Temperaturanstieg, Strom und Ø A
 Außentemperatur liegt (Hinweis auf verkalkten Wärmetauscher, zu wenig Volumenstrom, Fühlerproblem); geprüft wird direkt nach jeder Ladung.
 Die Spreizung (VL − RL) steht im Wärmepumpen-Symbol, im Betrieb farbig bewertet (grün 2,5–8 K).
 
+**Version 7.2:**
+- **Aufheizen absichern:** Die Hoval lädt erst unter Soll − Einschaltdifferenz (05-000, ab Werk 5 K, nicht über Modbus). Startet beim Aufheizen
+  (Ladezeit-Stufe „Aufheizen“ oder Knopf) nach 15 min keine Ladung, obwohl der Speicher > 1 K unter dem Ziel liegt, hebt Symcon den Hoval-Soll
+  um 5 K an (bis zur max. Warmwassertemperatur, Ladung endet trotzdem beim Ziel) bzw. schaltet kurz Standby/Konstant um; nach 45 min Meldung.
+- **Safari ruckelt weniger:** Lüfter und Pumpenrad drehen als eigene kleine Ebenen (Grafikkarte statt Neuzeichnen des ganzen Schemas);
+  Animationen hinter einem offenen Bauteil-Fenster werden angehalten.
+
 **Version 7.1:**
 - Bauteil-Fenster am Computer **mittig** (am Handy weiter von unten), oben **große Kennwerte** je Bauteil (z.B. Speicher oben/unten/Ziel/Status,
   Raum Ø/Soll/Abweichung/Vorlauf), zuletzt gewählter Unterreiter wird gemerkt; Speicherverlauf ohne Soll-Linie bei Standby (0 °C).

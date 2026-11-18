@@ -551,7 +551,16 @@
     #schema .center { text-anchor: middle; }
     #schema .unit-box { fill: var(--box); stroke: var(--stroke); stroke-width: 1; }
     #schema .fan-ring { fill: none; stroke: var(--stroke); stroke-width: 1.5; }
-    #schema .blade, #schemaFx .blade { fill: var(--fg); opacity: .5; }
+    #schema .blade, .fx .blade { fill: var(--fg); opacity: .5; }
+    /* Lüfter und Pumpenrad als eigene kleine Ebenen: Safari dreht dann das ganze Element auf der Grafikkarte,
+       statt jedes Bild das komplette Schema neu zu zeichnen (das hat geruckelt) */
+    .fxbox { position: absolute; pointer-events: none; overflow: visible; will-change: transform; transform: translateZ(0); }
+    #fanBox.fanon { animation: spin var(--fan, 1.6s) linear infinite; }
+    #pumpBox.running #impeller { animation: none; }
+    #pumpBox.running .imp-rot { animation: spin .9s linear infinite; }
+    .imp-rot { position: absolute; inset: 0; will-change: transform; }
+    /* Fenster offen: Animationen hinter dem Fenster anhalten (spart Rechenzeit) */
+    #tile.sheet-open #schemaFx *, #tile.sheet-open .fxbox, #tile.sheet-open .fxbox * { animation-play-state: paused !important; }
     #schema .pipe-bg { fill: none; stroke-width: 9; stroke-linecap: round; opacity: .13; }
     #schema .pipe { fill: none; stroke-width: 5; stroke-linecap: round; }
     #schema .hot { stroke: var(--hot); }
@@ -560,14 +569,13 @@
     #schema .tank-temp { fill: #fff; font-size: 11px; font-weight: 600; text-anchor: middle; paint-order: stroke; stroke: rgba(0, 0, 0, .25); stroke-width: 2px; }
     /* Umwälzpumpe: Laufrad dreht sich, Ring pulsiert, solange Wasser fließt */
     #schema .pump { fill: #fff; stroke: var(--cold); stroke-width: 1.6; }
-    #schema .pump-ring, #schemaFx .pump-ring { fill: none; stroke: var(--cold); stroke-width: 1.2; opacity: 0; transform-box: fill-box; transform-origin: center; }
-    #schema .blade-p, #schemaFx .blade-p { fill: none; stroke: var(--cold); stroke-width: 1.8; stroke-linecap: round; }
-    #schema .hub, #schemaFx .hub { fill: var(--cold); }
+    #schema .pump-ring, .fx .pump-ring { fill: none; stroke: var(--cold); stroke-width: 1.2; opacity: 0; transform-box: fill-box; transform-origin: center; }
+    #schema .blade-p, .fx .blade-p { fill: none; stroke: var(--cold); stroke-width: 1.8; stroke-linecap: round; }
+    #schema .hub, .fx .hub { fill: var(--cold); }
     #impeller { transform-box: fill-box; transform-origin: center; }
     @keyframes ripple { 0% { transform: scale(1); opacity: .5; } 100% { transform: scale(1.9); opacity: 0; } }
-    #schemaFx.running #impeller { animation: spin .9s linear infinite; }
-    #schemaFx.running .pump-ring { animation: ripple 1.8s ease-out infinite; }
-    #schemaFx.running .pump-ring.r2 { animation-delay: .9s; }
+    .fx.running .pump-ring { animation: ripple 1.8s ease-out infinite; }
+    .fx.running .pump-ring.r2 { animation-delay: .9s; }
     /* FBH-Schlange: Farbverlauf Vorlauf (rot) -> Rücklauf (blau) aus vielen kurzen Abschnitten */
     #schema .fbh-seg { fill: none; stroke-width: 5; stroke-linecap: round; }
     #fbhSegs { transition: opacity .8s ease; }
@@ -607,11 +615,10 @@
     /* Lüfter dreht sich im Betrieb */
     @keyframes spin { to { transform: rotate(360deg); } }
     #fan { transform-box: fill-box; transform-origin: center; }
-    #schemaFx.fanon #fan { animation: spin var(--fan, 1.6s) linear infinite; }
-    #schemaFx.heating .blade { fill: var(--acc); opacity: .9; }
+    .fx.heating .blade { fill: var(--acc); opacity: .9; }
     #schema.heating .fan-ring { stroke: var(--acc); }
     /* Abtauung: Lüfter blau */
-    #schemaFx.defrosting .blade { fill: var(--cold); opacity: .9; }
+    .fx.defrosting .blade { fill: var(--cold); opacity: .9; }
     #schema.defrosting .fan-ring { stroke: var(--cold); }
 </style>
 
@@ -788,7 +795,9 @@
         <text x="194" y="230" id="tReturn" style="font-weight:600">–</text>
     </svg>
     <!-- eigene Ebene nur für die wandernden Lichtreflexe: neu gezeichnet wird nur diese, nicht das ganze Schema -->
-    <svg id="schemaFx" viewBox="0 0 440 232" preserveAspectRatio="xMidYMid meet" aria-hidden="true"></svg>
+    <svg id="schemaFx" class="fx" viewBox="0 0 440 232" preserveAspectRatio="xMidYMid meet" aria-hidden="true"></svg>
+    <svg id="fanBox" class="fx fxbox" viewBox="30 40 56 56" aria-hidden="true"></svg>
+    <div id="pumpBox" class="fx fxbox" aria-hidden="true"><svg class="rings" viewBox="122 200 36 36" style="position:absolute;inset:0;overflow:visible"></svg><svg class="imp-rot" viewBox="122 200 36 36" style="overflow:visible"></svg></div>
     </div>
     <div class="hint schema-hint">Bauteile antippen: Wärmepumpe, ⚡ Strom, WW-Speicher, Fußbodenheizung, Außen-Kachel – dort stehen Verlauf und Einstellungen.</div>
     </div>
@@ -1723,6 +1732,7 @@
             if (hy > 0 && d.prog.kind === 'on') ws += d.charge ? ' · <b>lädt</b>' : ` · <span class="hint">wartet, lädt unter ${tTxt(d.prog.temp - hy)}</span>`;
         }
         else ws = '<b>Standby</b>' + (d.prog.until ? ` bis ${until(d.prog.until)}` : '');
+        if (d.kick && d.kick.kick && !d.kick.seen) ws += ' · <span class="hint">Ladung angestoßen – Hoval startete nicht von selbst</span>';
         $('cDhwState').innerHTML = ws + (d.top !== null ? ` <span class="hint">· oben ${tTxt(d.top)}${d.bottom !== null && d.bottom !== undefined ? ' · unten ' + tTxt(d.bottom) : ''}</span>` : '');
         $('cDhwTemps').innerHTML = `<span>Absenken <b>${tTxt(d.comfort)}</b></span><span>Aufheizen <b>${tTxt(d.boostT)}</b></span><span>max. <b>${tTxt(d.max)}</b></span>`;
         if ($('dcChartBox').open) drawDhwChart();
@@ -3546,6 +3556,7 @@
         $('shTabs').innerHTML = def.tabs.length > 1 ? def.tabs.map(([label], i) => `<button data-i="${i}">${label}</button>`).join('') : '';
         $('shTabs').querySelectorAll('button').forEach(b => b.addEventListener('click', () => { sheetTab = Number(b.dataset.i); showSheetTab(); }));
         $('sheet').hidden = false;
+        $('tile').classList.add('sheet-open');
         showSheetTab();
     }
     const sheetTabs = {};
@@ -3561,6 +3572,7 @@
         if (!sheetOpen) return;
         sheetOpen = null;
         $('sheet').hidden = true;
+        $('tile').classList.remove('sheet-open');
         restoreAll();
         $('shBody').innerHTML = '';
         if (curView === 'ctl') drawCtl();
@@ -3683,7 +3695,7 @@
         curve: ['Heizkurve', 'Hoval: Die Wärmepumpe berechnet den Vorlauf selbst aus ihrer Heizkurve.\n\nHoval + Raum: wie Hoval, zusätzlich liefert Symcon alle 5 min den Raumdurchschnitt an die Hoval (1510) und stellt die Regelstrategie auf „Witterungsführung mit Raumaufschaltung“. Die Hoval korrigiert dann den Vorlauf: Raumeinfluss (03-007, am Bedienteil) × Raumabweichung. Ist es zu warm, schaltet sie früher ab. Fällt Symcon aus, regelt die Hoval mit ihrer Heizkurve weiter – die sicherste Variante. Fehlen Raumwerte oder übernimmt die Hoval den Wert nicht, schaltet Symcon auf die Original-Strategie zurück.\n\nSymcon (selbstlernend): Hoval wird auf Konstantregelung gestellt, Symcon gibt den Vorlauf-Soll vor:\nGrundkurve (Fuß-/Auslegepunkt) + Verschiebung durch das Raum-Soll + gelernter Anteil je Außentemperatur.\nIst es im Schnitt zu kalt, hebt Symcon die Kurve bei dieser Außentemperatur langsam an (max. 0,3 K/h), ist es zu warm, senkt es sie ab.\n\nDie Hoval-Originalwerte werden vorher gesichert – „Auf Hoval-Werte zurücksetzen“ stellt alles wieder her.'],
         'ed-curve': ['Symcon-Heizkurve', 'Fußpunkt: Vorlauf bei 20 °C außen (für 20 °C Raum).\nAuslegepunkt: Vorlauf bei der Auslegungs-Außentemperatur (z.B. −12 °C).\nVorlauf min/max: Grenzen für den Sollwert.\nRaumsoll-Einfluss: um wie viel K der Vorlauf je 1 K höherem Raum-Soll steigt (Fußbodenheizung ca. 1,5).\nLernen: aus = feste Kurve ohne Anpassung.'],
         dhw: ['Warmwasser', 'Zeigt den aktuellen Zustand (Laden, Standby, Aufheizen).\n\nAufheizen: einmalig für 1–6 Stunden auf eine höhere Temperatur (z.B. vor dem Baden oder für den Legionellenschutz). Danach gilt wieder das Programm.\n\nDie maximale Warmwassertemperatur begrenzt alle Werte und ist nur mit Passwort änderbar.\n\nAufheizen geht auch direkt im Anlagenschema (Knopf neben dem Speicher).'],
-        'ed-dhw': ['Ladezeiten', 'Absenken: die normale (niedrigere) Ladetemperatur.\nAufheizen: die höhere Temperatur für bestimmte Zeiten.\nJede Ladezeit wählt Absenken, Aufheizen oder eine eigene Temperatur.\n\nAußerhalb der Ladezeiten: Standby (keine Ladung).\nOhne Ladezeiten regelt Hoval das Warmwasser selbst.\n\nHysterese (Symcon): In den Ladezeiten wird erst nachgeladen, wenn der Speicher oben unter Soll − Hysterese fällt (z.B. 50 °C − 7 K = unter 43 °C), dann bis zum Soll geladen. Weniger, dafür längere Ladungen = weniger Verdichterstarts. 0 = Hoval-Schaltdifferenz.\nStartet Hoval die Ladung nicht von selbst (eigene Schaltdifferenz größer), hebt Symcon den Hoval-Sollwert nach 20 min an und beendet die Ladung beim eingestellten Soll.'],
+        'ed-dhw': ['Ladezeiten', 'Absenken: die normale (niedrigere) Ladetemperatur.\nAufheizen: die höhere Temperatur für bestimmte Zeiten.\nJede Ladezeit wählt Absenken, Aufheizen oder eine eigene Temperatur.\n\nAußerhalb der Ladezeiten: Standby (keine Ladung).\nOhne Ladezeiten regelt Hoval das Warmwasser selbst.\n\nHysterese (Symcon): In den Ladezeiten wird erst nachgeladen, wenn der Speicher oben unter Soll − Hysterese fällt (z.B. 50 °C − 7 K = unter 43 °C), dann bis zum Soll geladen. Weniger, dafür längere Ladungen = weniger Verdichterstarts. 0 = Hoval-Schaltdifferenz.\nStartet Hoval die Ladung nicht von selbst (eigene Schaltdifferenz größer), hebt Symcon den Hoval-Sollwert nach 20 min an und beendet die Ladung beim eingestellten Soll.\n\nHoval-Einschaltdifferenz: Parameter 05-000 (ab Werk 5 K, nur am Bedienteil, nicht über Modbus) – die Hoval lädt erst, wenn der Speicher oben unter Soll − 05-000 liegt. Beim „Aufheizen“ stößt Symcon die Ladung nach 15 min an, falls sie nicht von selbst beginnt (Sollwert +5 K bzw. kurz Standby), und meldet nach 45 min, wenn immer noch nichts läuft.'],
         regelung: ['Wie hängt die Regelung zusammen?', '① REGELSTRATEGIE – wer bestimmt den Vorlauf?\n'
             + '0 = Witterungsführung: nur Außentemperatur über die Heizkurve (Fußpunkt bei 20 °C außen, Auslegepunkt bei −15 °C).\n'
             + '1 = Witterungsführung mit Raumaufschaltung: wie 0, zusätzlich korrigiert durch die Raumtemperatur („Hoval + Raum“).\n'
@@ -3761,8 +3773,22 @@
     });
 
     // Bewegte Teile (Lüfter, Pumpenrad, Pumpen-Wellen) auf die eigene Ebene: dann wird beim Drehen nicht das ganze Schema neu gezeichnet
-    ['fan', 'impeller'].forEach(id => $('schemaFx').appendChild($(id)));
-    document.querySelectorAll('#schema .pump-ring').forEach(r => $('schemaFx').insertBefore(r, $('impeller')));
+    $('fanBox').appendChild($('fan'));
+    document.querySelectorAll('#schema .pump-ring').forEach(r => $('pumpBox').querySelector('.rings').appendChild(r));
+    $('pumpBox').querySelector('.imp-rot').appendChild($('impeller'));
+    // Boxen genau über ihre Stelle im Schema legen (Schema skaliert mit „meet“ in seinen Rahmen)
+    function placeFx() {
+        const wrap = document.querySelector('.schema-wrap'), W = wrap.clientWidth, H = wrap.clientHeight;
+        if (!W || !H) return;
+        const k = Math.min(W / 440, H / 232), ox = (W - 440 * k) / 2, oy = (H - 232 * k) / 2;
+        const put = (el, x, y, w, h) => { el.style.left = (ox + x * k) + 'px'; el.style.top = (oy + y * k) + 'px'; el.style.width = (w * k) + 'px'; el.style.height = (h * k) + 'px'; };
+        put($('fanBox'), 30, 40, 56, 56);
+        put($('pumpBox'), 122, 200, 36, 36);
+    }
+    placeFx();
+    if (window.ResizeObserver) new ResizeObserver(placeFx).observe(document.querySelector('.schema-wrap'));
+    else window.addEventListener('resize', placeFx);
+    const fxToggle = (cls, on) => ['schemaFx', 'fanBox', 'pumpBox'].forEach(id => $(id).classList.toggle(cls, on));
 
     // SVG-Text in eine Breite einpassen: erst zweizeilig (Umbruch an Leerzeichen, „-“ oder „/“), dann kleiner
     function fitSvgText(el, text, maxW) {
@@ -3992,18 +4018,18 @@
         // Betrieb erkennen: Pumpe/Volumenstrom -> Strömung, Leistung -> Lüfter
         const pumping = (n('FlowRate') || 0) > 0 || (n('PumpCP') || 0) > 0 || n('HC1Pump') === 1;
         $('schema').classList.toggle('running', pumping);
-        $('schemaFx').classList.toggle('running', pumping);
+        fxToggle('running', pumping);
         $('schema').classList.toggle('heating', !!msg.heating);
-        $('schemaFx').classList.toggle('heating', !!msg.heating);
+        fxToggle('heating', !!msg.heating);
         // Lüfter dreht nur, wenn der Verdichter läuft; Tempo nach Verdichter-Drehzahl (1 % … 100 % → 3,0 s … 0,8 s je Umdrehung)
         const fanOn = msg.fan !== undefined ? msg.fan > 0 : !!msg.heating;
-        $('schemaFx').classList.toggle('fanon', fanOn);
+        fxToggle('fanon', fanOn);
         if (fanOn) {
             // 0,5-s-Stufen: kein Ruckeln bei kleinen Drehzahländerungen
             const d = (Math.round((3 - Math.min(100, Math.max(1, msg.fan || 60)) / 100 * 2.2) * 2) / 2).toFixed(1) + 's';
-            if ($('schemaFx').style.getPropertyValue('--fan') !== d) $('schemaFx').style.setProperty('--fan', d);
+            if ($('fanBox').style.getPropertyValue('--fan') !== d) $('fanBox').style.setProperty('--fan', d);
         }
-        $('schemaFx').classList.toggle('defrosting', defrosting);
+        fxToggle('defrosting', defrosting);
         $('schema').classList.toggle('defrosting', defrosting);
         syncGlints();
         // offene Auswertung höchstens einmal pro Minute aktualisieren (laufender Tag/Woche/Monat)

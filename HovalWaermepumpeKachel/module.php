@@ -4117,8 +4117,10 @@ class HovalWaermepumpeKachel extends IPSModule
                 $state['dhwReturn'] = true;
             } elseif ($boost) {
                 $state['dhwCharge'] = null;
-                $this->WriteTo('WriteDHWTemp', min($boost['temp'], $this->ReadAttributeFloat('DHWMax')));
-                $this->WriteTo('WriteDHWMode', 4, 0.01, 1800, 'DHWMode');                    // Dauernd Normalbetrieb
+                $this->WriteTo('WriteDHWTemp', $this->DhwKick($state, min($boost['temp'], $this->ReadAttributeFloat('DHWMax')), $now));
+                if ($now - ($state['dhwKick']['toggle'] ?? 0) >= 60) {
+                    $this->WriteTo('WriteDHWMode', 4, 0.01, 1800, 'DHWMode');                // Dauernd Normalbetrieb (nach kurzem Standby-Anstoß)
+                }
             } elseif ($dhw !== null && $this->Setting('pvOn') && !empty($state['pvActive']) && (float) $this->Setting('pvOffDHW') > 0) {
                 // PV-Überschuss: Warmwasser freigeben (Standby/Hysterese aufheben), sonst gibt es keine Anforderung und der
                 // Smart-Grid-Warmwasser-Offset wirkt nicht. Bei „Vorlauf anheben“ (ohne SG) hebt Symcon die Temperatur selbst an.
@@ -4134,8 +4136,14 @@ class HovalWaermepumpeKachel extends IPSModule
                     $this->DhwHysteresis($state, $dhw, $now);
                 } elseif ($dhw['kind'] !== 'off') {
                     $state['dhwCharge'] = null;
-                    $this->WriteTo('WriteDHWTemp', $dhw['temp']);
-                    $this->WriteTo('WriteDHWMode', 4, 0.01, 1800, 'DHWMode');
+                    // Stufe „Aufheizen“: Ladung notfalls anstoßen (Hoval startet erst unter Soll − Schaltdifferenz 05-000)
+                    $this->WriteTo('WriteDHWTemp', $dhw['kind'] === 'boost' ? $this->DhwKick($state, (float) $dhw['temp'], $now) : $dhw['temp']);
+                    if ($dhw['kind'] !== 'boost') {
+                        $state['dhwKick'] = null;
+                    }
+                    if ($now - ($state['dhwKick']['toggle'] ?? 0) >= 60) {
+                        $this->WriteTo('WriteDHWMode', 4, 0.01, 1800, 'DHWMode');
+                    }
                 } else {
                     $state['dhwCharge'] = null;
                     $this->WriteTo('WriteDHWMode', 0, 0.01, 1800, 'DHWMode');                // Standby außerhalb der Ladezeiten
@@ -4218,6 +4226,52 @@ class HovalWaermepumpeKachel extends IPSModule
             $this->WriteTo('WriteDHWMode', 0, 0.01, 1800, 'DHWMode'); // warten, bis Soll − Hysterese unterschritten ist
         }
         $state['dhwCharge'] = $charge;
+    }
+
+    /**
+     * Aufheizen absichern: Die Hoval beginnt eine Ladung erst, wenn der Speicher oben unter Soll − Einschaltdifferenz (05-000, ab Werk 5 K,
+     * nicht über Modbus) liegt. Ist es beim Aufheizen nur wenig zu kalt (z.B. 50 °C bei 58 °C Ziel mit größerer Einschaltdifferenz),
+     * startet nichts. Liegt der Speicher 15 min nach Beginn noch > 1 K unter dem Ziel und lief keine Ladung, wird der Hoval-Sollwert
+     * um 5 K (bis zur max. Warmwassertemperatur) angehoben – ist das nicht möglich, wird kurz Standby/Konstant umgeschaltet. Läuft nach
+     * 45 min immer noch nichts, gibt es eine Meldung mit dem Status der Wärmepumpe. Liefert den zu schreibenden Sollwert.
+     */
+    private function DhwKick(array &$state, float $target, int $now): float
+    {
+        $top = $this->Value('StorageTop');
+        $k = $state['dhwKick'] ?? null;
+        if ($top === null || $top >= $target - 1.0) {
+            $state['dhwKick'] = null;
+            return $target;
+        }
+        if ($k === null || abs(($k['t'] ?? 0) - $target) > 0.1) {
+            $k = ['t' => $target, 'since' => $now, 'seen' => false, 'kick' => 0, 'warned' => false];
+        }
+        if ($this->GetValvePosition() === 'ww') {
+            $k['seen'] = true;
+        }
+        $max = $this->ReadAttributeFloat('DHWMax');
+        $set = $target;
+        if (!$k['seen'] && $now - $k['since'] >= 900) {
+            if ($target + 3 <= $max) {
+                $k['kick'] = 1;
+                $set = min($max, $target + 5);           // Sollwert anheben, damit die Einschaltdifferenz überschritten ist
+            } elseif ($k['kick'] === 0) {
+                $k['kick'] = 2;                          // Ziel (fast) am Maximum: einmal kurz Standby, danach wieder Konstant
+                $this->WriteTo('WriteDHWMode', 0, 0.01, 0);
+                $k['toggle'] = $now;
+            }
+        } elseif ($k['kick'] === 1 && !$k['seen']) {
+            $set = min($max, $target + 5);
+        }
+        if (!$k['seen'] && !$k['warned'] && $now - $k['since'] >= 2700) {
+            $k['warned'] = true;
+            $why = $this->LockActive() ? ' Grund: EVU-/Energieerzeuger-Sperre aktiv.' : '';
+            $this->Notify('dhw-nostart', 'Wärmepumpe – Warmwasser', sprintf('Aufheizen auf %s °C startet nicht (Speicher oben %s °C). WP: %s.%s '
+                . 'Hoval-Einschaltdifferenz 05-000 und max. Warmwassertemperatur prüfen.', $this->Number($target, 0), $this->Number($top, 1),
+                $this->Value('WFAStatus') !== null ? $this->Format('WFAStatus') : ($this->Value('WEZStatus') !== null ? $this->Format('WEZStatus') : '?'), $why), 'control');
+        }
+        $state['dhwKick'] = $k;
+        return $set;
     }
 
     /** Maximaltemperatur Heizkreis: Hoval-Parameter 30690 schreiben (Originalwert wird gesichert und beim Ausschalten zurückgeschrieben) */
@@ -4886,6 +4940,7 @@ class HovalWaermepumpeKachel extends IPSModule
                 'top'     => $this->Value('StorageTop'),
                 'set'     => $this->Value('DHWSetpoint'),
                 'charge'  => $state['dhwCharge'] ?? null,
+                'kick'    => $state['dhwKick'] ?? null,
                 'last'    => $state['dhwLast'] ?? null
             ],
             'demand'    => $state['demand'],
