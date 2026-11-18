@@ -3832,6 +3832,9 @@ class HovalWaermepumpeKachel extends IPSModule
         $days = self::DAY_SETS[$row['Days'] ?? 'mo-so'][1] ?? [1, 2, 3, 4, 5, 6, 7];
         $from = self::Minutes((string) ($row['From'] ?? '00:00'));
         $to = self::Minutes((string) ($row['To'] ?? '00:00'));
+        if ($to % 60 === 59) {
+            $to = ($to + 1) % 1440;                      // „bis 11:59“ heißt bis einschließlich 11:59 → keine Lücke zur nächsten Zeit
+        }
         $minute = (int) date('G', $ts) * 60 + (int) date('i', $ts);
         $dow = (int) date('N', $ts);
         $yesterday = $dow === 1 ? 7 : $dow - 1;
@@ -4106,6 +4109,8 @@ class HovalWaermepumpeKachel extends IPSModule
                 $state['dhwReturn'] = true;                          // nach dem Aufheizen an Programm/Hoval zurückgeben
             }
             $dhw = $this->DHWProgramAt($now);
+            $this->DhwCatchUp($state, $dhw, $now);
+            $boost = $state['boost'];
             if ($holiday !== null) {
                 $state['boost'] = $boost = null;
                 if ($holiday['dhw'] === 'low') {
@@ -4260,6 +4265,11 @@ class HovalWaermepumpeKachel extends IPSModule
         if ($this->GetValvePosition() === 'ww') {
             $k['seen'] = true;
         }
+        if ($this->LockActive()) {
+            $k['since'] = $now;                          // während einer EVU-Sperre nicht anstoßen – Wartezeit danach neu
+            $state['dhwKick'] = $k;
+            return $target;
+        }
         $max = $this->ReadAttributeFloat('DHWMax');
         $set = $target;
         if (!$k['seen'] && $now - $k['since'] >= 900) {
@@ -4283,6 +4293,42 @@ class HovalWaermepumpeKachel extends IPSModule
         }
         $state['dhwKick'] = $k;
         return $set;
+    }
+
+    /**
+     * Aufheizen nach EVU-Sperre nachholen: Fällt während einer Ladezeit mit Stufe „Aufheizen“ eine EVU-/Energieerzeuger-Sperre an und
+     * ist der Speicher am Ende der Ladezeit noch nicht warm (oben > 1 K unter Ziel oder unten unter Ziel − Ladeende unten − 1 K), wird
+     * automatisch ein Aufheizen angehängt (doppelte Sperrdauer, mind. 1 h, höchstens 2 h).
+     */
+    private function DhwCatchUp(array &$state, ?array $dhw, int $now): void
+    {
+        $win = $state['dhwWin'] ?? null;
+        $inBoost = $dhw !== null && $dhw['kind'] === 'boost';
+        if ($inBoost) {
+            if ($win === null) {
+                $win = ['start' => $now, 'temp' => (float) $dhw['temp'], 'lock' => 0];
+            }
+            if ($this->LockActive()) {
+                $win['lock'] += 60;
+            }
+            $state['dhwWin'] = $win;
+            return;
+        }
+        if ($win === null) {
+            return;
+        }
+        $state['dhwWin'] = null;
+        $top = $this->Value('StorageTop');
+        $bottom = $this->Value('StorageBottom');
+        $warm = $top !== null && $top >= $win['temp'] - 1.0
+            && ($bottom === null || $bottom >= $win['temp'] - (float) $this->Setting('dhwSf2Off') - 1.0);
+        if ($win['lock'] > 0 && !$warm && empty($state['boost']) && !$this->HolidayActive($state, $now)) {
+            $dur = max(3600, min(7200, $win['lock'] * 2));   // Speicher ist meist ganz kalt: mind. 1 h, höchstens 2 h
+            $state['boost'] = ['temp' => $win['temp'], 'until' => $now + $dur, 'catchUp' => true];
+            $state['dhwKick'] = null;
+            $this->Notify('dhw-catchup', 'Wärmepumpe – Warmwasser', sprintf('Aufheizen wurde durch eine EVU-Sperre (%d min) unterbrochen – wird jetzt %d min nachgeholt.',
+                round($win['lock'] / 60), round($dur / 60)), 'control');
+        }
     }
 
     /** Maximaltemperatur Heizkreis: Hoval-Parameter 30690 schreiben (Originalwert wird gesichert und beim Ausschalten zurückgeschrieben) */

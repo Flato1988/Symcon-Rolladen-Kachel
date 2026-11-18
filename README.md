@@ -280,6 +280,14 @@ Dauer, Speichertemperatur oben vorher/nachher, Temperaturanstieg, Strom und Ø A
 Außentemperatur liegt (Hinweis auf verkalkten Wärmetauscher, zu wenig Volumenstrom, Fühlerproblem); geprüft wird direkt nach jeder Ladung.
 Die Spreizung (VL − RL) steht im Wärmepumpen-Symbol, im Betrieb farbig bewertet (grün 2,5–8 K).
 
+**Version 7.4:**
+- Warmwasser-Fenster mit Unterreitern **Übersicht · Ladezeiten**, Heizung mit **Raum · Zeitprogramm · Heizkurve**.
+- Status im Warmwasser-Fenster zeigt die echte Ladung (Ventil auf Warmwasser = „lädt“, sonst „bereit“/„Standby“) statt der Programmstufe.
+- ✕ des Fensters liegt nicht mehr unter der Symcon-Titelzeile (Vergrößern-Symbol), größere Tippfläche.
+- **Aufheizen nach EVU-Sperre nachholen:** fällt in eine Aufheizen-Ladezeit eine Sperre und ist der Speicher am Ende noch nicht warm,
+  wird automatisch nachgeladen (doppelte Sperrdauer, 1–2 h, Push-Meldung). Während einer Sperre wird nicht „angestoßen“.
+- Zeitprogramme: Endzeit „xx:59“ gilt einschließlich (z.B. 00:00–11:59 + 12:00–14:59 ohne 1-Minuten-Lücke).
+
 **Version 7.3:** Warmwasser-Hysterese: Ladeende wie bei Hoval (Schichtspeicher 05-011 = 2) über den **unteren Fühler SF2** – geladen wird, bis
 unten Soll − „Ladeende unten“ (wie 05-056, ab Werk 5 K) erreicht ist (vorher endete die Ladung schon, wenn oben der Soll erreicht war, der
 Speicher war unten nicht durchgewärmt). Beendet die Hoval die Ladung selbst, gilt sie ebenfalls als fertig. Aufheizen wird auch angestoßen,

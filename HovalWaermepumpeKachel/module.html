@@ -287,11 +287,11 @@
     .kpi[data-key="OutdoorTemp"] { cursor: pointer; }
     #sheet { position: absolute; inset: 0; z-index: 30; }
     #sheet .sh-back { position: absolute; inset: 0; background: rgba(0, 0, 0, .35); }
-    #sheet .sh-panel { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(820px, calc(100% - 32px)); max-height: calc(100% - 40px);
+    #sheet .sh-panel { position: absolute; left: 50%; top: calc(50% + 29px); transform: translate(-50%, -50%); width: min(820px, calc(100% - 32px)); max-height: calc(100% - 80px);
                        display: flex; flex-direction: column; border-radius: 16px; box-shadow: 0 10px 40px rgba(0, 0, 0, .35);
                        background: var(--sheet-bg, #fff); color: var(--fg); box-sizing: border-box; padding: 10px 12px 12px; }
     #sheet .sh-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 15px; padding: 2px 2px 8px; }
-    #sheet .sh-head .btn { min-width: 40px; min-height: 36px; font-size: 15px; }
+    #sheet .sh-head .btn { min-width: 44px; min-height: 40px; font-size: 16px; position: relative; z-index: 2; touch-action: manipulation; }
     #sheet .sh-tabs { align-self: flex-start; margin-bottom: 8px; flex-wrap: wrap; }
     #sheet .sh-tabs:empty { display: none; }
     #sheet .sh-body { overflow-y: auto; overflow-x: hidden; display: flex; flex-direction: column; gap: 8px; min-height: 0; flex: 1 1 auto; -webkit-overflow-scrolling: touch; }
@@ -302,7 +302,7 @@
     #sheet .card { margin: 0; }
     .linkbtn.info-link { border: 0; background: none; color: var(--acc); font: inherit; font-size: 11.5px; padding: 2px 0; cursor: pointer; text-align: left; align-self: flex-start; }
     /* Handy: von unten, fast ganze Höhe */
-    @media (max-width: 600px) { #sheet .sh-panel { top: auto; bottom: 0; transform: translateX(-50%); width: 100%; height: calc(100% - 40px); max-height: none; border-radius: 16px 16px 0 0; } }
+    @media (max-width: 600px) { #sheet .sh-panel { top: auto; bottom: 0; transform: translateX(-50%); width: 100%; height: calc(100% - 64px); max-height: none; border-radius: 16px 16px 0 0; } }
     #sheet .sh-tabs button { min-height: 34px; padding: 4px 14px; font-size: 13px; }
     #sheet .sh-head, #sheet .sh-tabs, #sheet .sh-hero { flex-shrink: 0; }
     @media (max-width: 600px) { #sheet .sh-hero { grid-template-columns: 1fr 1fr; } #sheet .sh-hero b { font-size: 17px; } }
@@ -1107,7 +1107,7 @@
                     <div class="chart-wrap" style="min-height:180px"><svg id="hcChart" class="tchart"></svg><div id="hcTip" class="tip"></div>
                         <div id="hcEmpty" class="empty">Noch keine Werte – die Raumtemperaturen werden ab Version 4.1 je Viertelstunde gesammelt.</div></div>
                 </details>
-                <details class="ed" data-sec="heat"><summary>⚙ Zeitprogramm und Temperaturen <button class="info" data-info="ed-heat" title="Erklärung">i</button></summary><div class="edbody"></div></details>
+                <details class="ed" id="edHeat" data-sec="heat"><summary>⚙ Zeitprogramm und Temperaturen <button class="info" data-info="ed-heat" title="Erklärung">i</button></summary><div class="edbody"></div></details>
             </div>
             <div class="card" id="cCurve" data-page="heat">
                 <h3>Heizkurve <button class="info" data-info="curve" title="Erklärung">i</button><span class="badge" id="cvBadge">–</span></h3>
@@ -1152,7 +1152,7 @@
                     <div class="chart-wrap" style="min-height:180px"><svg id="dcChart" class="tchart"></svg><div id="dcTip" class="tip"></div>
                         <div id="dcEmpty" class="empty">Noch keine Werte – die Speichertemperaturen werden ab Version 4.4 je Viertelstunde gesammelt.</div></div>
                 </details>
-                <details class="ed" data-sec="dhw"><summary>⚙ Ladezeiten und Temperaturen <button class="info" data-info="ed-dhw" title="Erklärung">i</button></summary><div class="edbody"></div></details>
+                <details class="ed" id="edDhw" data-sec="dhw"><summary>⚙ Ladezeiten und Temperaturen <button class="info" data-info="ed-dhw" title="Erklärung">i</button></summary><div class="edbody"></div></details>
             </div>
             <div class="card" id="cRooms" data-page="rooms">
                 <h3>Räume <button class="info" data-info="rooms" title="Erklärung">i</button><span class="badge" id="cDemand">–</span></h3>
@@ -1255,7 +1255,7 @@
     document.addEventListener('DOMContentLoaded', fitHeight);
     const NS = 'http://www.w3.org/2000/svg';
     let values = {};
-    let sheetOpen = null, sheetTab = 0;   // offenes Bauteil-Fenster (hp, heat, dhw, buf, out, grid) und gewählter Unterreiter
+    let sheetOpen = null, sheetTab = 0, lastValve = null;   // offenes Bauteil-Fenster (hp, heat, dhw, buf, out, grid) und gewählter Unterreiter
 
     const f = (key) => values[key] ? values[key].f : '–';          // formatiert (Profil)
     const n = (key) => values[key] ? Number(values[key].v) : null;  // Zahl
@@ -3505,8 +3505,8 @@
             case 'hp': return { title: '🌀 Wärmepumpe', tabs: [parts('Übersicht', ['shHp']), ...(c.curve ? [parts('Heizkurve', ['cCurve'])] : []),
                 ...(typeof refri !== 'undefined' && refri ? [parts('Kältekreis', ['viewRefri'])] : []), parts('Verlauf', ['rangeBtns', 'viewDaily'])] };
             case 'heat': return { title: '🏠 Heizung · Raum', tabs: [parts('Raum', ['shHeatTop', ...(c.ctl ? ['cHeat'] : []), ...((c.roomList || []).length ? ['cRooms'] : [])]),
-                ...(c.curve ? [parts('Heizkurve', ['cCurve'])] : [])] };
-            case 'dhw': return { title: '🚿 Warmwasser', tabs: [parts('', c.dhwCtl ? ['cDhw'] : ['shDhwInfo', 'dcChartBox'])] };
+                ...(c.ctl ? [parts('Zeitprogramm', ['edHeat'])] : []), ...(c.curve ? [parts('Heizkurve', ['cCurve'])] : [])] };
+            case 'dhw': return { title: '🚿 Warmwasser', tabs: c.dhwCtl ? [parts('Übersicht', ['cDhw']), parts('Ladezeiten', ['edDhw'])] : [parts('', ['shDhwInfo', 'dcChartBox'])] };
             case 'buf': return { title: '🛢 Puffer', tabs: [parts('', ['shBuf'])] };
             case 'out': return { title: '🌡 Außen', tabs: [parts('', ['shOut'])] };
             case 'grid': return { title: '⚡ Strom · PV', tabs: [parts('', ['shGrid', ...(c.limit ? ['cLimit'] : []), ...(c.pv ? ['cPv'] : [])])] };
@@ -3554,6 +3554,8 @@
             part.dataset.i = i;
             body.appendChild(part);
             ids.forEach(id => moveIn(id, part));
+            // Einstell-Editor allein auf einem Unterreiter: wie eine Karte darstellen (gleiche Schriftgrößen wie in den Einstellungen)
+            if (ids.length === 1 && $(ids[0]).tagName === 'DETAILS') part.classList.add('card');
         });
         $('shTabs').innerHTML = def.tabs.length > 1 ? def.tabs.map(([label], i) => `<button data-i="${i}">${label}</button>`).join('') : '';
         $('shTabs').querySelectorAll('button').forEach(b => b.addEventListener('click', () => { sheetTab = Number(b.dataset.i); showSheetTab(); }));
@@ -3616,7 +3618,8 @@
             + tile('Vorlauf HK', fv('HC1FlowTemp'));
         if (sheetOpen === 'dhw') x = tile('oben', fv('StorageTop')) + tile('unten', fv('StorageBottom'))
             + tile('Ziel', d.boost ? tTxt(d.boost.temp) : d.prog && d.prog.temp ? tTxt(d.prog.temp) : (has('DHWSetpoint') && n('DHWSetpoint') > 5 ? f('DHWSetpoint') : null))
-            + tile('Status', d.boost ? 'Aufheizen' : d.charge ? 'lädt' : d.prog ? (d.prog.kind === 'off' ? 'Standby' : (d.charge === null && Number((c.settings || {}).dhwHyst) > 0 ? 'wartet' : 'Laden')) : fv('DHWStatus'), d.boost ? 'warn' : 'acc');
+            + tile('Status', lastValve === 'ww' ? 'lädt' : d.kick && d.kick.kick && !d.kick.seen ? 'angestoßen'
+                : (d.set !== null && d.set !== undefined && d.set > 5) ? (d.boost ? 'Aufheizen – wartet' : 'bereit') : 'Standby', lastValve === 'ww' ? 'warn' : 'acc');
         if (sheetOpen === 'buf') x = tile('oben', fv('BufferTop')) + tile('unten', fv('BufferBottom')) + tile('Soll', fv('BufferSetpoint'));
         if (sheetOpen === 'out') x = tile('Außen', fv('OutdoorTemp')) + tile('Ø 24 h', h.tAvg !== null && h.tAvg !== undefined ? tTxt(h.tAvg) : null) + tile('Saison', SN[h.season]) + tile('Luftfeuchte', fv('Humidity'));
         if (sheetOpen === 'grid') x = tile('WP jetzt', $('tElec').textContent) + tile('PV-Überschuss', c.pv ? kwTxt(pv.avail) : null, pv.active ? 'ok' : '')
@@ -4004,6 +4007,7 @@
 
         // Y-Ventil: aktiven Zweig hervorheben, den anderen ausgrauen
         const valve = msg.valve; // "ww" oder "heat"
+        lastValve = valve;
         const wwOff = valve === 'heat', heatOff = valve === 'ww';
         ['pipeWW', 'bgWW', 'pipeRetWW'].forEach(id => $(id).classList.toggle('inactive', wwOff));
         ['pipeHeat', 'bgHeat', 'pipeRetHeat'].forEach(id => $(id).classList.toggle('inactive', heatOff));
