@@ -474,6 +474,9 @@ class HovalWaermepumpeKachel extends IPSModule
             case 'PowerDay': // Kachel fordert die 15-min-Werte eines Tages an: "YYYY-MM-DD"
                 $this->UpdateVisualizationValue(json_encode(['powerDay' => $this->GetPowerDay((string) $Value)]));
                 break;
+            case 'OutYears': // Außentemperatur je Jahr
+                $this->UpdateVisualizationValue(json_encode(['outYears' => $this->GetOutView()]));
+                break;
             case 'Year': // Jahresvergleich
                 $this->UpdateVisualizationValue(json_encode(['year' => $this->GetYearView()]));
                 break;
@@ -2512,6 +2515,22 @@ class HovalWaermepumpeKachel extends IPSModule
             if (isset($d['tmax']) && $d['tmax'] !== null) {
                 $b['tmax'] = isset($b['tmax']) ? max($b['tmax'], $d['tmax']) : $d['tmax'];
             }
+            // für die Außentemperatur-Auswertung: kältester/wärmster Tag (Tagesmittel) und Tiefst-/Höchstwert mit Datum, Frost-/Heiztage
+            if (isset($d['t']) && $d['t'] !== null) {
+                if (!isset($b['tcd']) || $d['t'] < $b['tcd'][1]) { $b['tcd'] = [$d['d'], $d['t']]; }
+                if (!isset($b['twd']) || $d['t'] > $b['twd'][1]) { $b['twd'] = [$d['d'], $d['t']]; }
+                $b['gt'] = round(($b['gt'] ?? 0) + ($d['t'] < 15 ? 20 - $d['t'] : 0), 1);
+                $b['hd'] = ($b['hd'] ?? 0) + ($d['t'] < 15 ? 1 : 0);
+            }
+            if (isset($d['tmin']) && $d['tmin'] !== null) {
+                if (!isset($b['tmnD']) || $d['tmin'] <= $b['tmin']) { $b['tmnD'] = $d['d']; }
+                $b['fd'] = ($b['fd'] ?? 0) + ($d['tmin'] < 0 ? 1 : 0);
+            }
+            if (isset($d['tmax']) && $d['tmax'] !== null) {
+                if (!isset($b['tmxD']) || $d['tmax'] >= $b['tmax']) { $b['tmxD'] = $d['d']; }
+                $b['id'] = ($b['id'] ?? 0) + ($d['tmax'] < 0 ? 1 : 0);
+                $b['sd'] = ($b['sd'] ?? 0) + ($d['tmax'] >= 25 ? 1 : 0);
+            }
             $monthly[$m] = $b;
             $changed = true;
         }
@@ -2580,6 +2599,107 @@ class HovalWaermepumpeKachel extends IPSModule
         }
         ksort($years);
         return ['years' => $years, 'price' => $price];
+    }
+
+    /**
+     * Außentemperatur je Jahr: Jahresmittel, kältester/wärmster Tag (Tagesmittel), Tiefst-/Höchstwert, Frost-, Eis-, Sommer- und Heiztage,
+     * Heizgradtage (20/15) und Monatsmittel. Quellen: Symcon-Archiv der Außentemperatur (falls geloggt, bis 10 Jahre zurück),
+     * die eigenen Tageswerte und die Monatswerte älterer Tage.
+     */
+    private function GetOutView(): array
+    {
+        $days = [];   // 'Y-m-d' => [t, tmin, tmax]
+        $src = [];
+        $id = $this->GetVariableID('OutdoorTemp');
+        $archives = function_exists('IPS_GetInstanceListByModuleID') ? IPS_GetInstanceListByModuleID('{43192F0B-135B-4CE7-A0A7-1475603F3060}') : [];
+        if ($id > 0 && $archives && @AC_GetLoggingStatus($archives[0], $id)) {
+            $from = mktime(0, 0, 0, 1, 1, (int) date('Y') - 10);
+            foreach (@AC_GetAggregatedValues($archives[0], $id, 1, $from, time(), 0) ?: [] as $row) {
+                if (isset($row['Avg']) && ($row['Duration'] ?? 86400) >= 43200) {
+                    $days[date('Y-m-d', (int) $row['TimeStamp'])] = [round((float) $row['Avg'], 1), round((float) $row['Min'], 1), round((float) $row['Max'], 1)];
+                }
+            }
+            if ($days) {
+                $src[] = 'archive';
+            }
+        }
+        $archMonths = [];
+        foreach (array_keys($days) as $date) {
+            $archMonths[substr($date, 0, 7)] = true;
+        }
+        foreach ($this->AllDays() as $d) {
+            if (isset($d['t']) && $d['t'] !== null && (($d['n'] ?? 1440) >= 720 || !empty($d['p']))) {
+                $days[$d['d']] = [(float) $d['t'], $d['tmin'] ?? $d['t'], $d['tmax'] ?? $d['t']];
+            }
+        }
+        if (count($days) > 0) {
+            $src[] = 'days';
+        }
+        ksort($days);
+        $years = [];
+        $blank = fn () => ['n' => 0, 'sum' => 0.0, 'cold' => null, 'warm' => null, 'min' => null, 'max' => null, 'frost' => 0, 'ice' => 0, 'summer' => 0, 'hot' => 0,
+                           'heat' => 0, 'gt' => 0.0, 'm' => array_fill(1, 12, [0.0, 0])];
+        foreach ($days as $date => [$t, $mn, $mx]) {
+            $y = (int) substr($date, 0, 4);
+            $mo = (int) substr($date, 5, 2);
+            $b = $years[$y] ?? $blank();
+            $b['n']++;
+            $b['sum'] += $t;
+            $b['m'][$mo][0] += $t;
+            $b['m'][$mo][1]++;
+            if ($b['cold'] === null || $t < $b['cold'][1]) { $b['cold'] = [$date, $t]; }
+            if ($b['warm'] === null || $t > $b['warm'][1]) { $b['warm'] = [$date, $t]; }
+            if ($b['min'] === null || $mn < $b['min'][1]) { $b['min'] = [$date, $mn]; }
+            if ($b['max'] === null || $mx > $b['max'][1]) { $b['max'] = [$date, $mx]; }
+            $b['frost'] += $mn < 0 ? 1 : 0;
+            $b['ice'] += $mx < 0 ? 1 : 0;
+            $b['summer'] += $mx >= 25 ? 1 : 0;
+            $b['hot'] += $mx >= 30 ? 1 : 0;
+            if ($t < 15) {
+                $b['heat']++;
+                $b['gt'] += 20 - $t;
+            }
+            $years[$y] = $b;
+        }
+        // ältere, zu Monatswerten zusammengefasste Tage (getrennt von den Tageswerten; nur Monate, die das Archiv nicht schon abdeckt)
+        foreach (json_decode($this->ReadAttributeString('MonthlyHistory'), true) ?: [] as $m => $mb) {
+            $y = (int) substr($m, 0, 4);
+            $mo = (int) substr($m, 5, 2);
+            if (empty($mb['tN']) || isset($archMonths[$m])) {
+                continue;
+            }
+            $b = $years[$y] ?? $blank();
+            $b['n'] += $mb['tN'];
+            $b['sum'] += $mb['tSum'];
+            $b['m'][$mo] = [$b['m'][$mo][0] + (float) $mb['tSum'], $b['m'][$mo][1] + (int) $mb['tN']];
+            if (isset($mb['tcd']) && ($b['cold'] === null || $mb['tcd'][1] < $b['cold'][1])) { $b['cold'] = $mb['tcd']; }
+            if (isset($mb['twd']) && ($b['warm'] === null || $mb['twd'][1] > $b['warm'][1])) { $b['warm'] = $mb['twd']; }
+            if (isset($mb['tmin']) && ($b['min'] === null || $mb['tmin'] < $b['min'][1])) { $b['min'] = [$mb['tmnD'] ?? $m, (float) $mb['tmin']]; }
+            if (isset($mb['tmax']) && ($b['max'] === null || $mb['tmax'] > $b['max'][1])) { $b['max'] = [$mb['tmxD'] ?? $m, (float) $mb['tmax']]; }
+            foreach (['fd' => 'frost', 'id' => 'ice', 'sd' => 'summer', 'hd' => 'heat'] as $f => $k) {
+                $b[$k] += (int) ($mb[$f] ?? 0);
+            }
+            $b['gt'] += (float) ($mb['gt'] ?? 0);
+            $years[$y] = $b;
+        }
+        ksort($years);
+        $out = [];
+        $all = [];
+        foreach ($years as $y => $b) {
+            $months = [];
+            foreach ($b['m'] as $mo => [$sum, $n]) {
+                $months[] = $n > 0 ? round($sum / $n, 1) : null;
+            }
+            $avg = $b['n'] > 0 ? round($b['sum'] / $b['n'], 1) : null;
+            $full = $b['n'] >= 330;
+            if ($full && $avg !== null) {
+                $all[] = $avg;
+            }
+            $out[$y] = ['n' => $b['n'], 'avg' => $avg, 'full' => $full, 'cold' => $b['cold'], 'warm' => $b['warm'], 'min' => $b['min'], 'max' => $b['max'],
+                        'frost' => $b['frost'], 'ice' => $b['ice'], 'summer' => $b['summer'], 'hot' => $b['hot'], 'heat' => $b['heat'], 'gt' => round($b['gt']),
+                        'months' => $months];
+        }
+        return ['years' => $out, 'longAvg' => $all ? round(array_sum($all) / count($all), 1) : null, 'longN' => count($all), 'src' => $src];
     }
 
     // ---------------------------------------------------------------- Einsparempfehlungen
@@ -3662,7 +3782,7 @@ class HovalWaermepumpeKachel extends IPSModule
     private const SETTING_LIMITS = [
         'winterBelow' => [-10, 20], 'summerAbove' => [5, 30], 'ecoWinter' => [10, 25], 'ecoTransition' => [10, 25],
         'comfortWinter' => [10, 30], 'comfortTransition' => [10, 30], 'comfortSummer' => [10, 30],
-        'dhwComfort' => [30, 70], 'dhwBoost' => [30, 70], 'dhwHyst' => [0, 20], 'dhwSf2Off' => [0, 40], 'optMax' => [0.5, 6], 'hcMax' => [25, 60],
+        'dhwComfort' => [30, 70], 'dhwBoost' => [30, 70], 'dhwLegio' => [50, 70], 'dhwHyst' => [0, 20], 'dhwSf2Off' => [0, 40], 'optMax' => [0.5, 6], 'hcMax' => [25, 60],
         'cFoot' => [15, 45], 'cDesign' => [20, 65], 'cDesignAT' => [-30, 5], 'cVlMin' => [15, 40], 'cVlMax' => [25, 65],
         'cRoomFactor' => [0, 5], 'pvVlBoost' => [0, 5], 'pvBufMax' => [25, 65],
         'roomHyst' => [0.1, 2], 'roomMin' => [0, 120], 'maxPeak' => [1, 100], 'margin' => [0, 5], 'minHP' => [0, 20], 'hpMax' => [0.5, 30],
@@ -3678,7 +3798,7 @@ class HovalWaermepumpeKachel extends IPSModule
             $defaults = [
                 'ctlOn' => $this->ReadPropertyBoolean('ControlEnabled'), 'roomsOn' => $this->ReadPropertyBoolean('RoomDemandEnabled'),
                 'limitOn' => $this->ReadPropertyBoolean('PowerLimitEnabled'), 'pvOn' => false,
-                'dhwComfort' => 50.0, 'dhwBoost' => 58.0, 'dhwHyst' => 0.0, 'dhwSf2Off' => 5.0, 'optOn' => false, 'optMax' => 3.0, 'hcMaxOn' => false, 'hcMax' => 40.0,
+                'dhwComfort' => 50.0, 'dhwBoost' => 58.0, 'dhwLegio' => 60.0, 'dhwHyst' => 0.0, 'dhwSf2Off' => 5.0, 'optOn' => false, 'optMax' => 3.0, 'hcMaxOn' => false, 'hcMax' => 40.0,
                 'curveMode' => 'hoval', 'cLearn' => true,
                 // Symcon-Grundkurve: solange nicht selbst eingestellt, gleich der aktuellen Hoval-Kurve
                 'cFoot' => $this->Value('CurveFoot') ?? 24.0, 'cDesign' => $this->Value('CurveDesign') ?? 35.0, 'cDesignAT' => $this->Value('CurveDesignAT') ?? -12.0, 'cVlMin' => 20.0, 'cVlMax' => 45.0,
@@ -3752,7 +3872,7 @@ class HovalWaermepumpeKachel extends IPSModule
                               'Temp' => round(max(10, min($key === 'heatPrograms' ? 30 : 70, (float) ($row['Temp'] ?? 20))) * 2) / 2];
                     if ($key === 'dhwPrograms') {
                         // Stufe: comfort / boost (Temperatur aus den Warmwasser-Einstellungen) oder custom (eigene Temperatur)
-                        $clean['Level'] = in_array($row['Level'] ?? '', ['comfort', 'boost', 'custom'], true) ? $row['Level'] : 'custom';
+                        $clean['Level'] = in_array($row['Level'] ?? '', ['comfort', 'boost', 'legio', 'custom'], true) ? $row['Level'] : 'custom';
                     }
                     if ($key === 'heatPrograms') {
                         $clean['Season'] = isset(self::SEASONS[$row['Season'] ?? '']) ? $row['Season'] : 'winter';
@@ -3897,14 +4017,26 @@ class HovalWaermepumpeKachel extends IPSModule
         if (count($rows) === 0) {
             return null;
         }
+        // Überlappende Ladezeiten: Legionellen vor allem anderen, danach der speziellere Tag (z.B. „Sonntag“ vor „Mo–So“), sonst die erste
+        $hit = null;
         foreach ($rows as $row) {
-            if (self::InWindow($row, $ts)) {
-                $level = $row['Level'] ?? 'custom';
-                $temp = $level === 'comfort' ? (float) $this->Setting('dhwComfort') : ($level === 'boost' ? (float) $this->Setting('dhwBoost') : (float) $row['Temp']);
-                return ['kind' => $level === 'boost' ? 'boost' : 'on', 'level' => $level, 'temp' => min($temp, $this->ReadAttributeFloat('DHWMax'))];
+            if (!self::InWindow($row, $ts)) {
+                continue;
+            }
+            $rank = (($row['Level'] ?? '') === 'legio' ? 0 : 10) + count(self::DAY_SETS[$row['Days']][1] ?? [1, 2, 3, 4, 5, 6, 7]);
+            if ($hit === null || $rank < $hit[0]) {
+                $hit = [$rank, $row];
             }
         }
-        return ['kind' => 'off', 'temp' => null];
+        if ($hit === null) {
+            return ['kind' => 'off', 'temp' => null];
+        }
+        $row = $hit[1];
+        $level = $row['Level'] ?? 'custom';
+        $temp = $level === 'comfort' ? (float) $this->Setting('dhwComfort')
+            : ($level === 'boost' ? (float) $this->Setting('dhwBoost') : ($level === 'legio' ? (float) $this->Setting('dhwLegio') : (float) $row['Temp']));
+        // Legionellen = Aufheizen auf die Legionellentemperatur (lädt immer, ohne Hysterese, mit Anstoß und EVU-Nachholen)
+        return ['kind' => in_array($level, ['boost', 'legio'], true) ? 'boost' : 'on', 'level' => $level, 'temp' => min($temp, $this->ReadAttributeFloat('DHWMax'))];
     }
 
     /** Nächster Wechsel eines Programms (Suche in 15-min-Schritten, max. 2 Tage) */
@@ -4306,7 +4438,10 @@ class HovalWaermepumpeKachel extends IPSModule
         $inBoost = $dhw !== null && $dhw['kind'] === 'boost';
         if ($inBoost) {
             if ($win === null) {
-                $win = ['start' => $now, 'temp' => (float) $dhw['temp'], 'lock' => 0];
+                $win = ['start' => $now, 'temp' => (float) $dhw['temp'], 'lock' => 0, 'legio' => ($dhw['level'] ?? '') === 'legio'];
+            }
+            if (!empty($win['legio']) && $this->DhwWarm((float) $dhw['temp'])) {
+                $state['legioLast'] = $now;                    // Legionellenschaltung erreicht (oben und unten durchgewärmt)
             }
             if ($this->LockActive()) {
                 $win['lock'] += 60;
@@ -4318,10 +4453,11 @@ class HovalWaermepumpeKachel extends IPSModule
             return;
         }
         $state['dhwWin'] = null;
-        $top = $this->Value('StorageTop');
-        $bottom = $this->Value('StorageBottom');
-        $warm = $top !== null && $top >= $win['temp'] - 1.0
-            && ($bottom === null || $bottom >= $win['temp'] - (float) $this->Setting('dhwSf2Off') - 1.0);
+        $warm = $this->DhwWarm((float) $win['temp']);
+        if (!empty($win['legio']) && !$warm && $win['lock'] === 0) {
+            $this->Notify('dhw-legio', 'Wärmepumpe – Warmwasser', sprintf('Legionellenschaltung: %.0f °C wurden in der Ladezeit nicht erreicht (oben %s °C).',
+                $win['temp'], $this->Value('StorageTop') === null ? '–' : number_format((float) $this->Value('StorageTop'), 1, ',', '')), 'control');
+        }
         if ($win['lock'] > 0 && !$warm && empty($state['boost']) && !$this->HolidayActive($state, $now)) {
             $dur = max(3600, min(7200, $win['lock'] * 2));   // Speicher ist meist ganz kalt: mind. 1 h, höchstens 2 h
             $state['boost'] = ['temp' => $win['temp'], 'until' => $now + $dur, 'catchUp' => true];
@@ -4329,6 +4465,15 @@ class HovalWaermepumpeKachel extends IPSModule
             $this->Notify('dhw-catchup', 'Wärmepumpe – Warmwasser', sprintf('Aufheizen wurde durch eine EVU-Sperre (%d min) unterbrochen – wird jetzt %d min nachgeholt.',
                 round($win['lock'] / 60), round($dur / 60)), 'control');
         }
+    }
+
+    /** Speicher durchgewärmt: oben ≥ Ziel − 1 K und unten ≥ Ziel − Ladeende unten − 1 K */
+    private function DhwWarm(float $temp): bool
+    {
+        $top = $this->Value('StorageTop');
+        $bottom = $this->Value('StorageBottom');
+        return $top !== null && $top >= $temp - 1.0
+            && ($bottom === null || $bottom >= $temp - (float) $this->Setting('dhwSf2Off') - 1.0);
     }
 
     /** Maximaltemperatur Heizkreis: Hoval-Parameter 30690 schreiben (Originalwert wird gesichert und beim Ausschalten zurückgeschrieben) */
@@ -4990,6 +5135,8 @@ class HovalWaermepumpeKachel extends IPSModule
                 'boost'   => $state['boost'],
                 'comfort' => (float) $settings['dhwComfort'],
                 'boostT'  => (float) $settings['dhwBoost'],
+                'legioT'  => (float) $settings['dhwLegio'],
+                'legioLast' => $state['legioLast'] ?? null,
                 'bottom'  => $this->Value('StorageBottom'),
                 'max'     => $this->ReadAttributeFloat('DHWMax'),
                 'prog'    => $dhw === null ? null : $dhw + ['until' => $this->NextChange(fn ($ts) => $this->DHWProgramAt($ts), $now)],

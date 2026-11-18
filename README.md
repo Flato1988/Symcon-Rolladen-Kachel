@@ -280,6 +280,20 @@ Dauer, Speichertemperatur oben vorher/nachher, Temperaturanstieg, Strom und Ø A
 Außentemperatur liegt (Hinweis auf verkalkten Wärmetauscher, zu wenig Volumenstrom, Fühlerproblem); geprüft wird direkt nach jeder Ladung.
 Die Spreizung (VL − RL) steht im Wärmepumpen-Symbol, im Betrieb farbig bewertet (grün 2,5–8 K).
 
+**Version 7.5:**
+- Neue Warmwasser-Stufe **Legionellen** in den Ladezeiten (eigene Temperatur, Vorgabe 60 °C), z.B. nur sonntags 13–15 Uhr. Lädt immer
+  (ohne Hysterese, mit Anstoß und EVU-Nachholen), Speicher wird oben und unten durchgewärmt; „Zuletzt erreicht“ wird angezeigt,
+  Push-Meldung, wenn die Temperatur in der Ladezeit nicht erreicht wurde. Überlappen sich Ladezeiten, gilt Legionellen vor allem anderen,
+  danach der speziellere Tag (z.B. „Sonntag“ vor „Mo–So“).
+- **Reiter überall** im gleichen Stil wie im Bauteil-Fenster: Haupt-Reiter, Auswertung und Einstellungen als verbundene Reitergruppe,
+  am Handy als Raster über die ganze Breite. Einstellungen je Karte ein Reiter (Status · Funktionen · Urlaub · Heizung · Heizkurve ·
+  Warmwasser · Räume · Leistung · PV); Kosten (Vergleich · Laufend · Nach Außentemperatur), Wärme (Je Tag · Über Außentemperatur · Liste),
+  Warmwasser, Jahre und Kältekreis mit Unterreitern – kein langes Scrollen mehr. Kennzahlen (Pumpe ↔ eigene Messung) im Fenster Wärmepumpe.
+- **Kältekreis-Schema vergrößern:** antippen öffnet eine Großansicht (live); am Handy im Hochformat um 90° gedreht, also quer halten.
+- **Außentemperatur je Jahr** (Auswertung › Außen und Fenster Außen › Jahre): Jahresmittel, kältester/wärmster Tag, Tiefst-/Höchstwert mit Datum,
+  Frost-/Eis-/Sommertage, Heiztage und Heizgradtage, Monatsmittel der letzten Jahre im Vergleich. Ist die Außentemperatur in Symcon geloggt,
+  werden die Werte aus dem Archiv ergänzt (bis 10 Jahre zurück). Zusammengefasste alte Tage behalten den kältesten/wärmsten Tag je Monat.
+
 **Version 7.4:**
 - Warmwasser-Fenster mit Unterreitern **Übersicht · Ladezeiten**, Heizung mit **Raum · Zeitprogramm · Heizkurve**.
 - Status im Warmwasser-Fenster zeigt die echte Ladung (Ventil auf Warmwasser = „lädt“, sonst „bereit“/„Standby“) statt der Programmstufe.
