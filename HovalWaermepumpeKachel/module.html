@@ -3853,13 +3853,27 @@
     const fv = (key) => has(key) ? f(key) : null;
     const link = (txt, act) => `<button class="btn" data-act="${act}">${txt}</button>`;
     // große Kennwerte oben im Fenster – das Wichtigste auf einen Blick
+    // eigene Werte (gemessen/berechnet) mit Hoval-Wert zum Vergleich; ohne eigene Messung der Hoval-Wert mit Hinweis
+    let ownMsg = null;
+    function ownVals() {
+        const o = ownMsg || {}, kw = (v) => num(v, 2) + ' kW', val = (v) => v !== null && v !== undefined;
+        const pick = (own, hov, fmt, ownOk) => ownOk ? [fmt(own), val(hov) ? 'Hoval ' + fmt(hov) : '']
+            : val(hov) ? [fmt(hov) + ' (Hoval)', ''] : ['–', ''];
+        const [p, pH] = pick(o.p, o.pH, kw, val(o.p));
+        const [q, qH] = pick(o.q, o.qH, kw, val(o.q));
+        // COP nur bei laufendem Verdichter – sonst „–“ statt 0,0
+        const [cop, copH] = o.run ? pick(o.cop, o.copH, (v) => num(v, 2), val(o.cop)) : ['–', ''];
+        const [jaz, jazH] = pick(o.jaz, o.jazH, (v) => num(v, 2), val(o.jaz));
+        return { p, pH, q, qH, cop, copH, jaz: jaz + (val(o.jaz) && o.jazSrc ? '' : ''), jazH };
+    }
     function fillHero() {
         const c = ctl || {}, rs = c.roomStats || {}, d = c.dhw || {}, pv = c.pvState || {}, h = c.heat || {};
         const tile = (label, val, cls) => val === null || val === undefined || val === '' || val === '–' ? '' : `<div><span>${label}</span><b class="${cls || ''}">${val}</b></div>`;
         const dev = rs.avgIst !== null && rs.avgIst !== undefined && rs.avgSoll ? rs.avgIst - rs.avgSoll : null;
         const SN = { winter: 'Winter', transition: 'Übergang', summer: 'Sommer' };
         let x = '';
-        if (sheetOpen === 'hp') x = tile('Status', fv('WFAStatus') || fv('WEZStatus'), 'acc') + tile('Leistung el.', $('tElec').textContent) + tile('Vorlauf', fv('FlowTemp')) + tile('COP', fv('COPPump'));
+        if (sheetOpen === 'hp') { const o = ownVals();
+            x = tile('Status', fv('WFAStatus') || fv('WEZStatus'), 'acc') + tile('Leistung el.', o.p) + tile('Leistung therm.', o.q) + tile('COP', o.cop === '–' ? 'Verdichter aus' : o.cop); }
         if (sheetOpen === 'heat') x = tile('Raum Ø', rs.avgIst !== null && rs.avgIst !== undefined ? tTxt(rs.avgIst) : null)
             + tile('Soll', rs.avgSoll ? tTxt(rs.avgSoll) : (h.prog && h.prog.temp ? tTxt(h.prog.temp) : null))
             + tile('Abweichung', dev === null ? null : (dev > 0 ? '+' : '') + num(dev, 1) + ' K', dev === null ? '' : Math.abs(dev) <= 0.5 ? 'ok' : 'warn')
@@ -3874,6 +3888,7 @@
             + tile('heute', $('pwEnergy') ? $('pwEnergy').textContent : null) + tile('Kosten heute', $('pwCost') ? $('pwCost').textContent : null);
         if ($('shHero').innerHTML !== x) $('shHero').innerHTML = x;
     }
+    const rowH = (label, v, hov) => `<div><span>${label}</span><b>${v}${v !== '–' && hov ? ` <small style="opacity:.55;font-weight:400">· ${hov}</small>` : ''}</b></div>`;
     function fillSheet() {
         if (!sheetOpen) return;
         fillHero();
@@ -3881,8 +3896,8 @@
         if (sheetOpen === 'hp') {
             $('shHp').innerHTML = '<div class="shrows">' + row('Wärmeerzeuger', fv('WEZStatus')) + row('Wärmepumpe (WFA)', fv('WFAStatus')) + row('Betriebswahl', fv('OperatingMode'))
                 + row('Vorlauf', fv('FlowTemp')) + row('Rücklauf', fv('ReturnTemp')) + row('Spreizung', $('tSpread').textContent) + row('VL-Soll', fv('WEZSetpoint'))
-                + row('Modulation', fv('WEZPower')) + row('Verdichter', fv('CompressorSpeed')) + row('Leistung el.', $('tElec').textContent)
-                + row('Leistung thermisch', fv('ThermPower')) + row('COP', fv('COPPump')) + row('JAZ', fv('JAZPump')) + row('Volumenstrom', fv('FlowRate'))
+                + row('Modulation', fv('WEZPower')) + row('Verdichter', fv('CompressorSpeed')) + rowH('Leistung el.', ownVals().p, ownVals().pH)
+                + rowH('Leistung thermisch', ownVals().q, ownVals().qH) + rowH('COP', ownVals().cop, ownVals().copH) + rowH('JAZ', ownVals().jaz, ownVals().jazH) + row('Volumenstrom', fv('FlowRate'))
                 + row('Umwälzpumpe', fv('PumpCP')) + row('Betriebsstunden', fv('Hours')) + row('Verdichterstarts', fv('Cycles'))
                 + row('Abtauungen heute', $('dfValue').textContent) + row('Fehler', fv('ErrorCode')) + '</div>'
                 + `<div class="shlinks">${link('📊 Auswertung', 'stats')}${link('⚡ Leistung heute', 'power')}</div>`;
@@ -4174,6 +4189,7 @@
         // Spreizung im Betrieb typ. 3–8 K: farbig, wenn deutlich daneben (zu klein = Volumenstrom zu hoch, zu groß = zu wenig Durchfluss)
         $('tSpread').style.fill = spread === null || !msg.heating ? '' : spread >= 2.5 && spread <= 8 ? '#30a46c' : spread >= 1.5 && spread <= 10 ? '#f2994a' : 'var(--hot)';
         // elektrische Leistung: gemessen (externer Zähler), sonst Hoval
+        if (msg.own) ownMsg = msg.own;
         const pEl = msg.power ? msg.power.current : null;
         $('tElecLabel').textContent = msg.power && msg.power.measured ? 'Strom (gem.)' : 'Strom';
         $('tElec').textContent = pEl === null || pEl === undefined ? '–' : num(pEl, 2) + ' kW';

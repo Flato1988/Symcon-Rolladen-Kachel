@@ -3590,6 +3590,19 @@ class HovalWaermepumpeKachel extends IPSModule
             'rows'    => $rows,
             'valve'   => $this->GetValvePosition(),
             'heating' => $c['running'],
+            // eigene Werte (gemessener Strom, Wärme aus Volumenstrom × Spreizung) – genauer als die Hoval-Werte; Hoval zum Vergleich
+            'own'     => [
+                'p'    => $c['pMeas'] !== null ? round($c['pMeas'], 3) : null,
+                'pH'   => $c['pHoval'] !== null ? round($c['pHoval'], 3) : null,
+                'q'    => $c['qHyd'] !== null ? round(max(0, $c['qHyd']), 3) : null,
+                'qH'   => $c['qHoval'] !== null ? round($c['qHoval'], 3) : null,
+                'cop'  => $c['copOwn'] !== null ? round($c['copOwn'], 2) : null,
+                'copH' => $c['copPump'],
+                'jaz'  => $c['jazOwn'] !== null ? round($c['jazOwn'], 2) : null,
+                'jazH' => $c['jazPump'],
+                'jazSrc' => $c['heatSource'] . ' ÷ ' . $c['elecSource'],
+                'run'  => $c['compressor']
+            ],
             // Lüfter im Schema: dreht, solange der Verdichter läuft – schneller bei höherer Verdichter-Drehzahl (Lüfter selbst ist nicht im Modbus)
             'fan'     => $this->CompressorRunning() ? ($this->Value('CompressorSpeed') ?? $this->Value('WEZPower') ?? 60) : 0,
             'error'   => ($error !== null && (int) $error !== 255) ? $this->Format('ErrorCode') : null,
