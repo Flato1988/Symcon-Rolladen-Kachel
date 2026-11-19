@@ -657,7 +657,8 @@
     #schemaFx.running .glint.beads:not(.inactive) { opacity: .85; animation: beads 1.1s linear infinite; }
 
     /* Lüfter dreht sich im Betrieb */
-    @keyframes spin { to { transform: rotate(360deg); } }
+    /* Startwinkel ausdrücklich: sonst wird von translateZ(0) der .fxbox per Matrix interpoliert und 360° ergibt „keine Drehung“ */
+    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
     #fan { transform-box: fill-box; transform-origin: center; }
     .fx.heating .blade { fill: var(--acc); opacity: .9; }
     #schema.heating .fan-ring { stroke: var(--acc); }
